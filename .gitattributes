@@ -1,0 +1,4 @@
+﻿* text=auto eol=lf
+*.ipynb filter=nbstripout
+*.sh eol=lf
+*.ps1 eol=crlf

@@ -1,0 +1,4 @@
+﻿max_epochs: 20
+precision: "bf16-mixed"
+accelerator: "gpu"
+devices: 1

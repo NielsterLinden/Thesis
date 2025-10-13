@@ -1,0 +1,7 @@
+﻿defaults:
+  - model: mlp
+  - data: default
+  - trainer: default
+
+seed: 42
+experiment_name: "baseline"

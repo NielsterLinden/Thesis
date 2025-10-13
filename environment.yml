@@ -1,0 +1,32 @@
+﻿name: thesis-ml
+channels: [pytorch, conda-forge, nvidia]
+dependencies:
+  - python=3.11
+  - pytorch=2.4
+  - pytorch-cuda=12.1
+  - torchvision
+  - torchaudio
+  - numpy
+  - pandas
+  - scipy
+  - matplotlib
+  - seaborn
+  - scikit-learn
+  - jupyterlab
+  - ipykernel
+  - pyyaml
+  - python-dotenv
+  - tqdm
+  - ipywidgets
+  - pip
+  - pip:
+      - hydra-core
+      - hydra-colorlog
+      - hydra-optuna-sweeper
+      - hydra-submitit-launcher
+      - rich
+      - wandb
+      - pytest
+      - black
+      - ruff
+      - nbstripout
