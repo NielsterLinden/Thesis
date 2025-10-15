@@ -38,6 +38,29 @@ def train(cfg) -> dict:
     train_loader, val_loader, meta = build_dataloaders(cfg)
     model = build_model(cfg, input_dim=meta["input_dim"], task=meta["task"]).to(device)
 
+    # Optional: initialize Weights & Biases
+    wandb_run = None
+    if bool(cfg.logging.use_wandb):
+        try:
+            import wandb
+
+            wandb_run = wandb.init(
+                project=str(cfg.logging.wandb.project),
+                entity=str(cfg.logging.wandb.entity) or None,
+                name=str(cfg.logging.wandb.run_name) or None,
+                mode=str(cfg.logging.wandb.mode),
+                config=OmegaConf.to_container(cfg, resolve=True),
+            )
+            if bool(cfg.logging.wandb.watch_model):
+                wandb.watch(
+                    model,
+                    log="all",
+                    log_freq=int(cfg.logging.wandb.log_freq),
+                )
+        except Exception as e:  # pragma: no cover - logging side-effect only
+            print(f"[wandb] disabled due to init error: {e}")
+            wandb_run = None
+
     task = meta["task"]
     if task == "regression":
         criterion = torch.nn.MSELoss()
@@ -88,23 +111,33 @@ def train(cfg) -> dict:
 
         if task == "binary" and total > 0:
             acc = correct / total
-            print(
-                f"Epoch {epoch+1}: train_loss={epoch_train_loss:.4f} "
-                f"val_loss={epoch_val_loss:.4f} acc={acc:.3f}"
-            )
+            print(f"Epoch {epoch+1}: train_loss={epoch_train_loss:.4f} " f"val_loss={epoch_val_loss:.4f} acc={acc:.3f}")
         else:
-            print(
-                f"Epoch {epoch+1}: train_loss={epoch_train_loss:.4f} val_loss={epoch_val_loss:.4f}"
-            )
+            print(f"Epoch {epoch+1}: train_loss={epoch_train_loss:.4f} val_loss={epoch_val_loss:.4f}")
+
+        # Per-epoch W&B logging
+        if wandb_run is not None:
+            log = {
+                "epoch": epoch + 1,
+                "train/loss": float(epoch_train_loss),
+                "val/loss": float(epoch_val_loss),
+            }
+            if task == "binary" and total > 0:
+                log["val/acc"] = float(acc)
+            try:  # pragma: no cover - logging side-effect only
+                import wandb
+
+                wandb.log(log, step=epoch + 1)
+            except Exception as e:
+                print(f"[wandb] log failed: {e}")
 
     # Save artifacts
     saved_path: str | None = None
     if run_dir is not None:
-        torch.save(model.state_dict(), run_dir / "model.pt")
+        model_path = run_dir / "model.pt"
+        torch.save(model.state_dict(), model_path)
         if bool(cfg.logging.make_plots) or bool(cfg.logging.show_plots):
-            plots_dir = (
-                run_dir / cfg.logging.plots_subdir if str(cfg.logging.plots_subdir) else run_dir
-            )
+            plots_dir = run_dir / cfg.logging.plots_subdir if str(cfg.logging.plots_subdir) else run_dir
             out_path = plots_dir / f"loss.{cfg.logging.fig_format}"
             plot_loss_curve(
                 train_losses,
@@ -113,16 +146,27 @@ def train(cfg) -> dict:
                 save=bool(cfg.logging.make_plots),
                 out_path=out_path,
             )
+        # Upload artifacts to W&B
+        if wandb_run is not None and bool(cfg.logging.wandb.log_artifacts):
+            try:  # pragma: no cover - logging side-effect only
+                import wandb
+
+                art = wandb.Artifact("model", type="model")
+                art.add_file(str(model_path))
+                wandb.log_artifact(art)
+                if ("out_path" in locals()) and out_path is not None and out_path.exists():
+                    wandb.log({"loss_curve": wandb.Image(str(out_path))})
+            except Exception as e:
+                print(f"[wandb] artifact log failed: {e}")
         saved_path = str(run_dir.resolve())
     else:
         # Ephemeral: write to temp dir and remove after
         with tempfile.TemporaryDirectory() as tmp:
             tmp_dir = Path(tmp)
-            torch.save(model.state_dict(), tmp_dir / "model.pt")
+            model_path = tmp_dir / "model.pt"
+            torch.save(model.state_dict(), model_path)
             if bool(cfg.logging.make_plots) or bool(cfg.logging.show_plots):
-                plots_dir = (
-                    tmp_dir / cfg.logging.plots_subdir if str(cfg.logging.plots_subdir) else tmp_dir
-                )
+                plots_dir = tmp_dir / cfg.logging.plots_subdir if str(cfg.logging.plots_subdir) else tmp_dir
                 out_path = plots_dir / f"loss.{cfg.logging.fig_format}"
                 plot_loss_curve(
                     train_losses,
@@ -131,7 +175,26 @@ def train(cfg) -> dict:
                     save=bool(cfg.logging.make_plots),
                     out_path=out_path,
                 )
+            # Upload artifacts to W&B before temp dir deletes
+            if wandb_run is not None and bool(cfg.logging.wandb.log_artifacts):
+                try:  # pragma: no cover - logging side-effect only
+                    import wandb
+
+                    art = wandb.Artifact("model", type="model")
+                    art.add_file(str(model_path))
+                    wandb.log_artifact(art)
+                    if ("out_path" in locals()) and out_path is not None and out_path.exists():
+                        wandb.log({"loss_curve": wandb.Image(str(out_path))})
+                except Exception as e:
+                    print(f"[wandb] artifact log failed: {e}")
             # directory auto-deletes here
+
+    # Finish W&B run
+    if wandb_run is not None:
+        try:  # pragma: no cover - logging side-effect only
+            wandb_run.finish()
+        except Exception as e:
+            print(f"[wandb] finish failed: {e}")
 
     return {
         "final_train_loss": float(train_losses[-1]),
@@ -160,5 +223,5 @@ except Exception:  # pragma: no cover - allow import without hydra installed
         raise RuntimeError("Hydra is required for CLI usage. Install hydra-core to run main().")
 
 
-if __name__ == "__main__":  # pragma: no cover
+if __name__ == "__main__":  # when this file is run direcly, this will run the main function
     main()

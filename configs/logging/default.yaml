@@ -1,6 +1,17 @@
 save_artifacts: false
 make_plots: true
-show_plots: false
+show_plots: true
 output_root: "outputs"
 plots_subdir: ""
 fig_format: "png"
+
+# Weights & Biases (W&B) integration
+use_wandb: false
+wandb:
+  project: "thesis-ml"
+  entity: ""
+  run_name: ""
+  mode: "online"      # "online" | "offline" | "disabled"
+  watch_model: false   # watch gradients/parameters
+  log_freq: 100        # steps between watch logs
+  log_artifacts: true  # upload model and loss plot
