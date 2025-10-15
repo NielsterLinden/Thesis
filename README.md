@@ -1,43 +1,236 @@
-﻿# Thesis ML — Minimal Hydra Project + Notebook Driver
+# 🧠 Thesis
 
-This repository contains a minimal, self-contained PyTorch project with Hydra configs and a hybrid workflow:
+This repository provides a clean, configurable setup for **training and testing ML models** using [Hydra](https://hydra.cc), [PyTorch](https://pytorch.org/), and reproducible experiment management.
 
-- Training logic in `src/` (importable)
-- CLI entrypoint via `python -m thesis_ml.train` (Hydra)
-- Notebook driver that calls the same `train(cfg)`
-- Synthetic data (no external files)
-- Simple loss plot and artifact toggle
+It is designed to be lightweight enough for quick iteration, but structured enough to scale with multiple training loops and models.
 
-## Setup
-```powershell
+---
+
+## 📁 Project Structure
+
+```
+src/thesis_ml/
+│
+├─ __init__.py                     # package initializer
+│
+├─ data/
+│  ├─ __init__.py
+│  └─ synthetic.py                 # synthetic dataset & dataloaders
+│
+├─ models/
+│  ├─ __init__.py
+│  └─ mlp.py                       # tiny configurable MLP (example model)
+│
+├─ utils/
+│  ├─ __init__.py
+│  ├─ plotting.py                  # helper to plot loss curves
+│  └─ seed.py                      # set_all_seeds(seed) for reproducibility
+│
+├─ train/
+│  ├─ __init__.py
+│  ├─ __main__.py                  # CLI dispatcher (Hydra entrypoint)
+│  └─ train_test.py                # example training loop (called from __main__)
+│
+├─ train.py                        # (if single-file version used)
+│
+├─ configs/
+│  ├─ config.yaml                  # composition root for Hydra
+│  ├─ data/
+│  │  └─ synthetic.yaml            # dataset parameters (size, task, seed, split)
+│  ├─ model/
+│  │  └─ mlp.yaml                  # model hyperparameters
+│  ├─ trainer/
+│  │  └─ default.yaml              # training loop parameters
+│  └─ logging/
+│     └─ default.yaml              # artifact-saving policy (plots, checkpoints)
+│
+└─ tests/
+   └─ test_smoke.py                # simple import/forward test
+```
+
+---
+
+## ⚙️ Configuration System (Hydra + OmegaConf)
+
+All experiments are configured via YAML files under `configs/`.
+
+Each top-level run composes these automatically:
+
+| Config group | Purpose                             | Example file                   |
+| ------------ | ----------------------------------- | ------------------------------ |
+| `data`       | Dataset shape and type              | `configs/data/synthetic.yaml`  |
+| `model`      | Architecture hyperparameters        | `configs/model/mlp.yaml`       |
+| `trainer`    | Runtime training parameters         | `configs/trainer/default.yaml` |
+| `logging`    | Artifact saving & plotting behavior | `configs/logging/default.yaml` |
+
+> 🧩 **Why Hydra?**
+> Hydra allows overrides from the command line, e.g.:
+>
+> ```bash
+> python -m thesis_ml.train trainer.epochs=10 model.activation=gelu data.task=binary
+> ```
+>
+> This ensures consistent, reproducible experiments without editing code.
+
+---
+
+## 🧱 Core Components
+
+### **1. Data generation — `data/synthetic.py`**
+
+* Creates reproducible synthetic datasets for regression or binary classification.
+* Reads parameters from `cfg.data` (`n_samples`, `n_features`, `train_frac`, `seed`, `task`).
+* Returns train/val `DataLoader`s and metadata (`input_dim`, `task`).
+
+### **2. Model builder — `models/mlp.py`**
+
+* Constructs an `nn.Sequential` MLP from config (`hidden_sizes`, `dropout`, `activation`).
+* Returns a ready-to-train `torch.nn.Module`.
+* The output dimension is inferred from the task (regression/binary).
+
+### **3. Training loop — `train/train_test.py`**
+
+* Core PyTorch loop: forward → loss → backward → optimizer step.
+* Logs per-epoch train/validation losses (and accuracy if binary).
+* Uses Adam optimizer, task-appropriate loss, and device auto-selection.
+* Saves model and plots to `outputs/<timestamp>/` if `logging.save_artifacts=true`,
+  otherwise runs ephemerally in a temporary directory.
+
+### **4. Entry point — `train/__main__.py`**
+
+* Hydra CLI launcher.
+* Imports the desired training loop (`train_test.main`) and executes it.
+* Keeps Hydra logic separate from the `train()` function so notebooks can import and run cleanly.
+
+---
+
+## 🧪 Usage
+
+### **1. Environment setup**
+
+```bash
 mamba env create -f environment.yml
 mamba activate thesis-ml
-pre-commit install
+pre-commit install  # optional
 ```
 
-## Run
-CLI (Hydra):
+### **2. CLI Training**
+
 ```bash
-python -m thesis_ml.train trainer.epochs=2 logging.save_artifacts=true
+# Default config (ephemeral, no artifacts saved)
+python -m thesis_ml.train
+
+# Persistent run with artifacts saved
+python -m thesis_ml.train logging.save_artifacts=true trainer.epochs=5
 ```
 
-Notebook:
-```bash
-jupyter lab
-# open notebooks/00_driver.ipynb and run
+Artifacts (model, config, plots) are saved to:
+
+```
+outputs/YYYYMMDD-HHMMSS/
 ```
 
-## Artifacts policy
-- When `logging.save_artifacts=false` (default), outputs are written to a temporary directory and removed at the end of the run.
-- When `logging.save_artifacts=true`, a run directory is created under `outputs/YYYYMMDD-HHMMSS/` containing:
-  - `cfg.yaml`
-  - `model.pt`
-  - `loss.png` (if `logging.make_plots=true`)
+### **3. Notebook Usage**
 
-## Configs
-Top-level composition is defined in `configs/config.yaml`, with sub-configs for `data`, `model`, `trainer`, and `logging`.
+```python
+from omegaconf import OmegaConf
+from thesis_ml.train.train_test import train
 
-## Tests
+cfg = OmegaConf.load("configs/config.yaml")
+cfg.trainer.epochs = 2
+cfg.logging.save_artifacts = False
+
+result = train(cfg)
+print(result)
+```
+
+This runs the same logic **without** Hydra’s directory changes — perfect for Jupyter.
+
+---
+
+## 🧩 Logging and Artifact Control
+
+Controlled by `configs/logging/default.yaml`:
+
+```yaml
+save_artifacts: false   # toggle persistent/ephemeral runs
+make_plots: true
+show_plots: false
+output_root: "outputs"
+plots_subdir: ""
+fig_format: "png"
+```
+
+| Mode                   | Behavior                                                                                        |
+| ---------------------- | ----------------------------------------------------------------------------------------------- |
+| `save_artifacts=false` | Writes outputs to a temporary folder, deleted after run.                                        |
+| `save_artifacts=true`  | Creates a timestamped folder under `outputs/` and saves `cfg.yaml`, `model.pt`, and `loss.png`. |
+
+---
+
+## 💡 Extending the project
+
+1. **Add new models** under `src/thesis_ml/models/`.
+2. **Add new training loops** under `src/thesis_ml/train/` (e.g., `vqae_loop.py`, `transformer_loop.py`).
+3. Update `train/__main__.py` with a **dispatcher** if multiple training loops are supported:
+
+   ```python
+   DISPATCH = {"mlp": mlp_main, "vqae": vqae_main}
+   ```
+4. Add new config groups (`configs/model/<new_model>.yaml`, etc.).
+5. Run:
+
+   ```bash
+   python -m thesis_ml.train trainer.loop=vqae
+   ```
+
+---
+
+## 🧠 Design Philosophy
+
+* **Hydra-first** configuration for reproducible and swappable experiments.
+* **Separation of concerns**:
+  * `data/` handles data generation/loading.
+  * `models/` handles architecture creation.
+  * `train/` handles training logic.
+* **Notebook-friendly** imports (`train(cfg)`) without Hydra side-effects.
+* **Minimal dependencies**, pure PyTorch, easily extended.
+
+---
+
+## 📦 Outputs and Experiment Tracking
+
+Each run can produce:
+
+```
+outputs/
+└── 20251015-134512/
+    ├── cfg.yaml           # exact config used
+    ├── model.pt           # trained model weights
+    ├── loss.png           # loss curve
+    └── logs/ (optional)
+```
+
+Use these folders to compare models, re-run with the same seeds, or analyze metrics.
+
+---
+
+## 🧰 Dependencies
+
+Defined in `environment.yml`:
+
+* `python=3.11`
+* `pytorch`, `torchvision`, `torchaudio`
+* `hydra-core`, `omegaconf`
+* `numpy`, `pandas`, `matplotlib`, `scikit-learn`
+* `black`, `ruff`, `pytest`, `jupyterlab`
+
+---
+
+## ✅ Quick sanity test
+
 ```bash
 pytest -q
 ```
+
+Ensures package imports, data generation, and a minimal training step all work.
