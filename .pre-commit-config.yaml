@@ -12,11 +12,12 @@
     rev: 24.8.0
     hooks:
       - id: black
+        args: ["-l", "100"]
   - repo: https://github.com/charliermarsh/ruff-pre-commit
     rev: v0.6.9
     hooks:
       - id: ruff
-        args: [--fix]
+        args: ["--fix"]
   - repo: https://github.com/kynan/nbstripout
     rev: 0.7.1
     hooks:

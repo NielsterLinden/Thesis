@@ -1,0 +1,6 @@
+save_artifacts: false
+make_plots: true
+show_plots: false
+output_root: "outputs"
+plots_subdir: ""
+fig_format: "png"

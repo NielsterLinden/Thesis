@@ -1,7 +1,7 @@
 ﻿defaults:
+  - data: synthetic
   - model: mlp
-  - data: default
   - trainer: default
+  - logging: default
 
-seed: 42
-experiment_name: "baseline"
+# high-level switches go here if needed

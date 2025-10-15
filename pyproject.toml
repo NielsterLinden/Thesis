@@ -5,12 +5,12 @@ description = "Thesis scaffold (configs & tooling)"
 requires-python = ">=3.11"
 
 [tool.black]
-line-length = 100
+line-length = 1000
 target-version = ["py311"]
 
 [tool.ruff]
 target-version = "py311"
-line-length = 100
+line-length = 1000
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM"]
