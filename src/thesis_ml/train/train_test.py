@@ -44,11 +44,16 @@ def train(cfg) -> dict:
         try:
             import wandb
 
+            # Ensure W&B output directory exists
+            wandb_dir = Path(str(cfg.logging.wandb.dir)).resolve()
+            wandb_dir.mkdir(parents=True, exist_ok=True)
+
             wandb_run = wandb.init(
                 project=str(cfg.logging.wandb.project),
                 entity=str(cfg.logging.wandb.entity) or None,
                 name=str(cfg.logging.wandb.run_name) or None,
                 mode=str(cfg.logging.wandb.mode),
+                dir=str(wandb_dir),
                 config=OmegaConf.to_container(cfg, resolve=True),
             )
             if bool(cfg.logging.wandb.watch_model):

@@ -15,3 +15,4 @@ wandb:
   watch_model: false   # watch gradients/parameters
   log_freq: 100        # steps between watch logs
   log_artifacts: true  # upload model and loss plot
+  dir: "${logging.output_root}/wandb"
