@@ -1,0 +1,15 @@
+defaults:
+  - default
+
+make_plots: true
+show_plots: false
+families:
+  metrics: false
+  codebook: false
+  latency:
+    enabled: false
+  adversarial: false
+  diffusion: false
+moments:
+  on_epoch_end_quick: true
+  on_train_end_full: false

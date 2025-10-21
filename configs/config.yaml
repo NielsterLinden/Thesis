@@ -1,7 +1,12 @@
 ﻿defaults:
-  - data: synthetic
-  - model: mlp
-  - trainer: default
   - logging: default
+  - data: h5_tokens
+  - trainer: ae
+  - phase1/model: base
+  - phase1/ae: base
+  - phase1/encoder: mlp
+  - phase1/decoder: mlp
+  - phase1/tokenizer: vq
+  - phase1/trainer: ae
 
 # high-level switches go here if needed

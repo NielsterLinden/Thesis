@@ -1,0 +1,15 @@
+# Multirun grid for Phase 1 (encoders x tokenizers)
+defaults:
+  - override /phase1/encoder: mlp
+  - override /phase1/decoder: mlp
+  - override /phase1/tokenizer: none
+  - override /phase1/trainer: ae
+
+job:
+  name: grid_phase1_4x2
+
+multirun:
+  encoder: [mlp, gnn, gan, diffusion]
+  tokenizer: [none, vq]
+  # Trainer mapping is conceptual; GAN/Diffusion will raise NotImplemented
+  # Keep single ae trainer to validate Hydra composition in Phase 1

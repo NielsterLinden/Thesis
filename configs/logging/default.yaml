@@ -1,11 +1,44 @@
-save_artifacts: false
+save_artifacts: true
 make_plots: true
-show_plots: true
+show_plots: false
 output_root: "outputs"
-plots_subdir: ""
+figures_subdir: "figures"
 fig_format: "png"
+dpi: 150
+file_naming: "{family}-{moment}-{epoch_or_step}"
+destinations: "file"       # "file" | "both" (file only implemented)
+dry_run: false
 
-# Weights & Biases (W&B) integration
+# Families: enable/disable and light/heavy switches where relevant
+families:
+  losses: true
+  metrics: true
+  recon:
+    enabled: false
+    mode: "curves"        # "curves" | "visuals" (visuals requires examples+model)
+  codebook: true
+  latency:
+    enabled: true
+    mode: "light"        # "light" | "heavy"
+  adversarial: false
+  diffusion: false
+
+# Moments: control when to plot
+moments:
+  on_epoch_end_quick: true
+  on_train_end_full: true
+  on_validation_end: false
+  on_test_end: true
+
+# Tags: groups of families for convenience
+tags:
+  core: [losses, metrics]
+  diagnostics: [latency, codebook]
+  heavy: [recon]
+# Optionally enable tags en masse
+enable_tags: []  # e.g., ["core"]
+
+# Weights & Biases (W&B) integration (unchanged; optional)
 use_wandb: false
 wandb:
   project: "thesis-ml"

@@ -1,0 +1,5 @@
+n_samples: 5000
+n_features: 16
+train_frac: 0.8
+seed: 42
+task: "regression"   # or "binary" for classification

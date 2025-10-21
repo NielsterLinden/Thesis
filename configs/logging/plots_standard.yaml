@@ -1,0 +1,14 @@
+defaults:
+  - default
+
+families:
+  recon:
+    enabled: false
+  latency:
+    enabled: true
+    mode: "light"
+  adversarial: false
+  diffusion: false
+moments:
+  on_epoch_end_quick: true
+  on_train_end_full: true

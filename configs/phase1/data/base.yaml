@@ -1,0 +1,12 @@
+path: ${data.path}
+datasets:
+  x_train: ${data.datasets.x_train}
+  x_val: ${data.datasets.x_val}
+  x_test: ${data.datasets.x_test}
+n_tokens: ${data.n_tokens}
+globals:
+  present: ${data.globals.present}
+  size: ${data.globals.size}
+norm: ${data.norm}
+seed: ${data.seed}
+num_workers: ${data.num_workers}

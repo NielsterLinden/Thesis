@@ -1,0 +1,14 @@
+defaults:
+  - default
+
+families:
+  recon:
+    enabled: true
+    mode: "curves"   # keep visuals off unless explicitly enabled
+  latency:
+    enabled: true
+    mode: "heavy"
+moments:
+  on_epoch_end_quick: true
+  on_train_end_full: true
+  on_validation_end: true

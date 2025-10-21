@@ -20,6 +20,8 @@ dependencies:
   - torchvision
   - torchaudio
   - pytorch-cuda=12.1  # requires the nvidia channel
+  - h5py
+  - python-dotenv
   - pip:
       - black==25.9.0
       - hydra-colorlog==1.2.0

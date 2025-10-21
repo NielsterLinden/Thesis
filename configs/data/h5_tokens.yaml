@@ -1,0 +1,15 @@
+path: "C:/Users/niels/Projects/Thesis-Code/Data/4tops_splitted.h5"
+
+datasets:
+  x_train: "X_train"
+  x_val:   "X_val"
+  x_test:  "X_test"
+
+n_tokens: 18
+globals:
+  present: true
+  size: 2
+
+norm: "zscore"
+seed: 42
+num_workers: 4

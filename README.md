@@ -23,7 +23,7 @@ src/thesis_ml/
 │
 ├─ utils/
 │  ├─ __init__.py
-│  ├─ plotting.py                  # helper to plot loss curves
+│  ├─ plotting.py                  # deprecated shim → plots.orchestrator
 │  └─ seed.py                      # set_all_seeds(seed) for reproducibility
 │
 ├─ train/
@@ -42,7 +42,10 @@ src/thesis_ml/
 │  ├─ trainer/
 │  │  └─ default.yaml              # training loop parameters
 │  └─ logging/
-│     └─ default.yaml              # artifact-saving policy (plots, checkpoints)
+│     ├─ default.yaml              # logging+plotting policy (families, moments)
+│     ├─ plots_minimal.yaml        # preset overrides
+│     ├─ plots_standard.yaml       # preset overrides
+│     └─ plots_full.yaml           # preset overrides
 │
 └─ tests/
    └─ test_smoke.py                # simple import/forward test
@@ -152,13 +155,31 @@ This runs the same logic **without** Hydra’s directory changes — perfect for
 
 Controlled by `configs/logging/default.yaml`:
 
+Key plotting policy lives under `configs/logging/`. Important keys:
+
 ```yaml
-save_artifacts: false   # toggle persistent/ephemeral runs
+save_artifacts: true
 make_plots: true
 show_plots: false
 output_root: "outputs"
-plots_subdir: ""
+figures_subdir: "figures"
 fig_format: "png"
+dpi: 150
+file_naming: "{family}-{moment}-{epoch_or_step}"
+destinations: "file"
+families:
+  losses: true
+  metrics: true
+  recon:
+    enabled: false
+    mode: curves  # visuals optional
+  codebook: true
+  latency:
+    enabled: true
+    mode: light
+moments:
+  on_epoch_end_quick: true
+  on_train_end_full: true
 ```
 
 | Mode                   | Behavior                                                                                        |
@@ -167,6 +188,18 @@ fig_format: "png"
 | `save_artifacts=true`  | Creates a timestamped folder under `outputs/` and saves `cfg.yaml`, `model.pt`, and `loss.png`. |
 
 ---
+
+## 💡 Plot Families and Orchestrator
+
+Training loops emit lifecycle events and JSONL facts. The orchestrator routes events to enabled families based on `logging` config. Figures go to `{run_dir}/figures`, facts to `{run_dir}/facts/`.
+
+| Family   | Required inputs                              | Moments                                        | Cost      |
+|----------|-----------------------------------------------|-----------------------------------------------|-----------|
+| losses   | `run_dir`, `history_*_loss`                   | `on_epoch_end`, `on_train_end`                 | low       |
+| metrics  | `run_dir`, `history_metrics` or `metrics`     | `on_epoch_end`, `on_train_end`                 | low       |
+| recon    | curves: histories; visuals: `examples`+hook   | `on_epoch_end`, `on_validation_end`, `on_train_end` | med/heavy |
+| codebook | `run_dir`, `history_perplex`/`history_codebook`| `on_epoch_end`, `on_train_end`                 | low       |
+| latency  | `run_dir`, `history_epoch_time_s` (and thr)   | `on_epoch_end`, `on_train_end`                 | low/med   |
 
 ## 💡 Extending the project
 
@@ -234,3 +267,21 @@ pytest -q
 ```
 
 Ensures package imports, data generation, and a minimal training step all work.
+
+---
+
+## Phase 1 Standalone Autoencoders
+
+Phase 1 introduces a unified autoencoder assembly with Hydra composition. Choose encoder, tokenizer, decoder, trainer, and logging via config overrides.
+
+Run examples (do not execute here):
+
+```bash
+python -m thesis_ml.train logging=plots_minimal phase1/encoder=mlp phase1/decoder=mlp phase1/tokenizer=none phase1/trainer=ae
+```
+
+```bash
+python -m thesis_ml.train logging=plots_standard phase1/encoder=mlp phase1/decoder=mlp phase1/tokenizer=vq phase1/trainer=ae
+```
+
+Artifacts are saved under `outputs/<stamp>/facts` and `outputs/<stamp>/figures`.
