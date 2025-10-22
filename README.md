@@ -151,6 +151,35 @@ This runs the same logic **without** Hydra’s directory changes — perfect for
 
 ---
 
+## 📊 Cross-run reports (VQ vs AE)
+
+Generate sweep-level comparison reports across multiple `run_dir`s.
+
+Requirements per run:
+
+- `cfg.yaml`
+- `facts/scalars.csv` with minimal columns: `epoch,split,val_loss,epoch_time_s`
+- `facts/events.jsonl` containing an `on_train_end` record
+
+CLI (PowerShell examples):
+
+```powershell
+python -m thesis_ml.reports --config-name compare_tokenizers inputs.run_dirs='["outputs/20251021-125542","outputs/20251021-131421"]' outputs.report_subdir=report outputs.which_figures='[val_mse_vs_time,throughput_vs_best_val]'
+```
+
+or a sweep directory:
+
+```powershell
+python -m thesis_ml.reports --config-name compare_tokenizers inputs.sweep_dir='outputs/20251021' outputs.report_subdir=report outputs.which_figures='[val_mse_vs_time,pareto_error_vs_compression,vq_perplexity_boxplot]'
+```
+
+Notes:
+
+- Quote list arguments on Windows.
+- Figures format/DPI are controlled by the report config, independent of logging policy.
+- Outputs are written to `sweep_dir/report/` (or `<common_parent>/report/`) and include `summary.csv`, `summary.json`, and figures.
+
+
 ## 🧩 Logging and Artifact Control
 
 Controlled by `configs/logging/default.yaml`:

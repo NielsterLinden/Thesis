@@ -11,5 +11,5 @@ families:
   adversarial: false
   diffusion: false
 moments:
-  on_epoch_end_quick: true
-  on_train_end_full: false
+  on_epoch_end_quick: false
+  on_train_end_full: true

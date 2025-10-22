@@ -13,3 +13,12 @@ multirun:
   tokenizer: [none, vq]
   # Trainer mapping is conceptual; GAN/Diffusion will raise NotImplemented
   # Keep single ae trainer to validate Hydra composition in Phase 1
+
+report:
+  name: compare_tokenizers
+  inputs:
+    select:
+      encoder: [mlp, gnn, gan, diffusion]
+      tokenizer: [none, vq]
+  outputs:
+    report_subdir: report

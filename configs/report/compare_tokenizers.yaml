@@ -1,0 +1,22 @@
+# Hydra config for cross-run report: compare_tokenizers
+
+inputs:
+  sweep_dir: null           # parent directory containing run folders
+  run_dirs: []              # explicit list of run folders (mutually exclusive with sweep_dir)
+  select:
+    encoder: null           # e.g., [mlp]
+    tokenizer: null         # e.g., [none, vq]
+    seed: null              # e.g., [1, 2, 3]
+
+outputs:
+  report_subdir: report
+  fig_format: png
+  dpi: 150
+  which_figures: [val_mse_vs_time, pareto_error_vs_compression, vq_perplexity_boxplot, throughput_vs_best_val]
+
+thresholds:
+  val_mse: 0.01
+  comparison: le
+  split: val
+
+summary_schema_version: 1
