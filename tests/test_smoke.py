@@ -4,7 +4,7 @@ from omegaconf import OmegaConf
 
 def test_import_and_forward_and_step():
     import thesis_ml  # noqa: F401
-    from thesis_ml.models import build_model
+    from thesis_ml.general.models.mlp import build_model
 
     cfg = OmegaConf.create(
         {

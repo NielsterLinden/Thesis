@@ -1,18 +1,18 @@
 from __future__ import annotations
 
+import os
 import tempfile
 import time
-from datetime import datetime
 from pathlib import Path
 
 import torch
 from omegaconf import OmegaConf
 
 from thesis_ml.data import build_dataloaders
-from thesis_ml.models import build_model
+from thesis_ml.general.models.mlp import build_model
 from thesis_ml.plots.io_utils import append_jsonl_event, append_scalars_csv
 from thesis_ml.plots.orchestrator import handle_event
-from thesis_ml.utils import set_all_seeds
+from thesis_ml.utils import TrainingProgressShower, set_all_seeds
 
 SUPPORTED_PLOT_FAMILIES = {"losses", "metrics", "latency"}
 
@@ -26,8 +26,7 @@ def _select_device(cfg) -> torch.device:
 
 def _ensure_run_dir(cfg) -> Path | None:
     if bool(cfg.logging.save_artifacts):
-        root = Path(cfg.logging.output_root)
-        run_dir = root / datetime.now().strftime("%Y%m%d-%H%M%S")
+        run_dir = Path(os.getcwd())  # Hydra sets this when chdir=true
         run_dir.mkdir(parents=True, exist_ok=True)
         # Save composed config for reproducibility
         with (run_dir / "cfg.yaml").open("w", encoding="utf-8") as f:
@@ -104,6 +103,7 @@ def train(cfg) -> dict:
         handle_event(cfg.logging, SUPPORTED_PLOT_FAMILIES, "on_start", start_payload)
 
     total_t0 = time.perf_counter()
+    progress = TrainingProgressShower(total_epochs=int(cfg.trainer.epochs), bar_width=30)
     for epoch in range(int(cfg.trainer.epochs)):
         t0 = time.perf_counter()
         model.train()
@@ -142,10 +142,21 @@ def train(cfg) -> dict:
         dt = time.perf_counter() - t0
         if task == "binary" and total > 0:
             acc = correct / total
-            print(f"Epoch {epoch+1}: train_loss={epoch_train_loss:.4f} val_loss={epoch_val_loss:.4f} acc={acc:.3f} time={dt:.2f}s")
             history_metrics.setdefault("acc", []).append(float(acc))
+            progress.update(
+                epoch,
+                dt,
+                train_loss=epoch_train_loss,
+                val_loss=epoch_val_loss,
+                extras={"acc": float(acc)},
+            )
         else:
-            print(f"Epoch {epoch+1}: train_loss={epoch_train_loss:.4f} val_loss={epoch_val_loss:.4f} time={dt:.2f}s")
+            progress.update(
+                epoch,
+                dt,
+                train_loss=epoch_train_loss,
+                val_loss=epoch_val_loss,
+            )
 
         # update histories
         history_epoch_time_s.append(float(dt))
@@ -293,25 +304,3 @@ def train(cfg) -> dict:
         "device": str(device),
         "saved_to": saved_path,
     }
-
-
-# Hydra CLI entrypoint kept separate to avoid side-effects in notebooks
-def _hydra_main(cfg) -> None:  # pragma: no cover - thin wrapper
-    train(cfg)
-
-
-try:
-    import hydra
-
-    @hydra.main(config_path="../../../configs", config_name="config", version_base=None)
-    def main(cfg) -> None:  # pragma: no cover - CLI only
-        _hydra_main(cfg)
-
-except Exception:  # pragma: no cover - allow import without hydra installed
-
-    def main():  # type: ignore
-        raise RuntimeError("Hydra is required for CLI usage. Install hydra-core to run main().")
-
-
-if __name__ == "__main__":  # when this file is run direcly, this will run the main function
-    main()

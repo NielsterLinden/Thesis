@@ -13,6 +13,7 @@ from thesis_ml.phase1.autoenc.base import build_from_config
 from thesis_ml.phase1.autoenc.losses.recon import reconstruction_loss
 from thesis_ml.plots.io_utils import append_jsonl_event, append_scalars_csv
 from thesis_ml.plots.orchestrator import handle_event
+from thesis_ml.utils import TrainingProgressShower
 from thesis_ml.utils.seed import set_all_seeds
 
 SUPPORTED_PLOT_FAMILIES = {"losses", "metrics", "recon", "codebook", "latency"}
@@ -47,14 +48,12 @@ def train(cfg: DictConfig):
     model = build_from_config(cfg).to(device)
     opt = torch.optim.Adam(model.parameters(), lr=cfg.trainer.lr, weight_decay=cfg.trainer.weight_decay)
 
-    # logging dir
+    # logging dir from Hydra (assumes job.chdir=true or explicit run.dir)
     outdir = None
     if cfg.logging.save_artifacts:
-        from datetime import datetime
-
-        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        outdir = os.path.join(cfg.logging.output_root, stamp)
+        outdir = os.getcwd()  # Hydra sets this when chdir=true
         os.makedirs(outdir, exist_ok=True)
+        # Persist composed config beside artifacts for reproducibility
         OmegaConf.save(config=cfg, f=os.path.join(outdir, "cfg.yaml"))
 
     # on_start
@@ -112,6 +111,7 @@ def train(cfg: DictConfig):
 
     best_val = float("inf")
     total_t0 = time.perf_counter()
+    progress = TrainingProgressShower(total_epochs=int(cfg.trainer.epochs), bar_width=30)
     for ep in range(cfg.trainer.epochs):
         t0 = time.perf_counter()
         tr = run_epoch(train_dl, True)
@@ -153,6 +153,15 @@ def train(cfg: DictConfig):
             append_scalars_csv(str(outdir), epoch=ep, split="train", train_loss=tr["loss"], val_loss=None, metrics={"perplex": float(tr.get("perplex", 0.0))}, epoch_time_s=dt, throughput=thr, max_memory_mib=None)
             append_scalars_csv(str(outdir), epoch=ep, split="val", train_loss=None, val_loss=va["loss"], metrics={"perplex": float(va.get("perplex", 0.0))}, epoch_time_s=dt, throughput=thr, max_memory_mib=None)
         handle_event(cfg.logging, SUPPORTED_PLOT_FAMILIES, "on_epoch_end", payload)
+
+        # progress bar with ETA and losses
+        progress.update(
+            ep,
+            dt,
+            train_loss=float(tr["loss"]),
+            val_loss=float(va["loss"]),
+            extras={"perplex": float(va.get("perplex", 0.0))},
+        )
 
         if va["loss"] < best_val and outdir and cfg.logging.save_artifacts:
             best_val = va["loss"]

@@ -78,6 +78,18 @@ def _extract_metadata(cfg: dict[str, Any]) -> dict[str, Any]:
     latent_dim = cfg.get("model", {}).get("latent_dim") or cfg.get("phase1", {}).get("model", {}).get("latent_dim")
     codebook_size = cfg.get("model", {}).get("codebook_size") or cfg.get("phase1", {}).get("model", {}).get("codebook_size")
     dataset_name = cfg.get("data", {}).get("path") or cfg.get("data", {}).get("name")
+
+    # Extract sweep/override parameters from Hydra config
+    overrides = {}
+    hydra_cfg = cfg.get("hydra", {})
+    if hydra_cfg:
+        task_overrides = hydra_cfg.get("overrides", {}).get("task", [])
+        if task_overrides:
+            for override in task_overrides:
+                if "=" in str(override):
+                    key, val = str(override).split("=", 1)
+                    overrides[key] = val
+
     return {
         "encoder": encoder,
         "tokenizer": tokenizer,
@@ -85,7 +97,27 @@ def _extract_metadata(cfg: dict[str, Any]) -> dict[str, Any]:
         "latent_dim": latent_dim,
         "codebook_size": codebook_size,
         "dataset_name": dataset_name,
+        "overrides": overrides,
     }
+
+
+def _discover_pointer_targets(runs_dir: Path) -> list[Path]:
+    targets: list[Path] = []
+    for p in runs_dir.iterdir():
+        if p.is_file() and p.suffix == ".json" and p.name.endswith(".pointer.json"):
+            try:
+                data = json.loads(p.read_text(encoding="utf-8"))
+                raw = data.get("path")
+                if not raw:
+                    continue
+                tgt = Path(raw)
+                if not tgt.is_absolute():
+                    tgt = (p.parent / tgt).resolve()
+                if tgt.exists() and tgt.is_dir():
+                    targets.append(tgt)
+            except Exception:
+                continue
+    return targets
 
 
 def discover_runs(sweep_dir: Path | None, run_dirs: Iterable[Path] | None) -> list[Path]:
@@ -95,10 +127,20 @@ def discover_runs(sweep_dir: Path | None, run_dirs: Iterable[Path] | None) -> li
     if sweep_dir is not None:
         if not sweep_dir.exists() or not sweep_dir.is_dir():
             raise FileNotFoundError(f"sweep_dir not found: {sweep_dir}")
-        # child dirs with cfg.yaml
-        for p in sweep_dir.iterdir():
-            if p.is_dir() and (p / "cfg.yaml").exists():
-                candidates.append(p)
+        # Prefer experiments root layout: <root>/runs contains run dirs or pointers
+        runs_dir = sweep_dir / "runs"
+        if runs_dir.exists() and runs_dir.is_dir():
+            # pointer files
+            candidates.extend(_discover_pointer_targets(runs_dir))
+            # direct child run dirs with cfg.yaml
+            for p in runs_dir.iterdir():
+                if p.is_dir() and (p / "cfg.yaml").exists():
+                    candidates.append(p)
+        else:
+            # legacy: child dirs under sweep_dir with cfg.yaml
+            for p in sweep_dir.iterdir():
+                if p.is_dir() and (p / "cfg.yaml").exists():
+                    candidates.append(p)
     else:
         assert run_dirs is not None
         for p in run_dirs:
@@ -121,10 +163,11 @@ def load_runs(sweep_dir: str | None = None, run_dirs: list[str] | None = None, *
     sd = Path(sweep_dir) if sweep_dir else None
     rds = [Path(p) for p in (run_dirs or [])] or None
     found = discover_runs(sd, rds)
-    summaries: list[dict[str, Any]] = []
+    summaries: list[dict[str, Any]] = {}
     per_epoch: dict[str, pd.DataFrame] = {}
     order: list[str] = []
 
+    summaries = []
     for rd in found:
         try:
             cfg, cfg_sha1 = _read_cfg(rd)

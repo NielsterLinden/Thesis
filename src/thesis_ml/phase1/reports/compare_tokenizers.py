@@ -193,12 +193,23 @@ def run_report(cfg: DictConfig) -> None:
 
     # Persist summary
     selected.to_csv(out_root / "summary.csv", index=False)
+
+    # Extract sweep parameters if available
+    sweep_params = {}
+    if "overrides" in selected.columns:
+        for idx, row in selected.iterrows():
+            run_id = str(Path(row["run_dir"]).name) if "run_dir" in row else str(idx)
+            overrides_val = row.get("overrides")
+            if overrides_val and isinstance(overrides_val, dict):
+                sweep_params[run_id] = overrides_val
+
     meta = {
         "summary_schema_version": int(cfg.summary_schema_version),
         "discovery_order": order,
         "filters": OmegaConf.to_container(cfg.inputs.select, resolve=True) if cfg.inputs.select else None,
         "thresholds": OmegaConf.to_container(cfg.thresholds, resolve=True) if cfg.thresholds else None,
         "which_figures": list(cfg.outputs.which_figures) if cfg.outputs.which_figures else [],
+        "sweep_params": sweep_params,
     }
     _save_json(meta, out_root / "summary.json")
 

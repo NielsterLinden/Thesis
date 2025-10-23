@@ -1,0 +1,38 @@
+experiment:
+  name: "compare_vq_vs_none"
+
+defaults:
+  - override /phase1/encoder: mlp
+  - override /phase1/decoder: mlp
+  - override /phase1/trainer: ae
+  - override /logging: plots_minimal
+  - _self_
+
+
+
+
+# Keep plotting relative to run CWD
+logging:
+  output_root: "."
+  moments:
+    on_epoch_end_quick: false
+    on_train_end_full: true
+  families:
+    losses:   { enabled: true }
+    metrics:  { enabled: true }
+    recon:    { enabled: false }
+    codebook: { enabled: true }
+    latency:  { enabled: false }
+
+hydra:
+  mode: MULTIRUN
+  job:
+    chdir: true
+    name: ${experiment.name}
+  sweep:
+    dir: outputs/experiments/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${hydra.job.num}
+  sweeper:
+    params:
+      phase1/tokenizer: none,vq
+      trainer.epochs: 3

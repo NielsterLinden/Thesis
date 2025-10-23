@@ -1,0 +1,5 @@
+job:
+  chdir: true
+  name: run
+run:
+  dir: outputs/runs/run_${now:%Y%m%d-%H%M%S}_${hydra.job.name}

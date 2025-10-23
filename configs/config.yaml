@@ -1,4 +1,5 @@
 ﻿defaults:
+  - hydra: run_single
   - logging: default
   - data: h5_tokens
   - trainer: ae
@@ -8,5 +9,7 @@
   - phase1/decoder: mlp
   - phase1/tokenizer: vq
   - phase1/trainer: ae
+  - _self_
 
 # high-level switches go here if needed
+loop: ae
