@@ -1,1 +1,7 @@
 _target_: thesis_ml.phase1.autoenc.encoders.mlp.MLPEncoder
+
+# Encoder architecture hyperparameters
+enc_hidden: [128, 128]      # hidden layer dimensions
+dropout: 0.0                # dropout probability
+activation: "gelu"          # activation function
+id_embed_dim: 8            # embedding size for object ID

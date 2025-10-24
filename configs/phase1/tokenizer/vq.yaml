@@ -1,4 +1,0 @@
-_target_: thesis_ml.phase1.autoenc.bottlenecks.vq.VQBottleneck
-beta: 0.25
-ema: true
-ema_decay: 0.99

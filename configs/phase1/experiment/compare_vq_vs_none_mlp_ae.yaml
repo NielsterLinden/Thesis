@@ -34,5 +34,5 @@ hydra:
     subdir: ${hydra.job.num}
   sweeper:
     params:
-      phase1/tokenizer: none,vq
+      phase1/latent_space: none,vq
       trainer.epochs: 3

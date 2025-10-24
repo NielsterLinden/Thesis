@@ -26,11 +26,11 @@ class MLPEncoder(nn.Module):
 
     def __init__(self, *, cfg: Any):
         super().__init__()
-        latent_dim = int(cfg.phase1.ae.latent_dim)
-        id_embed_dim = int(cfg.phase1.model.id_embed_dim)
-        act = _act(str(cfg.phase1.model.activation))
-        hidden = list(cfg.phase1.model.enc_hidden)
-        dropout = float(cfg.phase1.model.dropout)
+        latent_dim = int(cfg.phase1.latent_space.latent_dim)
+        id_embed_dim = int(cfg.phase1.encoder.id_embed_dim)
+        act = _act(str(cfg.phase1.encoder.activation))
+        hidden = list(cfg.phase1.encoder.enc_hidden)
+        dropout = float(cfg.phase1.encoder.dropout)
         num_types = int(cfg.meta.num_types)
         cont_dim = int(cfg.meta.cont_dim)
 

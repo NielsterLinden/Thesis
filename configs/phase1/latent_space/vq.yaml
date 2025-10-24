@@ -1,0 +1,10 @@
+_target_: thesis_ml.phase1.autoenc.bottlenecks.vq.VQBottleneck
+
+# Latent space dimension
+latent_dim: 32              # dimensionality of latent vectors
+
+# Vector Quantization hyperparameters
+codebook_size: 512          # number of codes in codebook
+beta: 0.25                  # commitment loss weight
+ema: true                   # use exponential moving average for codebook updates
+ema_decay: 0.99            # EMA decay rate

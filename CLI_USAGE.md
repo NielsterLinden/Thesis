@@ -38,20 +38,20 @@ python -m thesis_ml.train trainer.epochs=5
 
 ### Basic multirun sweep (default name "experiment")
 ```powershell
-python -m thesis_ml.train --multirun hydra=experiment phase1/tokenizer=none,vq
+python -m thesis_ml.train --multirun hydra=experiment phase1/latent_space=none,vq
 # Output: outputs/experiments/exp_20251023-180000_experiment/0/, /1/
 ```
 
 ### Multirun with custom name
 ```powershell
-python -m thesis_ml.train --multirun hydra=experiment hydra.job.name=compare_tokenizers phase1/tokenizer=none,vq
+python -m thesis_ml.train --multirun hydra=experiment hydra.job.name=compare_tokenizers phase1/latent_space=none,vq
 # Output: outputs/experiments/exp_20251023-180000_compare_tokenizers/0/, /1/
 ```
 
 ### Multirun with multiple parameters
 ```powershell
-python -m thesis_ml.train --multirun hydra=experiment hydra.job.name=grid_search phase1/tokenizer=none,vq trainer.epochs=3,5,10
-# Creates 6 runs (2 tokenizers × 3 epoch settings)
+python -m thesis_ml.train --multirun hydra=experiment hydra.job.name=grid_search phase1/latent_space=none,vq trainer.epochs=3,5,10
+# Creates 6 runs (2 latent_space × 3 epoch settings)
 ```
 
 ## Experiment Configs
@@ -85,10 +85,10 @@ python -m thesis_ml.train logging=plots_full
 python -m thesis_ml.train phase1/encoder=gnn phase1/decoder=gnn
 ```
 
-### Tokenizer
+### Latent space configuration
 ```powershell
-python -m thesis_ml.train phase1/tokenizer=vq
-python -m thesis_ml.train phase1/tokenizer=none
+python -m thesis_ml.train phase1/latent_space=vq
+python -m thesis_ml.train phase1/latent_space=none
 ```
 
 ## Report Generation

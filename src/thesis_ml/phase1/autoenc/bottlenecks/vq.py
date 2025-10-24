@@ -62,11 +62,11 @@ class VQBottleneck(nn.Module):
     def __init__(self, *, cfg: Any):
         super().__init__()
         self.quant = VectorQuantizer(
-            n_codes=int(cfg.phase1.model.codebook_size),
-            code_dim=int(cfg.phase1.ae.latent_dim),
-            beta=float(cfg.phase1.model.beta),
-            ema=bool(cfg.phase1.model.ema),
-            decay=float(cfg.phase1.model.ema_decay),
+            n_codes=int(cfg.phase1.latent_space.codebook_size),
+            code_dim=int(cfg.phase1.latent_space.latent_dim),
+            beta=float(cfg.phase1.latent_space.beta),
+            ema=bool(cfg.phase1.latent_space.ema),
+            decay=float(cfg.phase1.latent_space.ema_decay),
         )
 
     def forward(self, z_e: torch.Tensor):

@@ -5,7 +5,7 @@ from collections.abc import Mapping
 
 
 class TrainingProgressShower:
-    """Simple reusable per-epoch progress bar with ETA and metrics.
+    """Simple reusable per-epoch progress bar with elapsed/remaining time and metrics.
 
     Usage:
         p = TrainingProgressShower(total_epochs=100)
@@ -51,7 +51,15 @@ class TrainingProgressShower:
             remaining_epochs = 0
         eta_s = avg * remaining_epochs
 
-        parts = [bar, f"{done}/{self.total}", f"ETA {self._fmt_time(eta_s)}", f"time {epoch_time_s:.2f}s"]
+        elapsed_s = sum(self.times) if self.times else 0.0
+
+        parts = [
+            bar,
+            f"{done}/{self.total}",
+            f"elapsed {self._fmt_time(elapsed_s)}",
+            f"remaining {self._fmt_time(eta_s)}",
+            f"time {epoch_time_s:.2f}s",
+        ]
         if train_loss is not None:
             parts.append(f"train {train_loss:.4f}")
         if val_loss is not None:

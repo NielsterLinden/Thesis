@@ -1,15 +1,20 @@
 ﻿defaults:
+  # --- Hydra & logging ---
   - hydra: run_single
   - logging: default
+
+  # --- Data source ---
   - data: h5_tokens
-  - trainer: ae
-  - phase1/model: base
-  - phase1/ae: base
-  - phase1/encoder: mlp
-  - phase1/decoder: mlp
-  - phase1/tokenizer: vq
-  - phase1/trainer: ae
+
+  # --- General trainer config (for non-phase-specific code) ---
+  - general/trainer: default      # top-level trainer for general code, this just linkes to the general/trainer/default.yaml file. only used when loop (keep in mind that this is the default loop) is overridden.
+
+  # --- Phase 1 component configs ---
+  - phase1/encoder: mlp           # encoder architecture and hyperparameters
+  - phase1/decoder: mlp           # decoder architecture and hyperparameters
+  - phase1/latent_space: vq       # latent space configuration (VQ, none, etc.)
+  - phase1/trainer: ae            # phase1-specific training hyperparameters
   - _self_
 
-# high-level switches go here if needed
+# --- High-level dispatcher key ---
 loop: ae

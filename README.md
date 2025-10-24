@@ -23,7 +23,6 @@ src/thesis_ml/
 │
 ├─ utils/
 │  ├─ __init__.py
-│  ├─ plotting.py                  # deprecated shim → plots.orchestrator
 │  └─ seed.py                      # set_all_seeds(seed) for reproducibility
 │
 ├─ train/
@@ -301,16 +300,16 @@ Ensures package imports, data generation, and a minimal training step all work.
 
 ## Phase 1 Standalone Autoencoders
 
-Phase 1 introduces a unified autoencoder assembly with Hydra composition. Choose encoder, tokenizer, decoder, trainer, and logging via config overrides.
+Phase 1 introduces a unified autoencoder assembly with Hydra composition. Choose encoder, latent space, decoder, trainer, and logging via config overrides.
 
 Run examples (do not execute here):
 
 ```bash
-python -m thesis_ml.train logging=plots_minimal phase1/encoder=mlp phase1/decoder=mlp phase1/tokenizer=none phase1/trainer=ae
+python -m thesis_ml.train logging=plots_minimal phase1/encoder=mlp phase1/decoder=mlp phase1/latent_space=none phase1/trainer=ae
 ```
 
 ```bash
-python -m thesis_ml.train logging=plots_standard phase1/encoder=mlp phase1/decoder=mlp phase1/tokenizer=vq phase1/trainer=ae
+python -m thesis_ml.train logging=plots_standard phase1/encoder=mlp phase1/decoder=mlp phase1/latent_space=vq phase1/trainer=ae
 ```
 
 Artifacts are saved under `outputs/<stamp>/facts` and `outputs/<stamp>/figures`.

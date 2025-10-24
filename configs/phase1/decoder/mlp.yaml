@@ -1,1 +1,11 @@
 _target_: thesis_ml.phase1.autoenc.decoders.mlp.MLPDecoder
+
+# Decoder architecture hyperparameters
+dec_hidden: [128, 128]      # hidden layer dimensions
+dropout: 0.0                # dropout probability
+activation: "gelu"          # activation function
+
+# Globals reconstruction head
+globals_head: true          # whether to include globals head
+globals_hidden: [32]        # globals head hidden dimensions
+globals_beta: 1.0          # weight of globals reconstruction in total loss

@@ -12,7 +12,7 @@ from thesis_ml.data import build_dataloaders
 from thesis_ml.general.models.mlp import build_model
 from thesis_ml.plots.io_utils import append_jsonl_event, append_scalars_csv
 from thesis_ml.plots.orchestrator import handle_event
-from thesis_ml.utils import TrainingProgressShower, set_all_seeds
+from thesis_ml.utils import TrainingProgressShower, build_event_payload, set_all_seeds
 
 SUPPORTED_PLOT_FAMILIES = {"losses", "metrics", "latency"}
 
@@ -90,16 +90,13 @@ def train(cfg) -> dict:
 
     # on_start event
     if run_dir is not None:
-        start_payload = {
-            "run_dir": str(run_dir),
-            "epoch": None,
-            "step": None,
-            "metrics": {},
-            "epoch_time_s": None,
-            "total_time_s": None,
-        }
+        start_payload = build_event_payload(
+            moment="on_start",
+            run_dir=run_dir,
+            cfg=cfg,
+        )
         if bool(cfg.logging.save_artifacts):
-            append_jsonl_event(str(run_dir), {"moment": "on_start", **start_payload})
+            append_jsonl_event(str(run_dir), start_payload)
         handle_event(cfg.logging, SUPPORTED_PLOT_FAMILIES, "on_start", start_payload)
 
     total_t0 = time.perf_counter()
@@ -174,25 +171,34 @@ def train(cfg) -> dict:
                 max_mem = float(torch.cuda.max_memory_allocated(device)) / (1024.0 * 1024.0)
             except Exception:
                 max_mem = None
-        payload = {
-            "run_dir": str(run_dir) if run_dir is not None else "",
-            "epoch": int(epoch),
-            "split": "val",
-            "train_loss": float(epoch_train_loss),
-            "val_loss": float(epoch_val_loss),
-            "metrics": {k: v[-1] for k, v in history_metrics.items() if v},
-            "epoch_time_s": float(dt),
-            "throughput": history_throughput[-1] if history_throughput else None,
-            "max_memory_mib": max_mem,
-            # histories for families
-            "history_train_loss": list(train_losses),
-            "history_val_loss": list(val_losses),
-            "history_metrics": {k: list(v) for k, v in history_metrics.items()},
-            "history_epoch_time_s": list(history_epoch_time_s),
-            "history_throughput": list(history_throughput),
+
+        # Build histories dict combining scalars and metrics
+        histories_dict = {
+            "train_loss": train_losses,
+            "val_loss": val_losses,
+            "epoch_time_s": history_epoch_time_s,
+            "throughput": history_throughput,
         }
+        # Add metric histories with "metrics_" prefix to distinguish from scalar histories
+        for k, v in history_metrics.items():
+            histories_dict[f"metrics_{k}"] = v
+
+        payload = build_event_payload(
+            moment="on_epoch_end",
+            run_dir=run_dir,
+            epoch=epoch,
+            split="val",
+            train_loss=epoch_train_loss,
+            val_loss=epoch_val_loss,
+            metrics={k: v[-1] for k, v in history_metrics.items() if v},
+            epoch_time_s=dt,
+            throughput=history_throughput[-1] if history_throughput else None,
+            max_memory_mib=max_mem,
+            histories=histories_dict,
+            cfg=cfg,
+        )
         if run_dir is not None and bool(cfg.logging.save_artifacts):
-            append_jsonl_event(str(run_dir), {"moment": "on_epoch_end", **payload})
+            append_jsonl_event(str(run_dir), payload)
             append_scalars_csv(
                 str(run_dir),
                 epoch=epoch,
@@ -228,22 +234,31 @@ def train(cfg) -> dict:
         model_path = run_dir / "model.pt"
         torch.save(model.state_dict(), model_path)
         total_time = time.perf_counter() - total_t0
-        # train_end event
-        payload_end = {
-            "run_dir": str(run_dir),
-            "epoch": int(len(train_losses) - 1) if train_losses else -1,
-            "train_loss": float(train_losses[-1]) if train_losses else None,
-            "val_loss": float(val_losses[-1]) if val_losses else None,
-            "metrics": {k: v[-1] for k, v in history_metrics.items() if v},
-            "total_time_s": float(total_time),
-            "history_train_loss": list(train_losses),
-            "history_val_loss": list(val_losses),
-            "history_metrics": {k: list(v) for k, v in history_metrics.items()},
-            "history_epoch_time_s": list(history_epoch_time_s),
-            "history_throughput": list(history_throughput),
+
+        # Build histories dict
+        histories_dict = {
+            "train_loss": train_losses,
+            "val_loss": val_losses,
+            "epoch_time_s": history_epoch_time_s,
+            "throughput": history_throughput,
         }
+        for k, v in history_metrics.items():
+            histories_dict[f"metrics_{k}"] = v
+
+        # train_end event
+        payload_end = build_event_payload(
+            moment="on_train_end",
+            run_dir=run_dir,
+            epoch=int(len(train_losses) - 1) if train_losses else -1,
+            train_loss=train_losses[-1] if train_losses else None,
+            val_loss=val_losses[-1] if val_losses else None,
+            metrics={k: v[-1] for k, v in history_metrics.items() if v},
+            total_time_s=total_time,
+            histories=histories_dict,
+            cfg=cfg,
+        )
         if bool(cfg.logging.save_artifacts):
-            append_jsonl_event(str(run_dir), {"moment": "on_train_end", **payload_end})
+            append_jsonl_event(str(run_dir), payload_end)
         handle_event(cfg.logging, SUPPORTED_PLOT_FAMILIES, "on_train_end", payload_end)
         # Upload artifacts to W&B
         if wandb_run is not None and bool(cfg.logging.wandb.log_artifacts):
@@ -263,20 +278,29 @@ def train(cfg) -> dict:
             tmp_dir = Path(tmp)
             model_path = tmp_dir / "model.pt"
             torch.save(model.state_dict(), model_path)
-            # Emit a final event without saving
-            payload_end = {
-                "run_dir": str(tmp_dir),
-                "epoch": int(len(train_losses) - 1) if train_losses else -1,
-                "train_loss": float(train_losses[-1]) if train_losses else None,
-                "val_loss": float(val_losses[-1]) if val_losses else None,
-                "metrics": {k: v[-1] for k, v in history_metrics.items() if v},
-                "total_time_s": float(time.perf_counter() - total_t0),
-                "history_train_loss": list(train_losses),
-                "history_val_loss": list(val_losses),
-                "history_metrics": {k: list(v) for k, v in history_metrics.items()},
-                "history_epoch_time_s": list(history_epoch_time_s),
-                "history_throughput": list(history_throughput),
+
+            # Build histories dict
+            histories_dict = {
+                "train_loss": train_losses,
+                "val_loss": val_losses,
+                "epoch_time_s": history_epoch_time_s,
+                "throughput": history_throughput,
             }
+            for k, v in history_metrics.items():
+                histories_dict[f"metrics_{k}"] = v
+
+            # Emit a final event without saving
+            payload_end = build_event_payload(
+                moment="on_train_end",
+                run_dir=str(tmp_dir),
+                epoch=int(len(train_losses) - 1) if train_losses else -1,
+                train_loss=train_losses[-1] if train_losses else None,
+                val_loss=val_losses[-1] if val_losses else None,
+                metrics={k: v[-1] for k, v in history_metrics.items() if v},
+                total_time_s=time.perf_counter() - total_t0,
+                histories=histories_dict,
+                cfg=cfg,
+            )
             handle_event(cfg.logging, SUPPORTED_PLOT_FAMILIES, "on_train_end", payload_end)
             # Upload artifacts to W&B before temp dir deletes
             if wandb_run is not None and bool(cfg.logging.wandb.log_artifacts):

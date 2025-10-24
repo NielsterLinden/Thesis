@@ -73,13 +73,13 @@ def build_from_config(root_cfg) -> BaseAutoencoder:
     Expected config keys under cfg.phase1 (by convention via Hydra groups):
       - encoder._target_: dotted path to class
       - decoder._target_: dotted path to class
-      - tokenizer._target_: dotted path to class (bottleneck)
+      - latent_space._target_: dotted path to class (bottleneck)
       - plus their respective init parameters
     """
     cfg = root_cfg.phase1
     enc_cls = _import_from_path(str(cfg.encoder._target_))
     dec_cls = _import_from_path(str(cfg.decoder._target_))
-    bn_cls = _import_from_path(str(cfg.tokenizer._target_))
+    bn_cls = _import_from_path(str(cfg.latent_space._target_))
 
     # Pass cfg and meta to modules; keep signatures explicit and boring
     encoder = enc_cls(cfg=root_cfg)

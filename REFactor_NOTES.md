@@ -7,7 +7,7 @@ Refactor summary
 - Relocated generic models to `thesis_ml/general/models/` and added a shim in `thesis_ml/models/__init__.py`.
 
 New CLI examples
-- Phase‑1 AE: `python -m thesis_ml.train loop=ae phase1/encoder=mlp phase1/decoder=mlp phase1/tokenizer=none logging.save_artifacts=false trainer.epochs=1`
+- Phase‑1 AE: `python -m thesis_ml.train loop=ae phase1/encoder=mlp phase1/decoder=mlp phase1/latent_space=none logging.save_artifacts=false trainer.epochs=1`
 - Smoke test: `python -m thesis_ml.train loop=mlp logging.save_artifacts=false`
 
 Deprecations

@@ -24,11 +24,11 @@ class MLPDecoder(nn.Module):
 
     def __init__(self, *, cfg: Any):
         super().__init__()
-        latent_dim = int(cfg.phase1.ae.latent_dim)
+        latent_dim = int(cfg.phase1.latent_space.latent_dim)
         cont_dim = int(cfg.meta.cont_dim)
-        act = _act(str(cfg.phase1.model.activation))
-        hidden = list(cfg.phase1.model.dec_hidden)
-        dropout = float(cfg.phase1.model.dropout)
+        act = _act(str(cfg.phase1.decoder.activation))
+        hidden = list(cfg.phase1.decoder.dec_hidden)
+        dropout = float(cfg.phase1.decoder.dropout)
 
         layers: list[nn.Module] = []
         prev = latent_dim
@@ -41,16 +41,16 @@ class MLPDecoder(nn.Module):
         layers.append(nn.Linear(prev, cont_dim))
         self.net = nn.Sequential(*layers)
 
-        self.globals_head = bool(cfg.phase1.model.globals_head)
+        self.globals_head = bool(cfg.phase1.decoder.globals_head)
         if self.globals_head:
-            g_hidden = list(cfg.phase1.model.globals_hidden)
+            g_hidden = list(cfg.phase1.decoder.globals_hidden)
             g_layers: list[nn.Module] = []
             prev = latent_dim
             for h in g_hidden:
                 g_layers += [nn.Linear(prev, h), act]
                 prev = h
             self.g_head = nn.Sequential(*g_layers, nn.Linear(prev, int(cfg.meta.globals)))
-            self.globals_beta = float(cfg.phase1.model.globals_beta)
+            self.globals_beta = float(cfg.phase1.decoder.globals_beta)
 
     def forward(self, *, z: torch.Tensor, tokens_cont: torch.Tensor, tokens_id: torch.Tensor, globals_vec: torch.Tensor) -> Mapping[str, torch.Tensor]:
         x_hat = self.net(z)

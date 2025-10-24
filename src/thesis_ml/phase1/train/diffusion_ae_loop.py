@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from omegaconf import DictConfig
 
+# NOTE: When implementing, use build_event_payload() from thesis_ml.utils
+# for consistent fact/payload creation (see ae_loop.py for examples).
+
 SUPPORTED_PLOT_FAMILIES = {"losses", "metrics", "diffusion", "recon", "latency"}
 
 

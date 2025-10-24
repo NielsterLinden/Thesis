@@ -72,9 +72,9 @@ def make_dataloaders(cfg):
     va = ds.get_split("val")
     te = ds.get_split("test")
     return (
-        DataLoader(tr, batch_size=cfg.trainer.batch_size, shuffle=True, num_workers=cfg.data.num_workers),
-        DataLoader(va, batch_size=cfg.trainer.batch_size, shuffle=False, num_workers=cfg.data.num_workers),
-        DataLoader(te, batch_size=cfg.trainer.batch_size, shuffle=False, num_workers=cfg.data.num_workers),
+        DataLoader(tr, batch_size=cfg.phase1.trainer.batch_size, shuffle=True, num_workers=cfg.data.num_workers),
+        DataLoader(va, batch_size=cfg.phase1.trainer.batch_size, shuffle=False, num_workers=cfg.data.num_workers),
+        DataLoader(te, batch_size=cfg.phase1.trainer.batch_size, shuffle=False, num_workers=cfg.data.num_workers),
         {
             "n_tokens": cfg.data.n_tokens,
             "cont_dim": 4,
