@@ -2,5 +2,5 @@ job:
   chdir: true
   name: experiment
 sweep:
-  dir: outputs/experiments/exp_${now:%Y%m%d-%H%M%S}_${hydra.job.name}
+  dir: ${env.output_root}/experiments/exp_${now:%Y%m%d-%H%M%S}_${hydra.job.name}
   subdir: ${hydra.job.num}

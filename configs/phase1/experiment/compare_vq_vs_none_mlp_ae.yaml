@@ -11,9 +11,9 @@ defaults:
 
 
 
-# Keep plotting relative to run CWD
+# Keep plotting under env.output_root
 logging:
-  output_root: "."
+  output_root: "${env.output_root}"
   moments:
     on_epoch_end_quick: false
     on_train_end_full: true
@@ -30,7 +30,7 @@ hydra:
     chdir: true
     name: ${experiment.name}
   sweep:
-    dir: outputs/experiments/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    dir: ${env.output_root}/experiments/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
     subdir: ${hydra.job.num}
   sweeper:
     params:

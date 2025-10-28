@@ -1,7 +1,7 @@
 save_artifacts: true
 make_plots: true
 show_plots: false
-output_root: "outputs"
+output_root: "${env.output_root}"
 figures_subdir: "figures"
 fig_format: "png"
 dpi: 150

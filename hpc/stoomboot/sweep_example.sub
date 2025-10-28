@@ -1,0 +1,30 @@
+# HTCondor parameter sweep example
+# Usage: condor_submit hpc/stoomboot/sweep_example.sub
+
+universe     = vanilla
+executable   = hpc/stoomboot/run.sh
+initialdir   = /project/atlas/nterlind/Thesis-Code
+
+# Parameterized arguments
+arguments    = trainer.epochs=$(epochs) phase1/latent_space=$(latent)
+
+output       = /data/atlas/nterlind/logs/stdout/sweep_$(ClusterId).$(ProcId).out
+error        = /data/atlas/nterlind/logs/stderr/sweep_$(ClusterId).$(ProcId).err
+log          = /data/atlas/nterlind/logs/sweep_$(ClusterId).log
+
+request_cpus = 4
+request_memory = 8GB
+request_disk = 20GB
+
+requirements = (OpSysAndVer == "AlmaLinux9")
+should_transfer_files = NO
+stream_output = True
+stream_error = True
+
+# Queue multiple jobs with different parameters
+queue epochs,latent from (
+    10,vq
+    10,none
+    50,vq
+    50,none
+)

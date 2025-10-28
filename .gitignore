@@ -26,3 +26,7 @@ mlruns/
 
 # Project-specific
 00. Archive/
+
+# HPC-specific
+hpc/stoomboot/*.log
+*.sub.backup

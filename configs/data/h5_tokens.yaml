@@ -1,4 +1,4 @@
-path: "C:/Users/niels/Projects/Thesis-Code/Data/4tops_splitted.h5"
+path: "${env.data_root}/4tops_splitted.h5"
 
 datasets:
   x_train: "X_train"

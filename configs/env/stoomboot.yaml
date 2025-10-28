@@ -1,0 +1,3 @@
+# Stoomboot HPC environment paths
+data_root: "/data/atlas/nterlind/datasets"
+output_root: "/data/atlas/nterlind/outputs"

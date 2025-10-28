@@ -1,0 +1,22 @@
+universe       = vanilla
+executable     = hpc/stoomboot/run.sh
+arguments      =
+
+initialdir     = /project/atlas/nterlind/Thesis-Code
+
+output         = /data/atlas/nterlind/logs/stdout/gpu_$(ClusterId).$(ProcId).out
+error          = /data/atlas/nterlind/logs/stderr/gpu_$(ClusterId).$(ProcId).err
+log            = /data/atlas/nterlind/logs/gpu_$(ClusterId).log
+
+request_cpus   = 8
+request_memory = 32GB
+request_disk   = 50GB
+request_gpus   = 1
+
+requirements   = (OpSysAndVer == "AlmaLinux9") && (CUDAGlobalMemoryMb >= 16000)
+should_transfer_files = NO
+getenv         = True
+stream_output  = True
+stream_error   = True
+
+queue 1

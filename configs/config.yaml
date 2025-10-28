@@ -1,4 +1,7 @@
 ﻿defaults:
+  # --- Environment paths (local vs HPC) ---
+  - env: stoomboot  # Default to HPC; run locally with `env: local`
+
   # --- Hydra & logging ---
   - hydra: run_single
   - logging: default
@@ -12,7 +15,7 @@
   # --- Phase 1 component configs ---
   - phase1/encoder: mlp           # encoder architecture and hyperparameters
   - phase1/decoder: mlp           # decoder architecture and hyperparameters
-  - phase1/latent_space: vq       # latent space configuration (VQ, none, etc.)
+  - phase1/latent_space: none       # latent space configuration (VQ, none, etc.)
   - phase1/trainer: ae            # phase1-specific training hyperparameters
   - _self_
 

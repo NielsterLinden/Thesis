@@ -1,0 +1,21 @@
+universe      = vanilla
+executable    = hpc/stoomboot/run.sh
+arguments     =
+
+initialdir    = /project/atlas/nterlind/Thesis-Code
+
+output        = /data/atlas/nterlind/logs/stdout/cpu_$(ClusterId).$(ProcId).out
+error         = /data/atlas/nterlind/logs/stderr/cpu_$(ClusterId).$(ProcId).err
+log           = /data/atlas/nterlind/logs/cpu_$(ClusterId).log
+
+request_cpus  = 4
+request_memory = 8GB
+request_disk  = 20GB
+
+requirements  = (OpSysAndVer == "AlmaLinux9")
+should_transfer_files = NO
+getenv        = True
+stream_output = True
+stream_error  = True
+
+queue 1
