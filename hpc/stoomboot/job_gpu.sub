@@ -8,14 +8,13 @@ output         = /data/atlas/users/nterlind/logs/stdout/gpu_$(ClusterId).$(ProcI
 error          = /data/atlas/users/nterlind/logs/stderr/gpu_$(ClusterId).$(ProcId).err
 log            = /data/atlas/users/nterlind/logs/gpu_$(ClusterId).log
 
-request_cpus   = 8
-request_memory = 32GB
-request_disk   = 50GB
+request_cpus   = 2
+request_memory = 16GB
+request_disk   = 32GB
 request_gpus   = 1
 
 +UseOS = "el9"
 +JobCategory = "short"
-requirements   = (OpSysAndVer == "AlmaLinux9") && (CUDAGlobalMemoryMb >= 16000)
 should_transfer_files = NO
 getenv         = True
 stream_output  = True

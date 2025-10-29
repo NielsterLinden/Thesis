@@ -8,13 +8,12 @@ output        = /data/atlas/users/nterlind/logs/stdout/cpu_$(ClusterId).$(ProcId
 error         = /data/atlas/users/nterlind/logs/stderr/cpu_$(ClusterId).$(ProcId).err
 log           = /data/atlas/users/nterlind/logs/cpu_$(ClusterId).log
 
-request_cpus  = 4
+request_cpus  = 1
 request_memory = 8GB
-request_disk  = 20GB
+request_disk  = 8GB
 
 +UseOS = "el9"
 +JobCategory = "short"
-requirements  = (OpSysAndVer == "AlmaLinux9")
 should_transfer_files = NO
 getenv        = True
 stream_output = True
