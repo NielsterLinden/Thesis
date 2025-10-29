@@ -13,7 +13,7 @@ request_memory = 8GB
 request_disk = 20GB
 
 +UseOS = "el9"
-+JobCategory = "sweep"
++JobCategory = "medium"
 requirements = (OpSysAndVer == "AlmaLinux9")
 should_transfer_files = NO
 stream_output = True
