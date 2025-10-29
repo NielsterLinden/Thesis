@@ -8,6 +8,7 @@ error   = /data/atlas/users/nterlind/logs/test_gpu.$(ClusterId).$(ProcId).err
 request_cpus   = 2
 request_memory = 8G
 request_gpus   = 1
+request_disk   = 2GB
 +UseOS         = "el9"
 +JobCategory   = "short"
 requirements   = regexp("V100|L40S", TARGET.GPUs_DeviceName)
