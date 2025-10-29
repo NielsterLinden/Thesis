@@ -14,6 +14,7 @@ request_disk   = 50GB
 request_gpus   = 1
 
 +UseOS = "el9"
++JobCategory = "gpu"
 requirements   = (OpSysAndVer == "AlmaLinux9") && (CUDAGlobalMemoryMb >= 16000)
 should_transfer_files = NO
 getenv         = True
