@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
-set -eo pipefail            # no -u here (or do: set +u before activate)
+# keep it simple; don't use -u during conda activation
+set -eo pipefail
 
 echo "=== GPU test on $(hostname) ==="
+
+# allow unset vars while sourcing conda
+set +u
 source /data/atlas/users/nterlind/venvs/miniconda3/etc/profile.d/conda.sh
-# if you keep -u elsewhere, you can do: set +u; conda activate ...; set -u
 conda activate /data/atlas/users/nterlind/venvs/thesis-ml
+set -u || true
 
 python - <<'PY'
 import torch, json

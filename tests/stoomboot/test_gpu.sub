@@ -13,4 +13,6 @@ request_disk   = 2GB
 +JobCategory   = "short"
 requirements   = regexp("V100|L40S", TARGET.GPUs_DeviceName)
 
+# give apptainer a writable cache (pre-create this dir once)
+environment = "APPTAINER_CACHEDIR=/data/atlas/users/nterlind/.apptainer_cache"
 queue 1
