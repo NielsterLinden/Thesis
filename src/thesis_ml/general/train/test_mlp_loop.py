@@ -18,7 +18,7 @@ SUPPORTED_PLOT_FAMILIES = {"losses", "metrics", "latency"}
 
 
 def _select_device(cfg) -> torch.device:
-    device_pref = str(cfg.trainer.get("device", "auto"))
+    device_pref = str(cfg.general.trainer.get("device", "auto"))
     if device_pref == "auto":
         return torch.device("cuda" if torch.cuda.is_available() else "cpu")
     return torch.device(device_pref)
@@ -79,7 +79,7 @@ def train(cfg) -> dict:
     else:
         raise ValueError(f"Unknown task: {task}")
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=float(cfg.trainer.lr))
+    optimizer = torch.optim.Adam(model.parameters(), lr=float(cfg.general.trainer.lr))
 
     run_dir = _ensure_run_dir(cfg)
 
@@ -100,8 +100,8 @@ def train(cfg) -> dict:
         handle_event(cfg.logging, SUPPORTED_PLOT_FAMILIES, "on_start", start_payload)
 
     total_t0 = time.perf_counter()
-    progress = TrainingProgressShower(total_epochs=int(cfg.trainer.epochs), bar_width=30)
-    for epoch in range(int(cfg.trainer.epochs)):
+    progress = TrainingProgressShower(total_epochs=int(cfg.general.trainer.epochs), bar_width=30)
+    for epoch in range(int(cfg.general.trainer.epochs)):
         t0 = time.perf_counter()
         model.train()
         epoch_train_loss = 0.0
