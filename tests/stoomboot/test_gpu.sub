@@ -1,0 +1,15 @@
+executable              = tests/stoomboot/test_gpu.sh
+initialdir              = /project/atlas/users/nterlind/Thesis-Code
+
+log     = /data/atlas/users/nterlind/logs/test_gpu.$(ClusterId).$(ProcId).log
+output  = /data/atlas/users/nterlind/logs/test_gpu.$(ClusterId).$(ProcId).out
+error   = /data/atlas/users/nterlind/logs/test_gpu.$(ClusterId).$(ProcId).err
+
+request_cpus   = 2
+request_memory = 8G
+request_gpus   = 1
++UseOS         = "el9"
++JobCategory   = "short"
+requirements   = regexp("V100|L40S", TARGET.GPUs_DeviceName)
+
+queue 1
