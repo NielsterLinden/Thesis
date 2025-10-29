@@ -20,4 +20,7 @@ getenv         = True
 stream_output  = True
 stream_error   = True
 
+# Give apptainer a writable cache
+environment = "APPTAINER_CACHEDIR=/data/atlas/users/nterlind/.apptainer_cache"
+
 queue 1
