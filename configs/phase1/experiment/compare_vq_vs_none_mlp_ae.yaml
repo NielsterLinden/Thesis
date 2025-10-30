@@ -4,19 +4,13 @@ experiment:
   name: "compare_vq_vs_none"
 
 defaults:
-  # --- Environment & data (CRITICAL!) ---
-  - override /env: stoomboot
-  - override /data: h5_tokens
-
-  # --- Hydra & logging ---
-  - override /hydra: experiment  # Not needed since we override below, but explicit
-  - override /logging: plots_minimal
-
-  # --- Phase 1 components ---
-  - override /phase1/encoder: mlp
-  - override /phase1/decoder: mlp
-  - override /phase1/latent_space: none  # Default, will be swept
-  - override /phase1/trainer: ae
+  - env: stoomboot
+  - data: h5_tokens
+  - logging: plots_minimal
+  - phase1/encoder: mlp
+  - phase1/decoder: mlp
+  - phase1/latent_space: none
+  - phase1/trainer: ae
   - _self_
 
 # --- High-level dispatcher key (CRITICAL!) ---
