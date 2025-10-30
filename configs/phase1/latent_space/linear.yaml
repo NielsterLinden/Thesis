@@ -1,0 +1,8 @@
+_target_: thesis_ml.phase1.autoenc.bottlenecks.linear.LinearBottleneck
+
+# Latent space dimension
+latent_dim: 32              # dimensionality of latent vectors
+
+# Note: This bottleneck applies a learned linear projection (latent_dim -> latent_dim)
+# Unlike 'none' (identity), this adds a learnable transformation layer
+# Unlike 'vq', this maintains a continuous latent space without discretization
