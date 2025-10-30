@@ -1,17 +1,28 @@
+# @package _global_
+
 experiment:
   name: "compare_vq_vs_none"
 
 defaults:
+  # --- Environment & data (CRITICAL!) ---
+  - override /env: stoomboot
+  - override /data: h5_tokens
+
+  # --- Hydra & logging ---
+  - override /hydra: experiment  # Not needed since we override below, but explicit
+  - override /logging: plots_minimal
+
+  # --- Phase 1 components ---
   - override /phase1/encoder: mlp
   - override /phase1/decoder: mlp
+  - override /phase1/latent_space: none  # Default, will be swept
   - override /phase1/trainer: ae
-  - override /logging: plots_minimal
   - _self_
 
+# --- High-level dispatcher key (CRITICAL!) ---
+loop: ae
 
-
-
-# Keep plotting under env.output_root
+# Logging customization
 logging:
   output_root: "${env.output_root}"
   moments:
@@ -24,6 +35,7 @@ logging:
     codebook: { enabled: true }
     latency:  { enabled: false }
 
+# Hydra multirun configuration
 hydra:
   mode: MULTIRUN
   job:
@@ -35,4 +47,4 @@ hydra:
   sweeper:
     params:
       phase1/latent_space: none,vq
-      trainer.epochs: 3
+      phase1.trainer.epochs: 3
