@@ -1,0 +1,23 @@
+# Hydra config for report: compare_globals_heads
+
+inputs:
+  sweep_dir: null           # Path to experiment directory
+  run_dirs: []              # Alternative: explicit list of run dirs
+  select: null              # Optional filtering (not used for this experiment)
+
+outputs:
+  report_subdir: report
+  fig_format: png
+  dpi: 150
+  which_figures:
+    - grid_best_val_loss
+    - grid_best_rec_globals
+    - grid_best_rec_tokens
+    - tradeoff_scatter
+
+thresholds:
+  val_mse: 0.01
+  comparison: le
+  split: val
+
+summary_schema_version: 1

@@ -90,6 +90,15 @@ def _extract_metadata(cfg: dict[str, Any]) -> dict[str, Any]:
                     key, val = str(override).split("=", 1)
                     overrides[key] = val
 
+    # Extract sweep parameters from overrides (generic approach)
+    ov = overrides
+    latent_space = ov.get("phase1/latent_space")
+    globals_beta_raw = ov.get("phase1.decoder.globals_beta")
+    try:
+        globals_beta = float(globals_beta_raw) if globals_beta_raw is not None else None
+    except (ValueError, TypeError):
+        globals_beta = None
+
     return {
         "encoder": encoder,
         "tokenizer": tokenizer,
@@ -98,6 +107,8 @@ def _extract_metadata(cfg: dict[str, Any]) -> dict[str, Any]:
         "codebook_size": codebook_size,
         "dataset_name": dataset_name,
         "overrides": overrides,
+        "latent_space": latent_space,
+        "globals_beta": globals_beta,
     }
 
 
@@ -207,6 +218,7 @@ def load_runs(sweep_dir: str | None = None, run_dirs: list[str] | None = None, *
             loss_recon_best = None
             loss_commit_best = None
             loss_codebook_best = None
+            loss_rec_globals_best = None
             if events:
                 # search last on_epoch_end with histories
                 hist = None
@@ -237,6 +249,15 @@ def load_runs(sweep_dir: str | None = None, run_dirs: list[str] | None = None, *
                             pass
                     except Exception:
                         pass
+                    # Extract rec_globals from history
+                    if hist and be >= 0:
+                        try:
+                            if isinstance(hist.get("history_rec_globals"), list):
+                                arr = hist["history_rec_globals"]
+                                if be < len(arr):
+                                    loss_rec_globals_best = float(arr[be])
+                        except Exception:
+                            pass
 
             summary = {
                 "run_dir": str(rd),
@@ -260,6 +281,9 @@ def load_runs(sweep_dir: str | None = None, run_dirs: list[str] | None = None, *
                 "throughput_mean": float(val_df.get("throughput", pd.Series(dtype=float)).astype(float).mean()) if "throughput" in val_df else None,
                 "max_memory_mib_max": float(val_df.get("max_memory_mib", pd.Series(dtype=float)).astype(float).max()) if "max_memory_mib" in val_df else None,
                 "metric_perplex_final": float(val_df.get("metric_perplex", pd.Series(dtype=float)).astype(float).iloc[-1]) if "metric_perplex" in val_df and len(val_df) else None,
+                "latent_space": meta.get("latent_space"),
+                "globals_beta": meta.get("globals_beta"),
+                "loss.rec_globals_best": loss_rec_globals_best,
             }
             summaries.append(summary)
             per_epoch[str(rd)] = val_df.reset_index(drop=True)

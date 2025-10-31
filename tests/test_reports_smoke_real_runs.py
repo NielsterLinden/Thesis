@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from omegaconf import OmegaConf
 
-from thesis_ml.reports.compare_tokenizers import run_report
+from thesis_ml.reports.experiments.compare_tokenizers import run_report
 
 
 @pytest.mark.skipif(not Path("outputs").exists(), reason="no real outputs present")
