@@ -1,12 +1,12 @@
 universe       = vanilla
-executable     = hpc/stoomboot/run.sh
+executable     = hpc/stoomboot/train.sh
 arguments      =
 
 initialdir     = /project/atlas/users/nterlind/Thesis-Code
 
-output         = /data/atlas/users/nterlind/logs/stdout/gpu_$(ClusterId).$(ProcId).out
-error          = /data/atlas/users/nterlind/logs/stderr/gpu_$(ClusterId).$(ProcId).err
-log            = /data/atlas/users/nterlind/logs/gpu_$(ClusterId).log
+output         = /data/atlas/users/nterlind/logs/stdout/train_$(ClusterId).$(ProcId).out
+error          = /data/atlas/users/nterlind/logs/stderr/train_$(ClusterId).$(ProcId).err
+log            = /data/atlas/users/nterlind/logs/train_$(ClusterId).log
 
 request_cpus   = 2
 request_memory = 16GB

@@ -9,22 +9,33 @@
 
 ## Quick Start
 
-### Submit a CPU job
+### Submit a Training Job (GPU)
 ```bash
 cd /project/atlas/nterlind/Thesis-Code
-condor_submit hpc/stoomboot/job_cpu.sub
+condor_submit hpc/stoomboot/train.sub -append 'arguments = phase1/experiment=compare_globals_heads'
 ```
 
-### Submit a GPU job
+### Submit a Report Generation Job (CPU)
 ```bash
-condor_submit hpc/stoomboot/job_gpu.sub
+condor_submit hpc/stoomboot/report.sub -append 'arguments = --config-name compare_globals_heads +sweep_dir=/data/atlas/users/nterlind/outputs/experiments/exp_20251031-094244_compare_globals_heads'
 ```
 
 ### Submit with Hydra arguments
 ```bash
-# Method 1: Edit arguments line in .sub file
-# Method 2: Use -append
-condor_submit hpc/stoomboot/job_gpu.sub -append 'arguments = trainer.epochs=100 phase1/latent_space=vq'
+# Training: Add experiment or config overrides
+condor_submit hpc/stoomboot/train.sub -append 'arguments = phase1/experiment=compare_globals_heads trainer.epochs=50'
+
+# Reporting: Specify experiment directory
+condor_submit hpc/stoomboot/report.sub -append 'arguments = --config-name compare_globals_heads +sweep_dir=/path/to/experiment'
+```
+
+### Legacy Jobs (deprecated, use train.sub/report.sub instead)
+```bash
+# Old CPU job (still works but deprecated)
+condor_submit hpc/stoomboot/job_cpu.sub
+
+# Old GPU job (still works but deprecated)
+condor_submit hpc/stoomboot/job_gpu.sub
 ```
 
 ## Monitoring Jobs
@@ -200,13 +211,19 @@ pip install -e /project/atlas/nterlind/Thesis-Code
 
 With `env=stoomboot` selected:
 
-- **Run outputs:** `/data/atlas/nterlind/outputs/runs/run_<timestamp>_<name>/`
-- **Experiment sweeps:** `/data/atlas/nterlind/outputs/experiments/exp_<timestamp>_<name>/<job_num>/`
-- **Job logs:** `/data/atlas/nterlind/logs/`
+- **Run outputs:** `/data/atlas/users/nterlind/outputs/runs/run_<timestamp>_<name>/`
+- **Experiment sweeps:** `/data/atlas/users/nterlind/outputs/experiments/exp_<timestamp>_<name>/<job_num>/`
+- **Report outputs:** `/data/atlas/users/nterlind/outputs/experiments/exp_<timestamp>_<name>/report/`
+- **Job logs:** `/data/atlas/users/nterlind/logs/`
 - **Facts/plots:** Inside each run directory under `facts/` and `figures/`
 
 Verify after job completes:
 ```bash
-tree /data/atlas/nterlind/outputs/runs/ | head -20
-ls /data/atlas/nterlind/outputs/runs/run_*/cfg.yaml
+# Training outputs
+tree /data/atlas/users/nterlind/outputs/runs/ | head -20
+ls /data/atlas/users/nterlind/outputs/runs/run_*/cfg.yaml
+
+# Experiment reports
+ls /data/atlas/users/nterlind/outputs/experiments/exp_*/report/summary.csv
+ls /data/atlas/users/nterlind/outputs/experiments/exp_*/report/figures/
 ```

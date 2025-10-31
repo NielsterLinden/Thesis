@@ -1,12 +1,12 @@
 universe      = vanilla
-executable    = hpc/stoomboot/run.sh
+executable    = hpc/stoomboot/report.sh
 arguments     =
 
 initialdir    = /project/atlas/users/nterlind/Thesis-Code
 
-output        = /data/atlas/users/nterlind/logs/stdout/cpu_$(ClusterId).$(ProcId).out
-error         = /data/atlas/users/nterlind/logs/stderr/cpu_$(ClusterId).$(ProcId).err
-log           = /data/atlas/users/nterlind/logs/cpu_$(ClusterId).log
+output        = /data/atlas/users/nterlind/logs/stdout/report_$(ClusterId).$(ProcId).out
+error         = /data/atlas/users/nterlind/logs/stderr/report_$(ClusterId).$(ProcId).err
+log           = /data/atlas/users/nterlind/logs/report_$(ClusterId).log
 
 request_cpus  = 1
 request_memory = 8GB
