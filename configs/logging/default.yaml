@@ -25,7 +25,7 @@ families:
 
 # Moments: control when to plot
 moments:
-  on_epoch_end_quick: true
+  on_epoch_end_quick: false
   on_train_end_full: true
   on_validation_end: false
   on_test_end: true

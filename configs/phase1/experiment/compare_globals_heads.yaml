@@ -2,9 +2,7 @@
 
 experiment:
   name: "compare_globals_heads"
-  description: "Compare influence of global head reconstruction (globals_beta) across different latent spaces"
 
-# Hydra multirun configuration: 3 latent spaces × 3 globals_beta values = 9 runs
 hydra:
   mode: MULTIRUN
   job:
@@ -17,4 +15,5 @@ hydra:
     params:
       phase1/latent_space: none,linear,vq
       phase1.decoder.globals_beta: 0,1,10
-      phase1.trainer.epochs: 20
+      phase1.trainer.epochs: 50
+      phase1.trainer.seed: 0,1,2   # last param varies fastest → (0,1,2) per setting
