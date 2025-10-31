@@ -17,6 +17,7 @@
   - phase1/decoder: mlp           # decoder architecture and hyperparameters
   - phase1/latent_space: none       # latent space configuration (VQ, none, etc.)
   - phase1/trainer: ae            # phase1-specific training hyperparameters
+  - phase1/experiment: null
   - _self_
 
 # --- High-level dispatcher key ---
