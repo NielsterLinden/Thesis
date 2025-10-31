@@ -16,6 +16,8 @@ outputs:
     - grid_best_rec_globals
     - grid_best_rec_tokens
     - tradeoff_scatter
+    - all_val_curves
+    - all_train_curves
 
 thresholds:
   val_mse: 0.01

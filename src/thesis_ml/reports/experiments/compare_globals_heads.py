@@ -4,6 +4,7 @@ import logging
 
 from omegaconf import DictConfig
 
+from ..plots.curves import plot_all_train_curves, plot_all_val_curves
 from ..plots.grids import plot_grid_heatmap
 from ..plots.scatter import plot_scatter_colored
 from ..utils.io import ensure_report_dirs, get_fig_config, resolve_output_root
@@ -81,5 +82,11 @@ def run_report(cfg: DictConfig) -> None:
             fig_cfg,
             annotate_col="globals_beta",
         )
+
+    if "all_val_curves" in wanted:
+        plot_all_val_curves(runs_df, per_epoch, figs_dir, fig_cfg, fname="figure-all_val_curves")
+
+    if "all_train_curves" in wanted:
+        plot_all_train_curves(runs_df, figs_dir, fig_cfg, fname="figure-all_train_curves")
 
     logger.info("Report written to %s", out_root)
