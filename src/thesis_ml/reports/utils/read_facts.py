@@ -14,6 +14,39 @@ from omegaconf import OmegaConf
 logger = logging.getLogger(__name__)
 
 
+def _infer_latent_space_from_cfg(cfg: dict) -> str | None:
+    """Infer latent space name from composed cfg (fallback when overrides absent)."""
+    try:
+        ls = cfg.get("phase1", {}).get("latent_space")
+        if ls is None:
+            return None
+        if isinstance(ls, str):
+            return ls
+        if isinstance(ls, dict):
+            name = ls.get("name")
+            if isinstance(name, str):
+                return name
+            tgt = ls.get("_target_")
+            if isinstance(tgt, str):
+                last = tgt.split(".")[-1].lower()
+                for key in ("none", "vq", "linear"):
+                    if key in last:
+                        return key
+                return last
+        return None
+    except Exception:
+        return None
+
+
+def _infer_globals_beta_from_cfg(cfg: dict) -> float | None:
+    """Infer globals_beta directly from composed cfg."""
+    try:
+        gb = cfg.get("phase1", {}).get("decoder", {}).get("globals_beta")
+        return float(gb) if gb is not None else None
+    except Exception:
+        return None
+
+
 @dataclass
 class RunFacts:
     run_dir: Path
@@ -98,6 +131,12 @@ def _extract_metadata(cfg: dict[str, Any]) -> dict[str, Any]:
         globals_beta = float(globals_beta_raw) if globals_beta_raw is not None else None
     except (ValueError, TypeError):
         globals_beta = None
+
+    # Fallback to composed cfg values if overrides are missing
+    if not latent_space:
+        latent_space = _infer_latent_space_from_cfg(cfg)
+    if globals_beta is None:
+        globals_beta = _infer_globals_beta_from_cfg(cfg)
 
     return {
         "encoder": encoder,
