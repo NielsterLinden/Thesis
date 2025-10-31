@@ -5,6 +5,8 @@ inputs:
   run_dirs: []              # Alternative: explicit list of run dirs
   select: null              # Optional filtering (not used for this experiment)
 
+report_name: compare_globals_heads
+
 outputs:
   report_subdir: report
   fig_format: png

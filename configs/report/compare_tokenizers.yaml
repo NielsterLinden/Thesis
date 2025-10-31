@@ -8,6 +8,8 @@ inputs:
     tokenizer: null         # e.g., [none, vq]
     seed: null              # e.g., [1, 2, 3]
 
+report_name: compare_tokenizers
+
 outputs:
   report_subdir: report
   fig_format: png
