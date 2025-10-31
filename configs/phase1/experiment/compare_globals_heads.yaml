@@ -1,0 +1,20 @@
+# @package _global_
+
+experiment:
+  name: "compare_globals_heads"
+  description: "Compare influence of global head reconstruction (globals_beta) across different latent spaces"
+
+# Hydra multirun configuration: 3 latent spaces × 3 globals_beta values = 9 runs
+hydra:
+  mode: MULTIRUN
+  job:
+    chdir: true
+    name: ${experiment.name}
+  sweep:
+    dir: ${env.output_root}/experiments/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${hydra.job.num}
+  sweeper:
+    params:
+      phase1/latent_space: none,linear,vq
+      phase1.decoder.globals_beta: 0,1,10
+      phase1.trainer.epochs: 20
