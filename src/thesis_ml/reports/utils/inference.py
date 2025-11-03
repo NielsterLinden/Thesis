@@ -73,7 +73,7 @@ def load_model_from_run(run_id: str, output_root: Path | str, device: str | None
 
     dev = _resolve_device(device)
     model = build_from_config(cfg).to(dev)
-    state = torch.load(str(weights_path), map_location=dev)
+    state = torch.load(str(weights_path), map_location=dev, weights_only=False)
     model.load_state_dict(state)
     model.eval()
     return cfg, model, dev

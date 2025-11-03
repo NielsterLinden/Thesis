@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 import torch
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 from thesis_ml.data.h5_loader import make_dataloaders
 from thesis_ml.utils.seed import set_all_seeds
@@ -62,12 +62,7 @@ def run_anomaly_detection(
     batch_size = inference_cfg.get("batch_size", 512)
 
     # Create a temporary config dict with batch_size override
-    if isinstance(dataset_cfg, dict):
-        from omegaconf import OmegaConf
-
-        temp_cfg = OmegaConf.create(dataset_cfg)
-    else:
-        temp_cfg = dataset_cfg
+    temp_cfg = OmegaConf.create(dataset_cfg) if isinstance(dataset_cfg, dict) else dataset_cfg
 
     # Set batch_size if phase1.trainer exists
     if hasattr(temp_cfg, "phase1") and hasattr(temp_cfg.phase1, "trainer"):
