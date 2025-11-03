@@ -13,6 +13,8 @@ from thesis_ml.data.h5_loader import make_dataloaders
 from thesis_ml.phase1.autoenc.base import build_from_config
 from thesis_ml.utils.paths import resolve_run_dir
 
+from ..inference.forward_pass import create_model_adapter as _create_model_adapter
+
 
 def _resolve_device(device: str | None = None) -> torch.device:
     """Resolve device from string or auto-select."""
@@ -93,6 +95,52 @@ def get_example_batch(cfg: Any, split: str = "val"):
         dl = val_dl
     batch = next(iter(dl))
     return batch
+
+
+def load_models_for_runs(
+    run_ids: list[str],
+    output_root: Path | str,
+    device: str | None = None,
+) -> list[tuple[str, Any, torch.nn.Module]]:
+    """Batch load models from list of run IDs.
+
+    Parameters
+    ----------
+    run_ids : list[str]
+        List of run IDs to load
+    output_root : Path | str
+        Root output directory
+    device : str | None
+        Optional device string. If None, selects CUDA when available.
+
+    Returns
+    -------
+    list[tuple[str, Any, torch.nn.Module]]
+        List of (run_id, cfg, model) tuples
+    """
+    models = []
+
+    for run_id in run_ids:
+        cfg, model, _ = load_model_from_run(run_id, output_root, device=device)
+        models.append((run_id, cfg, model))
+
+    return models
+
+
+def create_model_adapter(model: torch.nn.Module) -> torch.nn.Module:
+    """Create adapter for model if needed to provide uniform API.
+
+    Parameters
+    ----------
+    model : torch.nn.Module
+        Model to wrap
+
+    Returns
+    -------
+    torch.nn.Module
+        Model with uniform API (possibly wrapped)
+    """
+    return _create_model_adapter(model)
 
 
 def run_inference_minimal(

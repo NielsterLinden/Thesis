@@ -97,6 +97,60 @@ def run_report(cfg: DictConfig) -> None:
     if "all_train_curves" in wanted:
         plot_all_train_curves(runs_df, training_figs_dir, fig_cfg, fname="figure-all_train_curves")
 
+    # Inference section
+    if cfg.get("inference", {}).get("enabled", False):
+        from ..inference.anomaly_detection import run_anomaly_detection
+        from ..utils.inference import create_model_adapter, load_models_for_runs
+
+        logger.info("Running inference for anomaly detection...")
+
+        # Load models for all runs
+        run_ids = [get_run_id(Path(rd)) for rd in runs_df["run_dir"].dropna().unique()]
+        models_raw = load_models_for_runs(run_ids, output_root)
+
+        # Wrap with adapters for uniform API
+        models = [(rid, cfg_model, create_model_adapter(model)) for rid, cfg_model, model in models_raw]
+
+        # Run anomaly detection
+        inference_results = run_anomaly_detection(
+            models=models,
+            dataset_cfg=cfg.get("data"),
+            corruption_strategies=list(cfg.inference.corruption_strategies) if hasattr(cfg.inference, "corruption_strategies") else [],
+            split=cfg.inference.dataset_split,
+            inference_cfg={
+                "autocast": cfg.inference.get("autocast", False),
+                "batch_size": cfg.inference.get("batch_size", 512),
+                "seed": cfg.inference.get("seed", 42),
+            },
+        )
+
+        # Generate plots
+        from ..plots.anomaly import (
+            plot_auroc_comparison,
+            plot_model_comparison,
+            plot_reconstruction_error_distributions,
+        )
+
+        figures = []
+        try:
+            plot_reconstruction_error_distributions(inference_results, inference_figs_dir, fig_cfg)
+            plot_model_comparison(inference_results, inference_figs_dir, fig_cfg)
+            plot_auroc_comparison(inference_results, inference_figs_dir, fig_cfg)
+        except Exception as e:
+            logger.warning("Error generating inference plots: %s", e)
+
+        # Save results
+        from ..utils.inference import persist_inference_artifacts
+
+        persist_inference_artifacts(
+            inference_dir=inference_dir,
+            metrics=inference_results,
+            figures=figures,
+            persist_raw_scores=cfg.inference.get("persist_raw_scores", False),
+        )
+
+        logger.info("Inference completed. Results saved to %s", inference_dir)
+
     # Create manifest.yaml
     from ..utils.manifest import create_manifest
 
