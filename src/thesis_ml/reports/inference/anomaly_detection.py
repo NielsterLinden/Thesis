@@ -57,22 +57,21 @@ def run_anomaly_detection(
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Create baseline dataloader
-    # Note: We need to create a config-like object that matches what make_dataloaders expects
-    # The dataset_cfg might already be compatible, but we need to override batch_size
+    # dataset_cfg should be a full config (with data and phase1 sections)
+    # Override batch_size from inference_cfg
     batch_size = inference_cfg.get("batch_size", 512)
 
-    # Create a temporary config dict with batch_size override
-    temp_cfg = OmegaConf.create(dataset_cfg) if isinstance(dataset_cfg, dict) else dataset_cfg
+    # Create a copy to avoid modifying the original config
+    temp_cfg = OmegaConf.create(dataset_cfg) if isinstance(dataset_cfg, dict) else OmegaConf.create(OmegaConf.to_container(dataset_cfg, resolve=True))
 
-    # Set batch_size if phase1.trainer exists
+    # Override batch_size (make_dataloaders expects cfg.phase1.trainer.batch_size)
     if hasattr(temp_cfg, "phase1") and hasattr(temp_cfg.phase1, "trainer"):
         temp_cfg.phase1.trainer.batch_size = batch_size
-    elif hasattr(temp_cfg, "phase1"):
-        # Create trainer section if it doesn't exist
-        temp_cfg.phase1.trainer = OmegaConf.create({"batch_size": batch_size})
     else:
         # Create phase1.trainer section if it doesn't exist
-        temp_cfg.phase1 = OmegaConf.create({"trainer": {"batch_size": batch_size}})
+        if not hasattr(temp_cfg, "phase1"):
+            temp_cfg.phase1 = OmegaConf.create({})
+        temp_cfg.phase1.trainer = OmegaConf.create({"batch_size": batch_size})
 
     train_dl, val_dl, test_dl, _meta = make_dataloaders(temp_cfg)
 

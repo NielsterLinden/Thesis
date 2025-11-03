@@ -111,10 +111,16 @@ def run_report(cfg: DictConfig) -> None:
         # Wrap with adapters for uniform API
         models = [(rid, cfg_model, create_model_adapter(model)) for rid, cfg_model, model in models_raw]
 
+        # Use first model's config as base (all runs should have same data config)
+        # This ensures we have the full config structure that make_dataloaders expects
+        base_cfg = models_raw[0][1] if models_raw else None
+        if base_cfg is None:
+            raise RuntimeError("No models loaded - cannot determine data config")
+
         # Run anomaly detection
         inference_results = run_anomaly_detection(
             models=models,
-            dataset_cfg=cfg.get("data"),
+            dataset_cfg=base_cfg,  # Pass full config, not just data section
             corruption_strategies=list(cfg.inference.corruption_strategies) if hasattr(cfg.inference, "corruption_strategies") else [],
             split=cfg.inference.dataset_split,
             inference_cfg={
