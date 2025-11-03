@@ -12,6 +12,14 @@ class H5TokenDataset(Dataset):
             Xtr = f[cfg.data.datasets.x_train][:]
             Xva = f[cfg.data.datasets.x_val][:]  # shapes: [N, 92]
             Xte = f[cfg.data.datasets.x_test][:]
+
+        # Limit samples if specified (for faster testing)
+        limit = int(getattr(cfg.data, "limit_samples", 0) or 0)
+        if limit > 0:
+            Xtr = Xtr[:limit]
+            Xva = Xva[: min(limit, len(Xva))]
+            Xte = Xte[: min(limit, len(Xte))]
+
         self.splits = {
             "train": torch.tensor(Xtr, dtype=torch.float32),
             "val": torch.tensor(Xva, dtype=torch.float32),

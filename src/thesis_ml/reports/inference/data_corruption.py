@@ -272,8 +272,8 @@ def create_corrupted_dataloader(
     return DataLoader(
         corrupted_dataset,
         batch_size=original_dataloader.batch_size,
-        shuffle=original_dataloader.shuffle,
+        shuffle=False,  # DataLoader has no .shuffle attribute; keep deterministic order
         num_workers=original_dataloader.num_workers,
-        pin_memory=original_dataloader.pin_memory,
-        drop_last=original_dataloader.drop_last,
+        pin_memory=getattr(original_dataloader, "pin_memory", False),
+        drop_last=getattr(original_dataloader, "drop_last", False),
     )
