@@ -69,6 +69,32 @@ def main(cfg: DictConfig) -> None:
     except (ImportError, AttributeError) as e:
         raise RuntimeError(f"Could not load report '{report_name}': {e}") from e
 
+    # Extract data config from first run if inference is enabled
+    data_cfg = None
+    if cfg.get("inference", {}).get("enabled", False):
+        # Try to get data config from report config first
+        if cfg.get("data"):
+            data_cfg = cfg.data
+        else:
+            # Extract from first run's config
+            from thesis_ml.reports.utils.read_facts import discover_runs
+
+            discovered_runs = discover_runs(
+                sweep_dir=Path(str(sweep_dir)) if sweep_dir else None,
+                run_dirs=[Path(str(d)) for d in run_dirs] if run_dirs else None,
+            )
+            if discovered_runs:
+                first_run_dir = discovered_runs[0]
+                hydra_cfg_path = first_run_dir / ".hydra" / "config.yaml"
+                if hydra_cfg_path.exists():
+                    run_cfg = OmegaConf.load(str(hydra_cfg_path))
+                    data_cfg = run_cfg.get("data")
+                else:
+                    legacy_cfg_path = first_run_dir / "cfg.yaml"
+                    if legacy_cfg_path.exists():
+                        run_cfg = OmegaConf.load(str(legacy_cfg_path))
+                        data_cfg = run_cfg.get("data")
+
     # Build standardized config
     local_cfg = OmegaConf.create(
         {
@@ -84,6 +110,7 @@ def main(cfg: DictConfig) -> None:
             "report_name": report_name,
             "env": {"output_root": str(output_root)},
             "inference": OmegaConf.to_container(cfg.inference, resolve=True) if cfg.get("inference") else {},
+            "data": OmegaConf.to_container(data_cfg, resolve=True) if data_cfg else None,
         }
     )
 
