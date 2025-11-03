@@ -63,6 +63,14 @@ def load_model_from_run(run_id: str, output_root: Path | str, device: str | None
     else:
         raise FileNotFoundError(f"Missing best_val.pt or model.pt in {run_dir}")
 
+    # Populate meta if missing (needed for model building)
+    if not hasattr(cfg, "meta") or cfg.meta is None:
+        from thesis_ml.phase1.train.ae_loop import _gather_meta
+
+        # Create dataloaders temporarily to get meta
+        train_dl, val_dl, test_dl, meta = make_dataloaders(cfg)
+        _gather_meta(cfg, meta)
+
     dev = _resolve_device(device)
     model = build_from_config(cfg).to(dev)
     state = torch.load(str(weights_path), map_location=dev)
