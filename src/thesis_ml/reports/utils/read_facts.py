@@ -58,14 +58,23 @@ class RunFacts:
 
 
 def _read_cfg(run_dir: Path) -> tuple[dict[str, Any], str | None]:
+    # Prefer .hydra/config.yaml as canonical record (no cfg.yaml duplication)
+    hydra_cfg_path = run_dir / ".hydra" / "config.yaml"
+    if hydra_cfg_path.exists():
+        txt = hydra_cfg_path.read_text(encoding="utf-8")
+        sha1 = hashlib.sha1(txt.encode("utf-8")).hexdigest()
+        cfg = OmegaConf.to_container(OmegaConf.load(hydra_cfg_path), resolve=True)  # type: ignore
+        assert isinstance(cfg, dict)
+        return cfg, sha1
+    # Fallback to cfg.yaml for backward compatibility with old runs
     cfg_path = run_dir / "cfg.yaml"
-    if not cfg_path.exists():
-        raise FileNotFoundError(f"Missing cfg.yaml in {run_dir}")
-    txt = cfg_path.read_text(encoding="utf-8")
-    sha1 = hashlib.sha1(txt.encode("utf-8")).hexdigest()
-    cfg = OmegaConf.to_container(OmegaConf.load(cfg_path), resolve=True)  # type: ignore
-    assert isinstance(cfg, dict)
-    return cfg, sha1
+    if cfg_path.exists():
+        txt = cfg_path.read_text(encoding="utf-8")
+        sha1 = hashlib.sha1(txt.encode("utf-8")).hexdigest()
+        cfg = OmegaConf.to_container(OmegaConf.load(cfg_path), resolve=True)  # type: ignore
+        assert isinstance(cfg, dict)
+        return cfg, sha1
+    raise FileNotFoundError(f"Missing .hydra/config.yaml or cfg.yaml in {run_dir}")
 
 
 def _read_events(run_dir: Path) -> list[dict[str, Any]] | None:
@@ -177,20 +186,42 @@ def discover_runs(sweep_dir: Path | None, run_dirs: Iterable[Path] | None) -> li
     if sweep_dir is not None:
         if not sweep_dir.exists() or not sweep_dir.is_dir():
             raise FileNotFoundError(f"sweep_dir not found: {sweep_dir}")
-        # Prefer experiments root layout: <root>/runs contains run dirs or pointers
-        runs_dir = sweep_dir / "runs"
-        if runs_dir.exists() and runs_dir.is_dir():
-            # pointer files
-            candidates.extend(_discover_pointer_targets(runs_dir))
-            # direct child run dirs with cfg.yaml
-            for p in runs_dir.iterdir():
-                if p.is_dir() and (p / "cfg.yaml").exists():
-                    candidates.append(p)
-        else:
-            # legacy: child dirs under sweep_dir with cfg.yaml
-            for p in sweep_dir.iterdir():
-                if p.is_dir() and (p / "cfg.yaml").exists():
-                    candidates.append(p)
+
+        # Extract timestamp from multirun directory name (format: exp_TIMESTAMP_name)
+        # Match runs in outputs/runs/ with the same timestamp
+        multirun_name = sweep_dir.name
+        if multirun_name.startswith("exp_"):
+            # Extract timestamp: exp_YYYYMMDD-HHMMSS_name -> YYYYMMDD-HHMMSS
+            parts = multirun_name.replace("exp_", "").split("_", 1)
+            if parts:
+                timestamp = parts[0]  # e.g., "20251103-140953"
+                # Extract experiment name if present
+                exp_name = parts[1] if len(parts) > 1 else None
+
+                # Infer output_root from sweep_dir
+                parts = sweep_dir.parts
+                try:
+                    multiruns_idx = parts.index("multiruns")
+                    output_root = Path(*parts[:multiruns_idx])
+                    runs_dir = output_root / "runs"
+
+                    if runs_dir.exists():
+                        # Scan for runs matching the timestamp pattern
+                        # Pattern: run_TIMESTAMP_name_jobN or run_TIMESTAMP_name
+                        for run_path in runs_dir.iterdir():
+                            if not run_path.is_dir():
+                                continue
+                            run_name = run_path.name
+                            # Check if run matches timestamp and optionally experiment name
+                            if timestamp in run_name and (exp_name is None or exp_name in run_name) and ((run_path / ".hydra" / "config.yaml").exists() or (run_path / "cfg.yaml").exists()):
+                                candidates.append(run_path)
+                except ValueError:
+                    pass
+
+        # Fallback: direct child dirs with .hydra/config.yaml or cfg.yaml (legacy nested structure)
+        for p in sweep_dir.iterdir():
+            if p.is_dir() and ((p / ".hydra" / "config.yaml").exists() or (p / "cfg.yaml").exists()):
+                candidates.append(p)
     else:
         assert run_dirs is not None
         for p in run_dirs:

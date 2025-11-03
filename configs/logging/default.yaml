@@ -2,7 +2,7 @@ save_artifacts: true
 make_plots: true
 show_plots: false
 output_root: "${env.output_root}"
-figures_subdir: "figures"
+figures_subdir: "train_figures"  # Renamed from "figures" to avoid confusion with report figures
 fig_format: "png"
 dpi: 150
 file_naming: "{family}-{moment}-{epoch_or_step}"

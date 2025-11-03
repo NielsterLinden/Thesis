@@ -48,13 +48,14 @@ def train(cfg: DictConfig):
     model = build_from_config(cfg).to(device)
     opt = torch.optim.Adam(model.parameters(), lr=cfg.phase1.trainer.lr, weight_decay=cfg.phase1.trainer.weight_decay)
 
-    # logging dir from Hydra (assumes job.chdir=true or explicit run.dir)
+    # logging dir from Hydra (chdir=true means Hydra sets cwd to run.dir)
     outdir = None
     if cfg.logging.save_artifacts:
-        outdir = os.getcwd()  # Hydra sets this when chdir=true
+        # When chdir=true, Hydra changes to run.dir, so os.getcwd() is correct
+        # When chdir=false, we'd need to read from config, but we use chdir=true
+        outdir = os.getcwd()
         os.makedirs(outdir, exist_ok=True)
-        # Persist composed config beside artifacts for reproducibility
-        OmegaConf.save(config=cfg, f=os.path.join(outdir, "cfg.yaml"))
+        # No cfg.yaml - rely on .hydra/config.yaml as canonical record
 
     # on_start
     if outdir and cfg.logging.save_artifacts:
@@ -171,11 +172,30 @@ def train(cfg: DictConfig):
             extras={"perplex": float(va.get("perplex", 0.0))},
         )
 
+        # Save best validation checkpoint
         if va["loss"] < best_val and outdir and cfg.logging.save_artifacts:
             best_val = va["loss"]
-            torch.save(model.state_dict(), os.path.join(outdir, "model.pt"))
+            best_val_path = os.path.join(outdir, "best_val.pt")
+            torch.save(model.state_dict(), best_val_path)
+            # Create/update symlink model.pt -> best_val.pt for stable handle
+            model_pt_path = os.path.join(outdir, "model.pt")
+            if os.path.exists(model_pt_path) and not os.path.islink(model_pt_path):
+                os.remove(model_pt_path)  # Remove old file if exists
+            if not os.path.exists(model_pt_path):
+                try:
+                    os.symlink("best_val.pt", model_pt_path)
+                except OSError:
+                    # Fallback: copy if symlink fails (Windows without admin)
+                    import shutil
+
+                    shutil.copy2(best_val_path, model_pt_path)
 
     te = run_epoch(test_dl, False)
+
+    # Save final epoch checkpoint
+    if outdir and cfg.logging.save_artifacts:
+        last_path = os.path.join(outdir, "last.pt")
+        torch.save(model.state_dict(), last_path)
 
     if outdir and cfg.logging.save_artifacts:
         total_time = time.perf_counter() - total_t0

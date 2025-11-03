@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 from omegaconf import DictConfig
+
+from thesis_ml.utils.paths import get_report_id, get_run_id
 
 from ..plots.curves import plot_all_train_curves, plot_all_val_curves
 from ..plots.grids import plot_grid_heatmap
 from ..plots.scatter import plot_scatter_colored
-from ..utils.io import ensure_report_dirs, get_fig_config, resolve_output_root
+from ..utils.backlinks import append_report_pointer
+from ..utils.io import ensure_report_dirs, get_fig_config, resolve_report_output_dir
 from ..utils.read_facts import load_runs
 
 logger = logging.getLogger(__name__)
@@ -26,10 +30,14 @@ def run_report(cfg: DictConfig) -> None:
     if runs_df.empty:
         raise RuntimeError("No valid runs found for reporting.")
 
-    out_root = resolve_output_root(cfg.inputs.sweep_dir, list(cfg.inputs.run_dirs) if cfg.inputs.run_dirs else None, str(cfg.outputs.report_subdir))
-    out_root, figs_dir = ensure_report_dirs(out_root)
+    # Resolve report directory (always under outputs/reports/)
+    report_id = cfg.get("report_id")
+    report_name = cfg.get("report_name", "compare_globals_heads")
+    output_root = Path(cfg.env.output_root)
+    report_dir = resolve_report_output_dir(report_id, report_name, output_root)
+    training_dir, inference_dir, training_figs_dir, inference_figs_dir = ensure_report_dirs(report_dir)
 
-    runs_df.to_csv(out_root / "summary.csv", index=False)
+    runs_df.to_csv(training_dir / "summary.csv", index=False)
 
     fig_cfg = get_fig_config(cfg)
     wanted = set(cfg.outputs.which_figures or [])
@@ -41,7 +49,7 @@ def run_report(cfg: DictConfig) -> None:
             "latent_space",
             "loss.total_best",
             "Best Validation Loss",
-            figs_dir,
+            training_figs_dir,
             "figure-grid_best_val_loss",
             fig_cfg,
         )
@@ -53,7 +61,7 @@ def run_report(cfg: DictConfig) -> None:
             "latent_space",
             "loss.rec_globals_best",
             "Best rec_globals",
-            figs_dir,
+            training_figs_dir,
             "figure-grid_best_rec_globals",
             fig_cfg,
         )
@@ -65,7 +73,7 @@ def run_report(cfg: DictConfig) -> None:
             "latent_space",
             "loss.recon_best",
             "Best rec_tokens",
-            figs_dir,
+            training_figs_dir,
             "figure-grid_best_rec_tokens",
             fig_cfg,
         )
@@ -77,16 +85,36 @@ def run_report(cfg: DictConfig) -> None:
             "loss.rec_globals_best",
             "latent_space",
             "Trade-off: Tokens vs Globals",
-            figs_dir,
+            training_figs_dir,
             "figure-tradeoff",
             fig_cfg,
             annotate_col="globals_beta",
         )
 
     if "all_val_curves" in wanted:
-        plot_all_val_curves(runs_df, per_epoch, figs_dir, fig_cfg, fname="figure-all_val_curves")
+        plot_all_val_curves(runs_df, per_epoch, training_figs_dir, fig_cfg, fname="figure-all_val_curves")
 
     if "all_train_curves" in wanted:
-        plot_all_train_curves(runs_df, figs_dir, fig_cfg, fname="figure-all_train_curves")
+        plot_all_train_curves(runs_df, training_figs_dir, fig_cfg, fname="figure-all_train_curves")
 
-    logger.info("Report written to %s", out_root)
+    # Create manifest.yaml
+    from ..utils.manifest import create_manifest
+
+    manifest_data = create_manifest(
+        report_id=report_id or get_report_id(report_name),
+        run_ids=[get_run_id(Path(rd)) for rd in runs_df["run_dir"].dropna().unique()],
+        output_root=output_root,
+        dataset_cfg=cfg.get("data") if hasattr(cfg, "data") else None,
+    )
+    import yaml
+
+    manifest_path = report_dir / "manifest.yaml"
+    with manifest_path.open("w", encoding="utf-8") as f:
+        yaml.dump(manifest_data, f, default_flow_style=False, sort_keys=False)
+
+    # Append report_pointer.txt to each run (append-only, atomic)
+    for rd in runs_df["run_dir"].dropna().unique():
+        run_dir_path = Path(str(rd))
+        append_report_pointer(run_dir_path, report_id or get_report_id(report_name))
+
+    logger.info("Report written to %s", report_dir)

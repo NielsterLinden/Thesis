@@ -22,3 +22,12 @@ thresholds:
   split: val
 
 summary_schema_version: 1
+
+inference:
+  enabled: false  # Set to true to run inference during report generation
+  persist_raw_scores: false  # If true, save per-event scores (default: minimal artifacts only)
+  dataset_split: val
+  metrics: [mse, mae]
+
+env:
+  output_root: null  # Auto-inferred from sweep_dir path, or set explicitly

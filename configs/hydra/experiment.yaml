@@ -1,6 +1,11 @@
 job:
-  chdir: true
+  chdir: true  # Must be true for Hydra to create .hydra/ directory
   name: experiment
+# Override run.dir so each job writes directly to outputs/runs/ (not nested under multirun)
+run:
+  dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${hydra.job.name}_job${hydra.job.num}
 sweep:
-  dir: ${env.output_root}/experiments/exp_${now:%Y%m%d-%H%M%S}_${hydra.job.name}
-  subdir: ${hydra.job.num}
+  dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${hydra.job.name}
+  # Set subdir to absolute path matching run.dir so Hydra changes to run.dir instead of creating numbered subdirs
+  # Using the same template ensures both resolve to the same path
+  subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${hydra.job.name}_job${hydra.job.num}

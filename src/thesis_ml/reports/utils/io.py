@@ -6,28 +6,58 @@ from typing import Any
 
 from omegaconf import DictConfig
 
-
-def resolve_output_root(sweep_dir: Path | str | None, run_dirs: list[str] | None, report_subdir: str = "report") -> Path:
-    """Resolve where to write report outputs"""
-    if sweep_dir:
-        return Path(str(sweep_dir)) / report_subdir
-
-    # Derive common parent from run_dirs
-    assert run_dirs and len(run_dirs) > 0
-    parents = [Path(rd).resolve().parent for rd in run_dirs]
-    common = parents[0]
-    for p in parents[1:]:
-        while not str(p).startswith(str(common)) and common != common.parent:
-            common = common.parent
-    return common / report_subdir
+from thesis_ml.utils.paths import get_report_id, resolve_report_dir
 
 
-def ensure_report_dirs(out_root: Path) -> tuple[Path, Path]:
-    """Create report directory structure"""
-    out_root.mkdir(parents=True, exist_ok=True)
-    figs = out_root / "figures"
-    figs.mkdir(parents=True, exist_ok=True)
-    return out_root, figs
+def resolve_report_output_dir(
+    report_id: str | None,
+    report_name: str | None,
+    output_root: Path | str,
+) -> Path:
+    """Resolve report directory to outputs/reports/<report_id>/.
+
+    Parameters
+    ----------
+    report_id : str | None
+        Pre-computed report ID. If None, generates one from report_name.
+    report_name : str | None
+        Report name for ID generation if report_id is None.
+    output_root : Path | str
+        Root output directory (e.g., from env.output_root)
+
+    Returns
+    -------
+    Path
+        Path to report directory
+    """
+    if report_id is None:
+        report_id = get_report_id(report_name)
+    return resolve_report_dir(report_id, output_root)
+
+
+def ensure_report_dirs(report_dir: Path) -> tuple[Path, Path, Path, Path]:
+    """Create report directory structure with training/ and inference/ subdirs.
+
+    Parameters
+    ----------
+    report_dir : Path
+        Path to report directory (e.g., outputs/reports/report_.../)
+
+    Returns
+    -------
+    tuple[Path, Path, Path, Path]
+        (training_dir, inference_dir, training_figs_dir, inference_figs_dir)
+    """
+    report_dir.mkdir(parents=True, exist_ok=True)
+    training_dir = report_dir / "training"
+    inference_dir = report_dir / "inference"
+    training_figs = training_dir / "figures"
+    inference_figs = inference_dir / "figures"
+    training_dir.mkdir(exist_ok=True)
+    inference_dir.mkdir(exist_ok=True)
+    training_figs.mkdir(exist_ok=True)
+    inference_figs.mkdir(exist_ok=True)
+    return training_dir, inference_dir, training_figs, inference_figs
 
 
 def save_json(obj: dict[str, Any], path: Path) -> None:

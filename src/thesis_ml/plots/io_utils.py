@@ -8,7 +8,8 @@ from typing import Any
 
 def ensure_figures_dir(run_dir: str, cfg_logging: Mapping[str, Any]) -> Path:
     root = Path(run_dir)
-    sub = str(cfg_logging.get("figures_subdir", "figures"))
+    # Use train_figures/ for training runs to avoid confusion with report figures
+    sub = str(cfg_logging.get("figures_subdir", "train_figures"))
     out = root / sub
     out.mkdir(parents=True, exist_ok=True)
     return out

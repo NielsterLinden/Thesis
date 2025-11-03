@@ -26,11 +26,18 @@ def _select_device(cfg) -> torch.device:
 
 def _ensure_run_dir(cfg) -> Path | None:
     if bool(cfg.logging.save_artifacts):
-        run_dir = Path(os.getcwd())  # Hydra sets this when chdir=true
+        # When chdir=true, Hydra changes to run.dir, so os.getcwd() is correct
+        # When chdir=false, we'd need to read from config, but we use chdir=true
+        run_dir = Path(os.getcwd())
         run_dir.mkdir(parents=True, exist_ok=True)
-        # Save composed config for reproducibility
-        with (run_dir / "cfg.yaml").open("w", encoding="utf-8") as f:
-            OmegaConf.save(config=cfg, f=f)
+        # No cfg.yaml - rely on .hydra/config.yaml as canonical record
+        # Validate run_dir is under outputs/runs/ (warn if not)
+        from thesis_ml.utils.paths import validate_run_dir
+
+        if not validate_run_dir(run_dir):
+            import warnings
+
+            warnings.warn(f"Run directory {run_dir} is not under outputs/runs/. This may indicate misconfiguration.", stacklevel=2)
         return run_dir
     return None
 
@@ -231,8 +238,24 @@ def train(cfg) -> dict:
     # Save artifacts
     saved_path: str | None = None
     if run_dir is not None:
-        model_path = run_dir / "model.pt"
-        torch.save(model.state_dict(), model_path)
+        # Save best validation checkpoint (use last epoch as best for this simple loop)
+        best_val_path = run_dir / "best_val.pt"
+        torch.save(model.state_dict(), best_val_path)
+        # Save final epoch checkpoint
+        last_path = run_dir / "last.pt"
+        torch.save(model.state_dict(), last_path)
+        # Create/update symlink model.pt -> best_val.pt for stable handle
+        model_pt_path = run_dir / "model.pt"
+        if model_pt_path.exists() and not model_pt_path.is_symlink():
+            model_pt_path.unlink()  # Remove old file if exists
+        if not model_pt_path.exists():
+            try:
+                model_pt_path.symlink_to("best_val.pt")
+            except OSError:
+                # Fallback: copy if symlink fails (Windows without admin)
+                import shutil
+
+                shutil.copy2(best_val_path, model_pt_path)
         total_time = time.perf_counter() - total_t0
 
         # Build histories dict
@@ -266,7 +289,7 @@ def train(cfg) -> dict:
                 import wandb
 
                 art = wandb.Artifact("model", type="model")
-                art.add_file(str(model_path))
+                art.add_file(str(best_val_path))
                 wandb.log_artifact(art)
                 # Optional future: log figures via external tracker
             except Exception as e:

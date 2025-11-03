@@ -212,18 +212,21 @@ pip install -e /project/atlas/nterlind/Thesis-Code
 With `env=stoomboot` selected:
 
 - **Run outputs:** `/data/atlas/users/nterlind/outputs/runs/run_<timestamp>_<name>/`
-- **Experiment sweeps:** `/data/atlas/users/nterlind/outputs/experiments/exp_<timestamp>_<name>/<job_num>/`
-- **Report outputs:** `/data/atlas/users/nterlind/outputs/experiments/exp_<timestamp>_<name>/report/`
+- **Multirun sweeps:** `/data/atlas/users/nterlind/outputs/multiruns/exp_<timestamp>_<name>/`
+- **Report outputs:** `/data/atlas/users/nterlind/outputs/reports/report_<timestamp>_<name>/`
 - **Job logs:** `/data/atlas/users/nterlind/logs/`
-- **Facts/plots:** Inside each run directory under `facts/` and `figures/`
+- **Facts/plots:** Inside each run directory under `facts/` and `train_figures/`
 
 Verify after job completes:
 ```bash
 # Training outputs
 tree /data/atlas/users/nterlind/outputs/runs/ | head -20
-ls /data/atlas/users/nterlind/outputs/runs/run_*/cfg.yaml
+ls /data/atlas/users/nterlind/outputs/runs/run_*/.hydra/config.yaml
 
-# Experiment reports
-ls /data/atlas/users/nterlind/outputs/experiments/exp_*/report/summary.csv
-ls /data/atlas/users/nterlind/outputs/experiments/exp_*/report/figures/
+# Multirun metadata
+ls /data/atlas/users/nterlind/outputs/multiruns/exp_*/multirun.yaml
+
+# Reports
+ls /data/atlas/users/nterlind/outputs/reports/report_*/manifest.yaml
+ls /data/atlas/users/nterlind/outputs/reports/report_*/training/figures/
 ```

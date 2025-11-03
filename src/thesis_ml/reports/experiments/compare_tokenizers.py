@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import contextlib
 import logging
 from pathlib import Path
 from typing import Any
@@ -10,9 +9,11 @@ import pandas as pd
 from omegaconf import DictConfig, OmegaConf
 
 from thesis_ml.plots.io_utils import save_figure
+from thesis_ml.utils.paths import get_report_id, get_run_id
 
 from ..plots.curves import plot_loss_vs_time
-from ..utils.io import ensure_report_dirs, get_fig_config, resolve_output_root, save_json
+from ..utils.backlinks import append_report_pointer
+from ..utils.io import ensure_report_dirs, get_fig_config, resolve_report_output_dir, save_json
 from ..utils.read_facts import load_runs
 
 logger = logging.getLogger(__name__)
@@ -126,7 +127,6 @@ def run_report(cfg: DictConfig) -> None:
     logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 
     # Load runs
-    run_dirs = list(cfg.inputs.run_dirs) if cfg.inputs.run_dirs else None
     runs_df, per_epoch, order = load_runs(
         sweep_dir=str(cfg.inputs.sweep_dir) if cfg.inputs.sweep_dir else None,
         run_dirs=list(cfg.inputs.run_dirs) if cfg.inputs.run_dirs else None,
@@ -139,12 +139,15 @@ def run_report(cfg: DictConfig) -> None:
     selected = _filter_runs(runs_df, OmegaConf.to_container(cfg.inputs.select, resolve=True) if cfg.inputs.select else None)
     _integrity_check(selected, OmegaConf.to_container(cfg.inputs.select, resolve=True) if cfg.inputs.select else None)
 
-    # Resolve output dirs
-    out_root = resolve_output_root(cfg.inputs.sweep_dir, run_dirs, str(cfg.outputs.report_subdir))
-    out_root, figs_dir = ensure_report_dirs(out_root)
+    # Resolve report directory (always under outputs/reports/)
+    report_id = cfg.get("report_id")
+    report_name = cfg.get("report_name", "compare_tokenizers")
+    output_root = Path(cfg.env.output_root)
+    report_dir = resolve_report_output_dir(report_id, report_name, output_root)
+    training_dir, inference_dir, training_figs_dir, inference_figs_dir = ensure_report_dirs(report_dir)
 
-    # Persist summary
-    selected.to_csv(out_root / "summary.csv", index=False)
+    # Persist summary to training/ subdir
+    selected.to_csv(training_dir / "summary.csv", index=False)
 
     # Extract sweep parameters if available
     sweep_params = {}
@@ -163,29 +166,41 @@ def run_report(cfg: DictConfig) -> None:
         "which_figures": list(cfg.outputs.which_figures) if cfg.outputs.which_figures else [],
         "sweep_params": sweep_params,
     }
-    save_json(meta, out_root / "summary.json")
+    save_json(meta, training_dir / "summary.json")
 
-    # Figures
+    # Figures go to training/figures/
     fig_cfg = get_fig_config(cfg)
     wanted = set(cfg.outputs.which_figures or [])
 
     if "val_mse_vs_time" in wanted:
-        plot_loss_vs_time(selected, per_epoch, order, figs_dir, fig_cfg, metric="val_loss", fname="figure-val_mse_vs_time")
+        plot_loss_vs_time(selected, per_epoch, order, training_figs_dir, fig_cfg, metric="val_loss", fname="figure-val_mse_vs_time")
     if "pareto_error_vs_compression" in wanted:
-        _plot_pareto(selected, figs_dir, fig_cfg)
+        _plot_pareto(selected, training_figs_dir, fig_cfg)
     if "vq_perplexity_boxplot" in wanted:
-        _plot_perplexity_box(selected, figs_dir, fig_cfg)
+        _plot_perplexity_box(selected, training_figs_dir, fig_cfg)
     if "throughput_vs_best_val" in wanted:
-        _plot_throughput_vs_best(selected, figs_dir, fig_cfg)
+        _plot_throughput_vs_best(selected, training_figs_dir, fig_cfg)
     if "time_to_threshold" in wanted:
-        _plot_time_to_threshold(selected, per_epoch, figs_dir, fig_cfg, cfg)
+        _plot_time_to_threshold(selected, per_epoch, training_figs_dir, fig_cfg, cfg)
 
-    # Optional: write a pointer file in each run
-    with contextlib.suppress(Exception):
-        for rd in selected["run_dir"].dropna().unique():
-            p = Path(str(rd)) / "report_pointer.txt"
-            rel = Path(out_root).resolve()
-            with contextlib.suppress(Exception):
-                p.write_text(str(rel), encoding="utf-8")
+    # Create manifest.yaml
+    from ..utils.manifest import create_manifest
 
-    logger.info("Report written to %s", out_root)
+    manifest_data = create_manifest(
+        report_id=report_id or get_report_id(report_name),
+        run_ids=[get_run_id(Path(rd)) for rd in selected["run_dir"].dropna().unique()],
+        output_root=output_root,
+        dataset_cfg=cfg.get("data") if hasattr(cfg, "data") else None,
+    )
+    import yaml
+
+    manifest_path = report_dir / "manifest.yaml"
+    with manifest_path.open("w", encoding="utf-8") as f:
+        yaml.dump(manifest_data, f, default_flow_style=False, sort_keys=False)
+
+    # Append report_pointer.txt to each run (append-only, atomic)
+    for rd in selected["run_dir"].dropna().unique():
+        run_dir_path = Path(str(rd))
+        append_report_pointer(run_dir_path, report_id or get_report_id(report_name))
+
+    logger.info("Report written to %s", report_dir)
