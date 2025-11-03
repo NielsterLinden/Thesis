@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import inspect
+import logging
 from typing import Any
 
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
+
+logger = logging.getLogger(__name__)
 
 
 class LegacyModelAdapter(nn.Module):
@@ -182,6 +185,10 @@ def run_batch_inference(
 
     event_id = 0
 
+    # Estimate total batches for progress logging
+    total_batches = len(dataloader)
+    logger.debug(f"Running inference on {total_batches} batches (batch_size={dataloader.batch_size})")
+
     with torch.inference_mode():
         # Set up autocast context if enabled and on CUDA
         if autocast and device.type == "cuda":
@@ -192,7 +199,11 @@ def run_batch_inference(
 
             autocast_context = nullcontext()
 
-        for batch in dataloader:
+        for batch_idx, batch in enumerate(dataloader, 1):
+            # Log progress every 10% or every 10 batches, whichever is more frequent
+            if total_batches > 10 and (batch_idx % max(1, total_batches // 10) == 0 or batch_idx % 10 == 0):
+                logger.debug(f"  Processing batch {batch_idx}/{total_batches} ({100 * batch_idx / total_batches:.1f}%)")
+
             # Extract batch components
             tokens_cont, tokens_id, globals_vec, mask, weights = _extract_batch_components(batch)
 

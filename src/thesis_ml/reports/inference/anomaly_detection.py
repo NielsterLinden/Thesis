@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import torch
@@ -13,6 +14,8 @@ from thesis_ml.utils.seed import set_all_seeds
 from .data_corruption import create_corrupted_dataloader
 from .forward_pass import create_model_adapter, run_batch_inference
 from .metrics import aggregate_metrics, compute_auroc
+
+logger = logging.getLogger(__name__)
 
 
 def run_anomaly_detection(
@@ -49,12 +52,16 @@ def run_anomaly_detection(
     if inference_cfg is None:
         inference_cfg = {}
 
+    logger.info("Starting anomaly detection inference")
+    logger.info(f"Processing {len(models)} models, {len(corruption_strategies)} corruption strategies")
+
     # Set seeds for reproducibility
     seed = inference_cfg.get("seed", 42)
     set_all_seeds(seed)
 
     # Pin device once
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    logger.info(f"Using device: {device} (autocast: {inference_cfg.get('autocast', False)})")
 
     # Create baseline dataloader
     # dataset_cfg should be a full config (with data and phase1 sections)
@@ -85,6 +92,7 @@ def run_anomaly_detection(
     # Limit data for testing if max_samples specified
     max_samples = inference_cfg.get("max_samples", None)
     if max_samples is not None and max_samples > 0:
+        logger.info(f"Limiting inference to first {max_samples} samples (testing mode)")
         from torch.utils.data import DataLoader, TensorDataset
 
         # Collect first max_samples samples
@@ -123,7 +131,9 @@ def run_anomaly_detection(
     results = {}
 
     # Process each model
-    for run_id, _cfg, model in models:
+    for model_idx, (run_id, _cfg, model) in enumerate(models, 1):
+        logger.info(f"[{model_idx}/{len(models)}] Processing model: {run_id}")
+
         # Wrap model with adapter for uniform API
         model_adapter = create_model_adapter(model)
         model_adapter.to(device)
@@ -131,12 +141,15 @@ def run_anomaly_detection(
         model_results = {}
 
         # Run baseline inference
+        logger.info(f"  Running baseline inference on {split} split...")
         baseline_results = run_batch_inference(
             model=model_adapter,
             dataloader=baseline_dl,
             device=device,
             autocast=autocast,
         )
+        baseline_n_events = len(baseline_results["per_event"])
+        logger.info(f"  Baseline inference complete: {baseline_n_events} events processed")
 
         # Extract per-event data
         baseline_per_event = baseline_results["per_event"]
@@ -153,8 +166,9 @@ def run_anomaly_detection(
         model_results["baseline"] = baseline_metrics
 
         # Run inference for each corruption strategy
-        for strategy_config in corruption_strategies:
+        for strategy_idx, strategy_config in enumerate(corruption_strategies, 1):
             strategy_name = strategy_config["name"]
+            logger.info(f"  [{strategy_idx}/{len(corruption_strategies)}] Processing corruption: {strategy_name}")
 
             # Create corrupted dataloader
             corrupted_dl = create_corrupted_dataloader(
@@ -170,6 +184,8 @@ def run_anomaly_detection(
                 device=device,
                 autocast=autocast,
             )
+            corrupted_n_events = len(corrupted_results["per_event"])
+            logger.info(f"    Corruption inference complete: {corrupted_n_events} events processed")
 
             # Extract per-event data
             corrupted_per_event = corrupted_results["per_event"]
@@ -197,7 +213,10 @@ def run_anomaly_detection(
 
             corrupted_metrics["auroc"] = auroc_mse
             model_results[strategy_name] = corrupted_metrics
+            logger.info(f"    Metrics computed - MSE: {corrupted_metrics.get('mse_mean', 0):.6f}, AUROC: {auroc_mse}")
 
         results[run_id] = model_results
+        logger.info(f"  Completed model {run_id}")
 
+    logger.info(f"Anomaly detection inference complete for {len(models)} models")
     return results
