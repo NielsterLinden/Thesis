@@ -33,6 +33,7 @@ inference:
   autocast: true
   batch_size: 512
   seed: 42
+  max_samples: null  # Limit number of samples for testing (null = use all data, e.g., 1000 for quick test)
   corruption_strategies:
     - name: gaussian_noise
       type: additive_noise

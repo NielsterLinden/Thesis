@@ -82,6 +82,42 @@ def run_anomaly_detection(
     else:
         baseline_dl = val_dl
 
+    # Limit data for testing if max_samples specified
+    max_samples = inference_cfg.get("max_samples", None)
+    if max_samples is not None and max_samples > 0:
+        from torch.utils.data import DataLoader, TensorDataset
+
+        # Collect first max_samples samples
+        samples_collected = 0
+        batch_list = []
+        for batch in baseline_dl:
+            batch_list.append(batch)
+            if len(batch) >= 3:
+                batch_size = batch[0].shape[0]
+                samples_collected += batch_size
+                if samples_collected >= max_samples:
+                    # Truncate last batch if needed
+                    if samples_collected > max_samples:
+                        excess = samples_collected - max_samples
+                        batch_list[-1] = tuple(t[: batch_size - excess] for t in batch_list[-1])
+                    break
+
+        if batch_list:
+            # Stack all batches into single tensors
+            tokens_cont = torch.cat([b[0] for b in batch_list], dim=0)
+            tokens_id = torch.cat([b[1] for b in batch_list], dim=0)
+            globals_vec = torch.cat([b[2] for b in batch_list], dim=0)
+
+            # Create new dataset and dataloader
+            limited_dataset = TensorDataset(tokens_cont, tokens_id, globals_vec)
+            baseline_dl = DataLoader(
+                limited_dataset,
+                batch_size=baseline_dl.batch_size,
+                shuffle=False,
+                num_workers=baseline_dl.num_workers,
+                pin_memory=baseline_dl.pin_memory,
+            )
+
     autocast = inference_cfg.get("autocast", False)
 
     results = {}

@@ -127,6 +127,7 @@ def run_report(cfg: DictConfig) -> None:
                 "autocast": cfg.inference.get("autocast", False),
                 "batch_size": cfg.inference.get("batch_size", 512),
                 "seed": cfg.inference.get("seed", 42),
+                "max_samples": cfg.inference.get("max_samples", None),
             },
         )
 
