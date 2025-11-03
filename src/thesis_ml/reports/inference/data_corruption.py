@@ -63,22 +63,26 @@ def apply_gaussian_noise(
     else:
         raise ValueError(f"Expected batch tuple of length 3 or 4, got {len(batch)}")
 
+    # Support both per-sample [T,4] and batched [B,T,4] inputs
+    single = tokens_cont.dim() == 2
+
     # Add noise to continuous tokens only
     noise = torch.randn_like(tokens_cont) * std
     tokens_cont_corrupted = tokens_cont + noise
 
-    # Apply physics constraints
-    # Assume layout: [pT, eta, phi, ?] for continuous tokens [B, T, 4]
-    # pT must be >= 0
-    tokens_cont_corrupted[:, :, 0] = torch.clamp(tokens_cont_corrupted[:, :, 0], min=0.0)
-
-    # Wrap phi into [-π, π)
-    if tokens_cont_corrupted.shape[-1] >= 3:
-        tokens_cont_corrupted[:, :, 2] = (tokens_cont_corrupted[:, :, 2] + np.pi) % (2 * np.pi) - np.pi
-
-    # Clamp eta within detector limits
-    if tokens_cont_corrupted.shape[-1] >= 2:
-        tokens_cont_corrupted[:, :, 1] = torch.clamp(tokens_cont_corrupted[:, :, 1], min=-eta_limit, max=eta_limit)
+    # Apply physics constraints: layout [pT, eta, phi, ?]
+    if single:
+        tokens_cont_corrupted[:, 0] = torch.clamp(tokens_cont_corrupted[:, 0], min=0.0)
+        if tokens_cont_corrupted.shape[-1] >= 3:
+            tokens_cont_corrupted[:, 2] = (tokens_cont_corrupted[:, 2] + np.pi) % (2 * np.pi) - np.pi
+        if tokens_cont_corrupted.shape[-1] >= 2:
+            tokens_cont_corrupted[:, 1] = torch.clamp(tokens_cont_corrupted[:, 1], min=-eta_limit, max=eta_limit)
+    else:
+        tokens_cont_corrupted[:, :, 0] = torch.clamp(tokens_cont_corrupted[:, :, 0], min=0.0)
+        if tokens_cont_corrupted.shape[-1] >= 3:
+            tokens_cont_corrupted[:, :, 2] = (tokens_cont_corrupted[:, :, 2] + np.pi) % (2 * np.pi) - np.pi
+        if tokens_cont_corrupted.shape[-1] >= 2:
+            tokens_cont_corrupted[:, :, 1] = torch.clamp(tokens_cont_corrupted[:, :, 1], min=-eta_limit, max=eta_limit)
 
     if mask is None:
         return (tokens_cont_corrupted, tokens_id, globals_vec)
@@ -114,26 +118,33 @@ def apply_token_shuffle(
     else:
         raise ValueError(f"Expected batch tuple of length 3 or 4, got {len(batch)}")
 
-    B, T = tokens_cont.shape[:2]
-    n_shuffle = max(1, int(T * ratio))
-
-    # Shuffle within each batch
-    tokens_cont_shuffled = tokens_cont.clone()
-    tokens_id_shuffled = tokens_id.clone()
-
-    for b in range(B):
-        # Select random subset of token positions
+    # Support both per-sample [T,4]/[T] and batched [B,T,4]/[B,T]
+    single = tokens_cont.dim() == 2
+    if single:
+        T = tokens_cont.shape[0]
+        n_shuffle = max(1, int(T * ratio))
+        tokens_cont_shuffled = tokens_cont.clone()
+        tokens_id_shuffled = tokens_id.clone()
         positions = list(range(T))
         rng.shuffle(positions)
         selected = positions[:n_shuffle]
-
-        # Shuffle the selected positions
         shuffled_selected = selected.copy()
         rng.shuffle(shuffled_selected)
-
-        # Apply permutation
-        tokens_cont_shuffled[b, selected] = tokens_cont[b, shuffled_selected]
-        tokens_id_shuffled[b, selected] = tokens_id[b, shuffled_selected]
+        tokens_cont_shuffled[selected] = tokens_cont[shuffled_selected]
+        tokens_id_shuffled[selected] = tokens_id[shuffled_selected]
+    else:
+        B, T = tokens_cont.shape[:2]
+        n_shuffle = max(1, int(T * ratio))
+        tokens_cont_shuffled = tokens_cont.clone()
+        tokens_id_shuffled = tokens_id.clone()
+        for b in range(B):
+            positions = list(range(T))
+            rng.shuffle(positions)
+            selected = positions[:n_shuffle]
+            shuffled_selected = selected.copy()
+            rng.shuffle(shuffled_selected)
+            tokens_cont_shuffled[b, selected] = tokens_cont[b, shuffled_selected]
+            tokens_id_shuffled[b, selected] = tokens_id[b, shuffled_selected]
 
     if mask is None:
         return (tokens_cont_shuffled, tokens_id_shuffled, globals_vec)

@@ -66,12 +66,14 @@ class H5TokenDataset(Dataset):
         return tokens_cont, tokens_id, globals_
 
     def get_split(self, name):
-        X = self.splits[name]
-        outs = [self._split_event(x) for x in X]
-        tc = torch.stack([o[0] for o in outs])  # [N,T,4]
-        ti = torch.stack([o[1] for o in outs])  # [N,T]
-        gl = torch.stack([o[2] for o in outs])  # [N,2]
-        return TensorDataset(tc, ti, gl)
+        X = self.splits[name]  # [N, T + 2 + T*4]
+        # Vectorized slicing
+        ids = X[:, : self.T].to(torch.int64)  # [N, T]
+        gl = X[:, self.T : self.T + 2]  # [N, 2]
+        cont = X[:, self.T + 2 :].view(-1, self.T, 4)  # [N, T, 4]
+        # Normalize continuous features
+        tc = (cont - self.mu[0, 0]) / self.sd[0, 0]  # [N, T, 4]
+        return TensorDataset(tc, ids, gl)
 
 
 def make_dataloaders(cfg):
