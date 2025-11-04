@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+import yaml
 from omegaconf import DictConfig, OmegaConf
 
 
@@ -113,3 +114,40 @@ def create_manifest(
     }
 
     return manifest
+
+
+def write_manifest(
+    report_dir: Path,
+    report_id: str,
+    report_name: str,
+    run_ids: list[str],
+    output_root: Path | str,
+    dataset_cfg: DictConfig | dict[str, Any] | None = None,
+) -> None:
+    """Create and write manifest.yaml to report directory.
+
+    Parameters
+    ----------
+    report_dir : Path
+        Path to report directory
+    report_id : str
+        Report ID
+    report_name : str
+        Report name
+    run_ids : list[str]
+        List of run IDs used in this report
+    output_root : Path | str
+        Root output directory (for resolving run paths)
+    dataset_cfg : DictConfig | dict[str, Any] | None
+        Dataset config (optional) for extracting dataset path and metadata
+    """
+    manifest_data = create_manifest(
+        report_id=report_id,
+        run_ids=run_ids,
+        output_root=output_root,
+        dataset_cfg=dataset_cfg,
+    )
+
+    manifest_path = report_dir / "manifest.yaml"
+    with manifest_path.open("w", encoding="utf-8") as f:
+        yaml.dump(manifest_data, f, default_flow_style=False, sort_keys=False)

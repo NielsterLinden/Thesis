@@ -1,17 +1,23 @@
+import logging
+
 import h5py
 import numpy as np
 from dotenv import load_dotenv
 from hydra import compose, initialize
 
+logger = logging.getLogger(__name__)
+
 
 def main() -> int:
+    logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
+
     try:
         load_dotenv()
         # Load the same Hydra config as training without changing cwd
         initialize(config_path="../configs", version_base="1.3")
         cfg = compose(config_name="config")
     except Exception as e:
-        print(f"Failed to compose Hydra config: {e}")
+        logger.error("Failed to compose Hydra config: %s", e)
         return 1
 
     # Read H5 directly to avoid torch dependency for this quick check
@@ -24,9 +30,9 @@ def main() -> int:
                 "test": f[cfg.data.datasets.x_test][:],
             }
     except Exception as e:
-        print("Failed to open H5 file. Ensure DATA_ROOT/DATA_FILE envs are set, as used in configs/data/h5_dataset.yaml.")
-        print(f"Path resolved to: {path}")
-        print(f"Original error: {e}")
+        logger.error("Failed to open H5 file. Ensure DATA_ROOT/DATA_FILE envs are set, as used in configs/data/h5_dataset.yaml.")
+        logger.error("Path resolved to: %s", path)
+        logger.error("Original error: %s", e)
         return 2
 
     T = int(cfg.data.n_tokens)
@@ -41,8 +47,8 @@ def main() -> int:
         mn, mx = min_max_ids(X)
         mins.append(mn)
         maxs.append(mx)
-        print(f"{name}: min_id={mn}, max_id={mx}")
-    print(f"overall: min_id={min(mins)}, max_id={max(maxs)}")
+        logger.info("%s: min_id=%s, max_id=%s", name, mn, mx)
+    logger.info("overall: min_id=%s, max_id=%s", min(mins), max(maxs))
     return 0
 
 

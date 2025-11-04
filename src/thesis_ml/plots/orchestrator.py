@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterable, Mapping
 from typing import Any
 
@@ -9,6 +10,8 @@ from .io_utils import (
     save_figure,
 )
 from .registry import get_enabled_families
+
+logger = logging.getLogger(__name__)
 
 
 def handle_event(
@@ -43,7 +46,7 @@ def handle_event(
     run_dir = str(payload.get("run_dir", ""))
     if not run_dir:
         # Without run_dir, we cannot save figures; bail early but do not crash
-        print(f"[plots] skip (no run_dir) moment={moment}")
+        logger.warning("[plots] skip (no run_dir) moment=%s", moment)
         return
 
     # Resolve which families should run at this moment according to policy
@@ -51,7 +54,7 @@ def handle_event(
 
     if do_dry_run:
         enabled_names = [f.name for f in families]
-        print(f"[plots] dry_run moment={moment} families={enabled_names}")
+        logger.info("[plots] dry_run moment=%s families=%s", moment, enabled_names)
         return
 
     # Prepare filesystem destination
@@ -62,13 +65,13 @@ def handle_event(
         # Validate required payload keys
         missing = [k for k in family.required_keys if k not in payload or payload.get(k) is None]
         if missing:
-            print(f"[plots] skip family={family.name} moment={moment} missing={missing}")
+            logger.warning("[plots] skip family=%s moment=%s missing=%s", family.name, moment, missing)
             continue
 
         try:
             figs = family.handle(moment, payload, cfg_logging)
         except Exception as e:  # friendly failure: never crash the run
-            print(f"[plots] family={family.name} moment={moment} failed: {e}")
+            logger.error("[plots] family=%s moment=%s failed: %s", family.name, moment, e)
             continue
 
         if not figs:

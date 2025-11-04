@@ -8,9 +8,12 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import logging
 import re
 import shutil
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 def extract_experiment_info(exp_dir: Path) -> tuple[str, str]:
@@ -168,53 +171,59 @@ def main():
 
     args = parser.parse_args()
 
+    logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
+
     old_exp_dir = Path(args.experiment_dir).resolve()
     output_root = Path(args.output_root).resolve()
 
     if args.dry_run:
-        print(f"[DRY RUN] Would migrate from: {old_exp_dir}")
-        print(f"[DRY RUN] To output root: {output_root}")
+        logger.info("[DRY RUN] Would migrate from: %s", old_exp_dir)
+        logger.info("[DRY RUN] To output root: %s", output_root)
 
         # Count numbered directories
         numbered_dirs = [item for item in old_exp_dir.iterdir() if item.is_dir() and item.name.isdigit()]
-        print(f"[DRY RUN] Found {len(numbered_dirs)} numbered subdirectories")
+        logger.info("[DRY RUN] Found %s numbered subdirectories", len(numbered_dirs))
         return
 
     try:
         report = migrate_experiment(old_exp_dir, output_root)
 
-        print("=" * 80)
-        print("Migration Summary")
-        print("=" * 80)
-        print(f"Old experiment directory: {report['old_experiment_dir']}")
-        print(f"New multirun directory: {report['new_multirun_dir']}")
-        print(f"Timestamp: {report['timestamp']}")
-        print(f"Experiment name: {report['experiment_name']}")
-        print(f"Total jobs found: {report['total_jobs']}")
-        print(f"Successfully migrated: {report['migrated']}")
-        print(f"Skipped: {report['skipped']}")
+        logger.info("=" * 80)
+        logger.info("Migration Summary")
+        logger.info("=" * 80)
+        logger.info("Old experiment directory: %s", report["old_experiment_dir"])
+        logger.info("New multirun directory: %s", report["new_multirun_dir"])
+        logger.info("Timestamp: %s", report["timestamp"])
+        logger.info("Experiment name: %s", report["experiment_name"])
+        logger.info("Total jobs found: %s", report["total_jobs"])
+        logger.info("Successfully migrated: %s", report["migrated"])
+        logger.info("Skipped: %s", report["skipped"])
 
         if report["migrated_runs"]:
-            print("\nMigrated runs:")
+            logger.info("")
+            logger.info("Migrated runs:")
             for job_num, run_dir in report["migrated_runs"]:
-                print(f"  Job {job_num}: {run_dir}")
+                logger.info("  Job %s: %s", job_num, run_dir)
 
         if report["skipped_details"]:
-            print("\nSkipped runs:")
+            logger.info("")
+            logger.info("Skipped runs:")
             for job_num, run_dir, reason in report["skipped_details"]:
-                print(f"  Job {job_num}: {run_dir}")
-                print(f"    Reason: {reason}")
+                logger.info("  Job %s: %s", job_num, run_dir)
+                logger.info("    Reason: %s", reason)
 
         if report["validation_errors"]:
-            print("\nValidation errors:")
+            logger.info("")
+            logger.error("Validation errors:")
             for error in report["validation_errors"]:
-                print(f"  ERROR: {error}")
+                logger.error("  ERROR: %s", error)
 
         if not report["validation_errors"] and report["migrated"] > 0:
-            print("\n✓ Migration completed successfully!")
+            logger.info("")
+            logger.info("✓ Migration completed successfully!")
 
     except Exception as e:
-        print(f"ERROR: Migration failed: {e}")
+        logger.error("ERROR: Migration failed: %s", e)
         raise
 
 

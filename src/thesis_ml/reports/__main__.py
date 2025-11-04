@@ -14,9 +14,14 @@ def main(cfg: DictConfig) -> None:
     """Generic CLI for running experiment reports from sweep directories
 
     Usage:
-        python -m thesis_ml.reports.report_from_sweep \\
-          --config-name compare_globals_heads \\
-          +sweep_dir=/path/to/multirun
+        python -m thesis_ml.reports \
+          +inputs.sweep_dir=/path/to/multirun \
+          +report_name=compare_globals_heads
+
+        or
+
+        python -m thesis_ml.reports \
+          +inputs.run_dirs=[/abs/path/to/run_...,/abs/path/to/run_...]
     """
     # Get inputs - support both sweep_dir and run_dirs
     inputs = cfg.get("inputs", {})

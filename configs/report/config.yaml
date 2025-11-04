@@ -1,0 +1,25 @@
+# Default config for running reports via `python -m thesis_ml.reports`
+
+inputs:
+  sweep_dir: null           # Path to multirun dir (exp_...)
+  run_dirs: []              # Alternatively, explicit list of run dirs
+  select: null              # Optional filtering (report-specific)
+
+# Default report (override with +report_name=compare_globals_heads, etc.)
+report_name: compare_tokenizers
+
+outputs:
+  report_subdir: report
+  fig_format: png
+  dpi: 150
+  which_figures: []         # Reports decide defaults; override per run
+
+thresholds: {}
+
+summary_schema_version: 1
+
+inference:
+  enabled: false            # Enable to run inference as part of report
+
+env:
+  output_root: null         # Auto-inferred from inputs when null

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 import tempfile
 import time
@@ -13,6 +14,8 @@ from thesis_ml.general.models.mlp import build_model
 from thesis_ml.plots.io_utils import append_jsonl_event, append_scalars_csv
 from thesis_ml.plots.orchestrator import handle_event
 from thesis_ml.utils import TrainingProgressShower, build_event_payload, set_all_seeds
+
+logger = logging.getLogger(__name__)
 
 SUPPORTED_PLOT_FAMILIES = {"losses", "metrics", "latency"}
 
@@ -45,7 +48,7 @@ def _ensure_run_dir(cfg) -> Path | None:
 def train(cfg) -> dict:
     set_all_seeds(int(cfg.data.seed))
     device = _select_device(cfg)
-    print(f"Using device: {device} (cuda_available={torch.cuda.is_available()})")
+    logger.info("Using device: %s (cuda_available=%s)", device, torch.cuda.is_available())
 
     train_loader, val_loader, meta = build_dataloaders(cfg)
     model = build_model(cfg, input_dim=meta["input_dim"], task=meta["task"]).to(device)
@@ -75,7 +78,7 @@ def train(cfg) -> dict:
                     log_freq=int(cfg.logging.wandb.log_freq),
                 )
         except Exception as e:  # pragma: no cover - logging side-effect only
-            print(f"[wandb] disabled due to init error: {e}")
+            logger.warning("[wandb] disabled due to init error: %s", e)
             wandb_run = None
 
     task = meta["task"]
@@ -233,7 +236,7 @@ def train(cfg) -> dict:
 
                 wandb.log(log, step=epoch + 1)
             except Exception as e:
-                print(f"[wandb] log failed: {e}")
+                logger.warning("[wandb] log failed: %s", e)
 
     # Save artifacts
     saved_path: str | None = None
@@ -293,7 +296,7 @@ def train(cfg) -> dict:
                 wandb.log_artifact(art)
                 # Optional future: log figures via external tracker
             except Exception as e:
-                print(f"[wandb] artifact log failed: {e}")
+                logger.warning("[wandb] artifact log failed: %s", e)
         saved_path = str(run_dir.resolve())
     else:
         # Ephemeral: write to temp dir and remove after
@@ -334,7 +337,7 @@ def train(cfg) -> dict:
                     art.add_file(str(model_path))
                     wandb.log_artifact(art)
                 except Exception as e:
-                    print(f"[wandb] artifact log failed: {e}")
+                    logger.warning("[wandb] artifact log failed: %s", e)
             # directory auto-deletes here
 
     # Finish W&B run
@@ -342,7 +345,7 @@ def train(cfg) -> dict:
         try:  # pragma: no cover - logging side-effect only
             wandb_run.finish()
         except Exception as e:
-            print(f"[wandb] finish failed: {e}")
+            logger.warning("[wandb] finish failed: %s", e)
 
     return {
         "final_train_loss": float(train_losses[-1]),

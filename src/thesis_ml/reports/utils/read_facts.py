@@ -14,35 +14,138 @@ from omegaconf import OmegaConf
 logger = logging.getLogger(__name__)
 
 
-def _infer_latent_space_from_cfg(cfg: dict) -> str | None:
-    """Infer latent space name from composed cfg (fallback when overrides absent)."""
-    try:
-        ls = cfg.get("phase1", {}).get("latent_space")
-        if ls is None:
-            return None
-        if isinstance(ls, str):
-            return ls
-        if isinstance(ls, dict):
-            name = ls.get("name")
-            if isinstance(name, str):
-                return name
-            tgt = ls.get("_target_")
-            if isinstance(tgt, str):
-                last = tgt.split(".")[-1].lower()
-                for key in ("none", "vq", "linear"):
-                    if key in last:
-                        return key
-                return last
-        return None
-    except Exception:
-        return None
+def _parse_hydra_overrides(cfg: dict[str, Any]) -> dict[str, str]:
+    """Parse all Hydra override parameters from config.
+
+    Parameters
+    ----------
+    cfg : dict[str, Any]
+        Full config dict with hydra section
+
+    Returns
+    -------
+    dict[str, str]
+        Mapping of override keys to values (as strings)
+    """
+    overrides: dict[str, str] = {}
+    hydra_cfg = cfg.get("hydra", {})
+    if not hydra_cfg:
+        return overrides
+
+    task_overrides = hydra_cfg.get("overrides", {}).get("task", [])
+    if not task_overrides:
+        return overrides
+
+    for override in task_overrides:
+        override_str = str(override)
+        if "=" in override_str:
+            # Split on first '=' to handle values that might contain '='
+            key, val = override_str.split("=", 1)
+            overrides[key] = val
+
+    return overrides
 
 
-def _infer_globals_beta_from_cfg(cfg: dict) -> float | None:
-    """Infer globals_beta directly from composed cfg."""
+def _normalize_override_key(key: str) -> str:
+    """Normalize override key to DataFrame-friendly column name.
+
+    Converts Hydra override keys to simpler column names:
+    - `phase1/latent_space` -> `latent_space`
+    - `phase1.decoder.globals_beta` -> `globals_beta` (or `decoder.globals_beta`)
+
+    Parameters
+    ----------
+    key : str
+        Raw override key from Hydra
+
+    Returns
+    -------
+    str
+        Normalized column name
+    """
+    # Remove config group prefix (e.g., "phase1/" -> "")
+    if "/" in key:
+        key = key.split("/", 1)[1]
+
+    # For dot-separated paths, try to extract meaningful part
+    # Prefer last component if it's a single word, otherwise keep structure
+    if "." in key:
+        parts = key.split(".")
+        # If last part is a common parameter name, use just that
+        # Otherwise keep the path structure
+        if len(parts) > 1 and parts[-1] in ("globals_beta", "epochs", "seed", "lr"):
+            return parts[-1]
+        # Keep structure but remove leading phase1 if present
+        if parts[0] == "phase1":
+            return ".".join(parts[1:])
+        return key
+
+    return key
+
+
+def _extract_value_from_composed_cfg(cfg: dict[str, Any], path: str, value_type: type | None = None) -> Any:
+    """Extract value from composed config using a dot-separated path.
+
+    Handles multiple value types:
+    - Strings: return as-is
+    - Dicts with 'name' key: return name
+    - Dicts with '_target_' key: infer from class name
+    - Scalars: return with optional type conversion
+
+    Parameters
+    ----------
+    cfg : dict[str, Any]
+        Composed config dict
+    path : str
+        Dot-separated path (e.g., "phase1.latent_space" or "phase1.decoder.globals_beta")
+    value_type : type | None
+        Optional type to convert result to (e.g., float)
+
+    Returns
+    -------
+    Any
+        Extracted value, or None if path doesn't exist or can't be inferred
+    """
     try:
-        gb = cfg.get("phase1", {}).get("decoder", {}).get("globals_beta")
-        return float(gb) if gb is not None else None
+        # Convert path to list of keys, handling both '/' and '.' separators
+        keys = path.replace("/", ".").split(".")
+
+        # Navigate through nested dict
+        value = cfg
+        for key in keys:
+            if not isinstance(value, dict):
+                return None
+            value = value.get(key)
+            if value is None:
+                return None
+
+        # Handle different value types
+        if isinstance(value, str):
+            result = value
+        elif isinstance(value, dict):
+            # Try 'name' key first (common in config groups)
+            if "name" in value and isinstance(value["name"], str):
+                result = value["name"]
+            # Try '_target_' key (Hydra instantiation)
+            elif "_target_" in value and isinstance(value["_target_"], str):
+                # Extract class name from _target_ path
+                class_name = value["_target_"].split(".")[-1].lower()
+                result = class_name
+            else:
+                # Can't infer from dict structure
+                return None
+        else:
+            # Scalar value (int, float, bool, etc.)
+            result = value
+
+        # Apply type conversion if requested
+        if value_type is not None and result is not None:
+            try:
+                return value_type(result)
+            except (ValueError, TypeError):
+                return None
+
+        return result
     except Exception:
         return None
 
@@ -109,6 +212,22 @@ def _read_scalars(run_dir: Path) -> pd.DataFrame:
 
 
 def _extract_metadata(cfg: dict[str, Any]) -> dict[str, Any]:
+    """Extract metadata from config, including all override parameters.
+
+    Extracts both fixed metadata fields and all Hydra override parameters
+    generically. For override parameters, attempts to extract from overrides
+    first, then falls back to composed config values.
+
+    Parameters
+    ----------
+    cfg : dict[str, Any]
+        Full config dict
+
+    Returns
+    -------
+    dict[str, Any]
+        Metadata dict with fixed fields and all override parameters
+    """
     # Best-effort extraction; tolerate missing keys
     encoder = cfg.get("phase1", {}).get("encoder") or cfg.get("phase1", {}).get("encoder", {})
     if isinstance(encoder, dict):
@@ -121,43 +240,52 @@ def _extract_metadata(cfg: dict[str, Any]) -> dict[str, Any]:
     codebook_size = cfg.get("model", {}).get("codebook_size") or cfg.get("phase1", {}).get("model", {}).get("codebook_size")
     dataset_name = cfg.get("data", {}).get("path") or cfg.get("data", {}).get("name")
 
-    # Extract sweep/override parameters from Hydra config
-    overrides = {}
-    hydra_cfg = cfg.get("hydra", {})
-    if hydra_cfg:
-        task_overrides = hydra_cfg.get("overrides", {}).get("task", [])
-        if task_overrides:
-            for override in task_overrides:
-                if "=" in str(override):
-                    key, val = str(override).split("=", 1)
-                    overrides[key] = val
+    # Parse all Hydra overrides generically
+    overrides = _parse_hydra_overrides(cfg)
 
-    # Extract sweep parameters from overrides (generic approach)
-    ov = overrides
-    latent_space = ov.get("phase1/latent_space")
-    globals_beta_raw = ov.get("phase1.decoder.globals_beta")
-    try:
-        globals_beta = float(globals_beta_raw) if globals_beta_raw is not None else None
-    except (ValueError, TypeError):
-        globals_beta = None
+    # Extract all override parameters with fallback to composed config
+    override_params: dict[str, Any] = {}
+    for override_key, override_value in overrides.items():
+        # Normalize key for column name
+        normalized_key = _normalize_override_key(override_key)
 
-    # Fallback to composed cfg values if overrides are missing
-    if not latent_space:
-        latent_space = _infer_latent_space_from_cfg(cfg)
-    if globals_beta is None:
-        globals_beta = _infer_globals_beta_from_cfg(cfg)
+        # Try to get value from override first
+        value = override_value
 
-    return {
+        # Determine if we should try type conversion based on key patterns
+        # Common numeric parameters
+        if normalized_key in ("globals_beta", "epochs", "lr", "seed") or "beta" in normalized_key.lower():
+            try:
+                value = float(override_value)
+            except (ValueError, TypeError):
+                # Fallback to composed config
+                composed_value = _extract_value_from_composed_cfg(cfg, override_key, float)
+                value = composed_value if composed_value is not None else override_value
+        else:
+            # For config groups (like latent_space, encoder), fallback to composed config
+            # if override value looks like a simple string identifier
+            if "/" in override_key or override_key.count(".") <= 1:
+                composed_value = _extract_value_from_composed_cfg(cfg, override_key)
+                if composed_value is not None:
+                    value = composed_value
+
+        override_params[normalized_key] = value
+
+    # Build result dict with fixed metadata and all override parameters
+    result = {
         "encoder": encoder,
         "tokenizer": tokenizer,
         "seed": seed,
         "latent_dim": latent_dim,
         "codebook_size": codebook_size,
         "dataset_name": dataset_name,
-        "overrides": overrides,
-        "latent_space": latent_space,
-        "globals_beta": globals_beta,
+        "overrides": overrides,  # Keep raw overrides for backward compatibility
     }
+
+    # Add all override parameters (with normalized keys)
+    result.update(override_params)
+
+    return result
 
 
 def _discover_pointer_targets(runs_dir: Path) -> list[Path]:
@@ -351,10 +479,15 @@ def load_runs(sweep_dir: str | None = None, run_dirs: list[str] | None = None, *
                 "throughput_mean": float(val_df.get("throughput", pd.Series(dtype=float)).astype(float).mean()) if "throughput" in val_df else None,
                 "max_memory_mib_max": float(val_df.get("max_memory_mib", pd.Series(dtype=float)).astype(float).max()) if "max_memory_mib" in val_df else None,
                 "metric_perplex_final": float(val_df.get("metric_perplex", pd.Series(dtype=float)).astype(float).iloc[-1]) if "metric_perplex" in val_df and len(val_df) else None,
-                "latent_space": meta.get("latent_space"),
-                "globals_beta": meta.get("globals_beta"),
                 "loss.rec_globals_best": loss_rec_globals_best,
             }
+
+            # Dynamically add all override parameters from metadata
+            # Exclude fixed metadata fields and the raw 'overrides' dict
+            fixed_fields = {"encoder", "tokenizer", "seed", "latent_dim", "codebook_size", "dataset_name", "overrides"}
+            for key, value in meta.items():
+                if key not in fixed_fields:
+                    summary[key] = value
             summaries.append(summary)
             per_epoch[str(rd)] = val_df.reset_index(drop=True)
             order.append(str(rd))
