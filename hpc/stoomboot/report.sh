@@ -20,7 +20,7 @@ echo "Python version: $(python --version)"
 
 # Run report generation
 echo "Starting report generation..."
-python -m thesis_ml.reports "$@"
+python -m thesis_ml.cli.reports "$@"
 
 EXIT_CODE=$?
 echo "Job completed at: $(date) with exit code: $EXIT_CODE"

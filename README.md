@@ -37,8 +37,6 @@ thesis-train
 # Or using Python module
 python -m thesis_ml.cli.train
 
-# With overrides
-thesis-train phase1/latent_space=vq phase1.trainer.epochs=20 logging=plots_full
 ```
 
 ### Generate a Report

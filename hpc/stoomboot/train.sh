@@ -20,7 +20,7 @@ echo "Python version: $(python --version)"
 
 # Run training (all settings come from configs)
 echo "Starting training..."
-python -m thesis_ml.train "$@"
+python -m thesis_ml.cli.train "$@"
 
 EXIT_CODE=$?
 echo "Job completed at: $(date) with exit code: $EXIT_CODE"
