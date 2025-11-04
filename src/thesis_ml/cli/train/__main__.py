@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import hydra
 from dotenv import load_dotenv
 from omegaconf import DictConfig
@@ -7,8 +9,12 @@ from . import DISPATCH
 # Load environment variables from a local .env file (if present)
 load_dotenv()
 
+# Calculate absolute path to configs directory (repo root is 5 levels up from this file)
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent
+CONFIGS_DIR = REPO_ROOT / "configs"
 
-@hydra.main(config_path="../../../../../configs", config_name="config", version_base="1.3")
+
+@hydra.main(config_path=str(CONFIGS_DIR), config_name="config", version_base="1.3")
 def main(cfg: DictConfig):
     # Guardrail: catch legacy config keys from pre-refactor code
     bad = []

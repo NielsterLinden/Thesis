@@ -1,4 +1,4 @@
-_target_: thesis_ml.phase1.autoenc.encoders.mlp.MLPEncoder
+_target_: thesis_ml.architectures.autoencoder.encoders.mlp.MLPEncoder
 
 # Encoder architecture hyperparameters
 enc_hidden: [128, 128]      # hidden layer dimensions

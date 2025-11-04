@@ -1,1 +1,1 @@
-_target_: thesis_ml.phase1.autoenc.decoders.gnn.GNNDecoder
+_target_: thesis_ml.architectures.autoencoder.decoders.gnn.GNNDecoder

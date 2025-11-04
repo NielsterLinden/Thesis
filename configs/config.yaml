@@ -1,6 +1,6 @@
 ﻿defaults:
   # --- Environment paths (local vs HPC) ---
-  - env: stoomboot  # Default to HPC; run locally with `env: local`
+  - env: local  # Default to local; run on HPC with `env: stoomboot`
 
   # --- Hydra & logging ---
   - hydra: run_single

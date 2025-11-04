@@ -1,1 +1,1 @@
-_target_: thesis_ml.phase1.autoenc.encoders.diffusion.DiffusionEncoder
+_target_: thesis_ml.architectures.autoencoder.encoders.diffusion.DiffusionEncoder

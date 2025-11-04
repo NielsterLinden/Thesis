@@ -8,20 +8,23 @@ from omegaconf import DictConfig, OmegaConf
 
 from thesis_ml.utils.paths import get_report_id
 
+# Calculate absolute path to configs directory (repo root is 5 levels up from this file)
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent
+CONFIGS_DIR = REPO_ROOT / "configs" / "report"
 
-@hydra.main(config_path="../../../../../configs/report", version_base="1.3")
+
+@hydra.main(config_path=str(CONFIGS_DIR), version_base="1.3")
 def main(cfg: DictConfig) -> None:
     """Generic CLI for running experiment reports from sweep directories
 
     Usage:
-        python -m thesis_ml.reports \
-          +inputs.sweep_dir=/path/to/multirun \
-          +report_name=compare_globals_heads
+        thesis-report --config-name compare_tokenizers \
+          inputs.sweep_dir=/path/to/multirun
 
         or
 
-        python -m thesis_ml.reports \
-          +inputs.run_dirs=[/abs/path/to/run_...,/abs/path/to/run_...]
+        python -m thesis_ml.cli.reports --config-name compare_tokenizers \
+          inputs.run_dirs=[/abs/path/to/run_...,/abs/path/to/run_...]
     """
     # Get inputs - support both sweep_dir and run_dirs
     inputs = cfg.get("inputs", {})
@@ -67,9 +70,9 @@ def main(cfg: DictConfig) -> None:
     # Generate report ID
     report_id = get_report_id(report_name)
 
-    # Import the appropriate experiment module
+    # Import the appropriate analysis module
     try:
-        report_module = importlib.import_module(f"thesis_ml.reports.experiments.{report_name}")
+        report_module = importlib.import_module(f"thesis_ml.reports.analyses.{report_name}")
         run_report = report_module.run_report
     except (ImportError, AttributeError) as e:
         raise RuntimeError(f"Could not load report '{report_name}': {e}") from e

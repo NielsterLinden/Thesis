@@ -1,4 +1,4 @@
-_target_: thesis_ml.phase1.autoenc.bottlenecks.vq.VQBottleneck
+_target_: thesis_ml.architectures.autoencoder.bottlenecks.vq.VQBottleneck
 
 # Latent space dimension
 latent_dim: 32              # dimensionality of latent vectors
