@@ -9,7 +9,7 @@ from omegaconf import DictConfig, OmegaConf
 from thesis_ml.utils.paths import get_report_id
 
 
-@hydra.main(config_path="../../../configs/report", version_base="1.3")
+@hydra.main(config_path="../../../../../configs/report", version_base="1.3")
 def main(cfg: DictConfig) -> None:
     """Generic CLI for running experiment reports from sweep directories
 
@@ -82,7 +82,7 @@ def main(cfg: DictConfig) -> None:
             data_cfg = cfg.data
         else:
             # Extract from first run's config
-            from thesis_ml.reports.utils.read_facts import discover_runs
+            from thesis_ml.facts.readers import discover_runs
 
             discovered_runs = discover_runs(
                 sweep_dir=Path(str(sweep_dir)) if sweep_dir else None,

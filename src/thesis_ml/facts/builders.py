@@ -68,6 +68,8 @@ def _collect_metadata(**extra_fields: Any) -> dict[str, Any]:
             seed = getattr(cfg.phase1.trainer, "seed", None)
         elif hasattr(cfg, "trainer"):
             seed = getattr(cfg.trainer, "seed", None)
+        elif hasattr(cfg, "general") and hasattr(cfg.general, "trainer"):
+            seed = getattr(cfg.general.trainer, "seed", None)
         elif hasattr(cfg, "data"):
             seed = getattr(cfg.data, "seed", None)
         if seed is not None:

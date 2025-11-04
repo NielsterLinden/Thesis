@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from omegaconf import DictConfig, OmegaConf
 
-from thesis_ml.plots.io_utils import save_figure
+from thesis_ml.monitoring.io_utils import save_figure
 
 from ..plots.curves import plot_loss_vs_time
 from ..utils.io import finalize_report, get_fig_config, save_json, setup_report_environment

@@ -9,11 +9,11 @@ from pathlib import Path
 import torch
 from omegaconf import OmegaConf
 
+from thesis_ml.architectures.simple.mlp import build_model
 from thesis_ml.data import build_dataloaders
-from thesis_ml.general.models.mlp import build_model
-from thesis_ml.plots.io_utils import append_jsonl_event, append_scalars_csv
-from thesis_ml.plots.orchestrator import handle_event
-from thesis_ml.utils import TrainingProgressShower, build_event_payload, set_all_seeds
+from thesis_ml.facts import append_jsonl_event, append_scalars_csv, build_event_payload
+from thesis_ml.monitoring.orchestrator import handle_event
+from thesis_ml.utils import TrainingProgressShower, set_all_seeds
 
 logger = logging.getLogger(__name__)
 

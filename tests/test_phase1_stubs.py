@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from omegaconf import OmegaConf
 
-from thesis_ml.phase1.autoenc.base import build_from_config
+from thesis_ml.architectures.autoencoder.base import build_from_config
 
 
 def _cfg_with(targets: dict):

@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from matplotlib.lines import Line2D
 
-from thesis_ml.plots.io_utils import save_figure
+from thesis_ml.monitoring.io_utils import save_figure
 
 
 def plot_loss_vs_time(

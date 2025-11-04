@@ -6,7 +6,7 @@ from pathlib import Path
 import pandas as pd
 from omegaconf import OmegaConf
 
-from thesis_ml.reports.experiments.compare_tokenizers import run_report
+from thesis_ml.reports.analyses.compare_tokenizers import run_report
 
 
 def _make_run(tmp: Path, name: str, tokenizer: str, epochs: int = 3) -> Path:

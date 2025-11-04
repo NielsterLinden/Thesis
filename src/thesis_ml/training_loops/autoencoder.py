@@ -8,12 +8,12 @@ from typing import Any
 import torch
 from omegaconf import DictConfig, OmegaConf
 
+from thesis_ml.architectures.autoencoder.base import build_from_config
+from thesis_ml.architectures.autoencoder.losses.recon import reconstruction_loss
 from thesis_ml.data.h5_loader import make_dataloaders
-from thesis_ml.phase1.autoenc.base import build_from_config
-from thesis_ml.phase1.autoenc.losses.recon import reconstruction_loss
-from thesis_ml.plots.io_utils import append_jsonl_event, append_scalars_csv
-from thesis_ml.plots.orchestrator import handle_event
-from thesis_ml.utils import TrainingProgressShower, build_event_payload
+from thesis_ml.facts import append_jsonl_event, append_scalars_csv, build_event_payload
+from thesis_ml.monitoring.orchestrator import handle_event
+from thesis_ml.utils import TrainingProgressShower
 from thesis_ml.utils.seed import set_all_seeds
 
 SUPPORTED_PLOT_FAMILIES = {"losses", "metrics", "recon", "codebook", "latency"}

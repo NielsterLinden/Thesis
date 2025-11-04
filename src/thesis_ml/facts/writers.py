@@ -6,56 +6,34 @@ from pathlib import Path
 from typing import Any
 
 
-def ensure_figures_dir(run_dir: str, cfg_logging: Mapping[str, Any]) -> Path:
-    root = Path(run_dir)
-    # Use train_figures/ for training runs to avoid confusion with report figures
-    sub = str(cfg_logging.get("figures_subdir", "train_figures"))
-    out = root / sub
-    out.mkdir(parents=True, exist_ok=True)
-    return out
-
-
-def build_filename(
-    *,
-    cfg_logging: Mapping[str, Any],
-    family: str,
-    moment: str,
-    payload: Mapping[str, Any],
-    index: int | None = None,
-) -> str:
-    # prefer epoch, else step
-    epoch = payload.get("epoch")
-    step = payload.get("step")
-    if epoch is not None:
-        epoch_or_step = f"e{int(epoch):03d}"
-    elif step is not None:
-        epoch_or_step = f"s{int(step):06d}"
-    else:
-        epoch_or_step = "eNA"
-
-    pat = str(cfg_logging.get("file_naming", "{family}-{moment}-{epoch_or_step}"))
-    name = pat.format(family=family, moment=moment, epoch_or_step=epoch_or_step)
-    if index is not None and index > 0:
-        name = f"{name}-{index}"
-    return name
-
-
-def save_figure(fig, figures_dir: Path, base_name: str, cfg_logging: Mapping[str, Any]) -> Path:
-    fmt = str(cfg_logging.get("fig_format", "png"))
-    dpi = int(cfg_logging.get("dpi", 150))
-    path = figures_dir / f"{base_name}.{fmt}"
-    fig.tight_layout()
-    fig.savefig(path, dpi=dpi)
-    return path
-
-
 def ensure_facts_dir(run_dir: str) -> Path:
+    """Ensure the facts directory exists for a run.
+
+    Parameters
+    ----------
+    run_dir : str
+        Path to the run directory
+
+    Returns
+    -------
+    Path
+        Path to the facts directory
+    """
     p = Path(run_dir) / "facts"
     p.mkdir(parents=True, exist_ok=True)
     return p
 
 
 def append_jsonl_event(run_dir: str, record: Mapping[str, Any]) -> None:
+    """Append an event record to the events.jsonl file.
+
+    Parameters
+    ----------
+    run_dir : str
+        Path to the run directory
+    record : Mapping[str, Any]
+        Event payload to write (typically from build_event_payload)
+    """
     facts = ensure_facts_dir(run_dir)
     fp = facts / "events.jsonl"
     with fp.open("a", encoding="utf-8") as f:
@@ -74,6 +52,32 @@ def append_scalars_csv(
     throughput: float | None,
     max_memory_mib: float | None,
 ) -> None:
+    """Append scalar metrics to the scalars.csv file.
+
+    Creates the CSV file with headers if it doesn't exist, then appends a row
+    of scalar metrics.
+
+    Parameters
+    ----------
+    run_dir : str
+        Path to the run directory
+    epoch : int | None
+        Epoch number
+    split : str | None
+        Data split ("train", "val", "test")
+    train_loss : float | None
+        Training loss
+    val_loss : float | None
+        Validation loss
+    metrics : Mapping[str, float] | None
+        Additional metrics (e.g., {"perplex": 128.5, "acc": 0.95})
+    epoch_time_s : float | None
+        Epoch duration in seconds
+    throughput : float | None
+        Training throughput (samples/sec)
+    max_memory_mib : float | None
+        Maximum GPU memory usage in MiB
+    """
     facts = ensure_facts_dir(run_dir)
     fp = facts / "scalars.csv"
     new = not fp.exists()

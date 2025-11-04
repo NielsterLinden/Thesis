@@ -1,315 +1,292 @@
-# 🧠 Thesis
+# Thesis ML: Modular Framework for Particle Physics Machine Learning
 
-This repository provides a clean, configurable setup for **training and testing ML models** using [Hydra](https://hydra.cc), [PyTorch](https://pytorch.org/), and reproducible experiment management.
+A production-ready, reproducible machine learning framework for particle physics experiments, built with Hydra configuration management and designed for both local development and HPC deployment.
 
-It is designed to be lightweight enough for quick iteration, but structured enough to scale with multiple training loops and models.
+## 🎯 Overview
 
----
+This codebase provides a structured environment for training autoencoder variants, running experiments, and generating comparative analysis reports. It emphasizes:
+
+- **Modularity**: Easy to add new architectures, training loops, and analysis types
+- **Reproducibility**: Hydra-based configuration tracking and comprehensive facts logging
+- **Scalability**: Seamless deployment from laptop to HPC cluster (Stoomboot at Nikhef)
+- **Maintainability**: Clear separation between training, monitoring, and reporting phases
+
+## 🚀 Quick Start
+
+### Installation
+
+```bash
+# Clone repository
+git clone <repository-url>
+cd Niels_repo
+
+# Create conda environment
+mamba env create -f environment.yml
+mamba activate thesis-ml
+
+# Install in editable mode
+pip install -e .
+```
+
+### Run a Training
+
+```bash
+# Simple autoencoder training (local)
+thesis-train
+
+# Or using Python module
+python -m thesis_ml.cli.train
+
+# With overrides
+thesis-train phase1/latent_space=vq phase1.trainer.epochs=20 logging=plots_full
+```
+
+### Generate a Report
+
+```bash
+# Compare multiple runs
+thesis-report --config-name compare_tokenizers \
+    inputs.sweep_dir=outputs/multiruns/exp_20251103_experiment
+
+# Or using Python module
+python -m thesis_ml.cli.reports --config-name compare_tokenizers \
+    inputs.sweep_dir=outputs/multiruns/exp_20251103_experiment
+```
 
 ## 📁 Project Structure
 
 ```
 src/thesis_ml/
+├── cli/                    # Command-line entry points
+│   ├── train/              # Training CLI (thesis-train)
+│   └── reports/            # Reports CLI (thesis-report)
 │
-├─ __init__.py                     # package initializer
+├── training_loops/         # Training loop implementations
+│   ├── autoencoder.py      # Standard autoencoder
+│   ├── gan_autoencoder.py  # GAN-based autoencoder
+│   ├── diffusion_autoencoder.py
+│   └── simple_mlp.py       # Simple MLP for testing
 │
-├─ data/
-│  ├─ __init__.py
-│  └─ synthetic.py                 # synthetic dataset & dataloaders
+├── architectures/          # Model architectures
+│   ├── autoencoder/        # Autoencoder components
+│   │   ├── encoders/       # Encoder architectures (MLP, GNN, etc.)
+│   │   ├── decoders/       # Decoder architectures
+│   │   ├── bottlenecks/    # Latent space types (VQ, linear, identity)
+│   │   └── losses/         # Loss functions
+│   └── simple/             # Simple architectures (MLP)
 │
-├─ models/
-│  ├─ __init__.py
-│  └─ mlp.py                       # tiny configurable MLP (example model)
+├── facts/                  # Training metrics & events system
+│   ├── builders.py         # Build standardized event payloads
+│   ├── writers.py          # Write facts to disk (JSONL, CSV)
+│   └── readers.py          # Read facts for reports
 │
-├─ utils/
-│  ├─ __init__.py
-│  └─ seed.py                      # set_all_seeds(seed) for reproducibility
+├── monitoring/             # Training-time visualization
+│   ├── orchestrator.py     # Route events to plot families
+│   ├── io_utils.py         # Figure saving utilities
+│   └── families/           # Plot families (losses, metrics, etc.)
 │
-├─ train/
-│  ├─ __init__.py
-│  ├─ __main__.py                  # CLI dispatcher (Hydra entrypoint)
-│  └─ train_test.py                # example training loop (called from __main__)
+├── reports/                # Post-training analysis
+│   ├── analyses/           # Analysis implementations
+│   │   ├── compare_tokenizers.py
+│   │   └── compare_globals_heads.py
+│   ├── inference/          # Inference utilities
+│   ├── plots/              # Report plotting functions
+│   └── utils/              # Report utilities
 │
-├─ train.py                        # (if single-file version used)
+├── data/                   # Dataset loaders
+│   ├── h5_loader.py        # HDF5 dataset loader
+│   └── synthetic.py        # Synthetic data generation
 │
-├─ configs/
-│  ├─ config.yaml                  # composition root for Hydra
-│  ├─ data/
-│  │  └─ synthetic.yaml            # dataset parameters (size, task, seed, split)
-│  ├─ model/
-│  │  └─ mlp.yaml                  # model hyperparameters
-│  ├─ trainer/
-│  │  └─ default.yaml              # training loop parameters
-│  └─ logging/
-│     ├─ default.yaml              # logging+plotting policy (families, moments)
-│     ├─ plots_minimal.yaml        # preset overrides
-│     ├─ plots_standard.yaml       # preset overrides
-│     └─ plots_full.yaml           # preset overrides
-│
-└─ tests/
-   └─ test_smoke.py                # simple import/forward test
+└── utils/                  # General utilities
+    ├── seed.py             # Reproducibility utilities
+    ├── paths.py            # Path management
+    └── training_progress_shower.py
 ```
 
----
+## 🔑 Key Concepts
 
-## ⚙️ Configuration System (Hydra + OmegaConf)
+### Facts System
 
-All experiments are configured via YAML files under `configs/`.
+The **facts system** is the backbone of reproducibility and analysis:
 
-Each top-level run composes these automatically:
+- **Events** (`events.jsonl`): Lifecycle events (on_start, on_epoch_end, on_train_end) with full training histories
+- **Scalars** (`scalars.csv`): Per-epoch metrics for easy DataFrame analysis
+- **Purpose**: Enables post-hoc analysis without re-running expensive training
 
-| Config group | Purpose                             | Example file                   |
-| ------------ | ----------------------------------- | ------------------------------ |
-| `data`       | Dataset shape and type              | `configs/data/synthetic.yaml`  |
-| `model`      | Architecture hyperparameters        | `configs/model/mlp.yaml`       |
-| `trainer`    | Runtime training parameters         | `configs/trainer/default.yaml` |
-| `logging`    | Artifact saving & plotting behavior | `configs/logging/default.yaml` |
+All training loops emit facts to `{run_dir}/facts/`. Reports read these facts to generate analyses.
 
-> 🧩 **Why Hydra?**
-> Hydra allows overrides from the command line, e.g.:
->
-> ```bash
-> python -m thesis_ml.train trainer.epochs=10 model.activation=gelu data.task=binary
-> ```
->
-> This ensures consistent, reproducible experiments without editing code.
+### Training → Monitoring → Reports Pipeline
 
----
+1. **Training**: Run a training loop (e.g., `autoencoder.py`)
+   - Emits facts via `facts.writers`
+   - Optionally creates real-time plots via `monitoring.orchestrator`
 
-## 🧱 Core Components
+2. **Monitoring**: Real-time visualization during training
+   - Plot families (losses, metrics, reconstruction, etc.)
+   - Configured via `logging` config group
 
-### **1. Data generation — `data/synthetic.py`**
+3. **Reports**: Post-training analysis
+   - Read facts via `facts.readers`
+   - Generate comparative plots
+   - Run inference on test data
+   - Output to `outputs/reports/`
 
-* Creates reproducible synthetic datasets for regression or binary classification.
-* Reads parameters from `cfg.data` (`n_samples`, `n_features`, `train_frac`, `seed`, `task`).
-* Returns train/val `DataLoader`s and metadata (`input_dim`, `task`).
+### Environment Switching (Local ↔ HPC)
 
-### **2. Model builder — `models/mlp.py`**
-
-* Constructs an `nn.Sequential` MLP from config (`hidden_sizes`, `dropout`, `activation`).
-* Returns a ready-to-train `torch.nn.Module`.
-* The output dimension is inferred from the task (regression/binary).
-
-### **3. Training loop — `train/train_test.py`**
-
-* Core PyTorch loop: forward → loss → backward → optimizer step.
-* Logs per-epoch train/validation losses (and accuracy if binary).
-* Uses Adam optimizer, task-appropriate loss, and device auto-selection.
-* Saves model and plots to `outputs/<timestamp>/` if `logging.save_artifacts=true`,
-  otherwise runs ephemerally in a temporary directory.
-
-### **4. Entry point — `train/__main__.py`**
-
-* Hydra CLI launcher.
-* Imports the desired training loop (`train_test.main`) and executes it.
-* Keeps Hydra logic separate from the `train()` function so notebooks can import and run cleanly.
-
----
-
-## 🧪 Usage
-
-### **1. Environment setup**
+Switch between local and Stoomboot (Nikhef HPC) via Hydra:
 
 ```bash
-mamba env create -f environment.yml
-mamba activate thesis-ml
-pre-commit install  # optional
+# Local (default paths)
+thesis-train env=local
+
+# Stoomboot
+thesis-train env=stoomboot
 ```
 
-### **2. CLI Training**
+Paths are automatically configured:
+- **Local**: Data in `C:\...\Data`, outputs in `outputs/`
+- **Stoomboot**: Data in `/data/atlas/users/nterlind/datasets`, outputs in `/data/atlas/users/nterlind/outputs`
+
+## 📚 Documentation
+
+- **[ARCHITECTURE.md](ARCHITECTURE.md)**: System design and data flow
+- **[TRAINING_GUIDE.md](TRAINING_GUIDE.md)**: Using and creating training code
+- **[REPORTS_GUIDE.md](REPORTS_GUIDE.md)**: Using and creating reports
+- **[FACTS_SYSTEM.md](FACTS_SYSTEM.md)**: Facts architecture in detail
+- **[CONFIGS_GUIDE.md](CONFIGS_GUIDE.md)**: Hydra configuration patterns
+- **[HPC_GUIDE.md](HPC_GUIDE.md)**: Running on Stoomboot cluster
+- **[DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md)**: Contributing and development setup
+
+## 🎓 Typical Workflows
+
+### Local Development
 
 ```bash
-# Default config (ephemeral, no artifacts saved)
-python -m thesis_ml.train
+# 1. Quick smoke test (3 epochs, no artifacts)
+thesis-train phase1.trainer.epochs=3 logging.save_artifacts=false
 
-# Persistent run with artifacts saved
-python -m thesis_ml.train logging.save_artifacts=true trainer.epochs=5
+# 2. Full training run with plots
+thesis-train phase1.trainer.epochs=20 logging=plots_standard
+
+# 3. Experiment sweep (try different latent spaces)
+thesis-train --multirun hydra=experiment \
+    phase1/latent_space=none,linear,vq \
+    phase1.trainer.epochs=20
 ```
 
-Artifacts (model, config, plots) are saved to:
+### HPC Deployment
 
-```
-outputs/YYYYMMDD-HHMMSS/
-```
+```bash
+# Submit to Stoomboot cluster
+condor_submit hpc/stoomboot/train.sub
 
-### **3. Notebook Usage**
-
-```python
-from omegaconf import OmegaConf
-from thesis_ml.train.train_test import train
-
-cfg = OmegaConf.load("configs/config.yaml")
-cfg.trainer.epochs = 2
-cfg.logging.save_artifacts = False
-
-result = train(cfg)
-print(result)
+# Monitor job
+condor_q
 ```
 
-This runs the same logic **without** Hydra’s directory changes — perfect for Jupyter.
+### Analysis & Reporting
 
----
+```bash
+# Generate comparison report from sweep
+thesis-report --config-name compare_tokenizers \
+    inputs.sweep_dir=outputs/multiruns/exp_20251103-140953_experiment \
+    inference.enabled=true
 
-## 📊 Cross-run reports (VQ vs AE)
-
-Generate sweep-level comparison reports across multiple `run_dir`s.
-
-Requirements per run:
-
-- `cfg.yaml`
-- `facts/scalars.csv` with minimal columns: `epoch,split,val_loss,epoch_time_s`
-- `facts/events.jsonl` containing an `on_train_end` record
-
-CLI (PowerShell examples):
-
-```powershell
-python -m thesis_ml.reports --config-name compare_tokenizers inputs.run_dirs='["outputs/20251021-125542","outputs/20251021-131421"]' outputs.report_subdir=report outputs.which_figures='[val_mse_vs_time,throughput_vs_best_val]'
+# Output: outputs/reports/report_TIMESTAMP_compare_tokenizers/
 ```
 
-or a sweep directory:
+## 🧪 Testing
 
-```powershell
-python -m thesis_ml.reports --config-name compare_tokenizers inputs.sweep_dir='outputs/20251021' outputs.report_subdir=report outputs.which_figures='[val_mse_vs_time,pareto_error_vs_compression,vq_perplexity_boxplot]'
+```bash
+# Run all tests
+pytest
+
+# Run specific test file
+pytest tests/test_phase1_assembly.py
+
+# Smoke test (minimal imports)
+pytest tests/test_smoke.py
 ```
 
-Notes:
+## 🛠️ Adding New Components
 
-- Quote list arguments on Windows.
-- Figures format/DPI are controlled by the report config, independent of logging policy.
-- Outputs are written to `sweep_dir/report/` (or `<common_parent>/report/`) and include `summary.csv`, `summary.json`, and figures.
+### New Training Loop
 
-
-## 🧩 Logging and Artifact Control
-
-Controlled by `configs/logging/default.yaml`:
-
-Key plotting policy lives under `configs/logging/`. Important keys:
-
-```yaml
-save_artifacts: true
-make_plots: true
-show_plots: false
-output_root: "outputs"
-figures_subdir: "figures"
-fig_format: "png"
-dpi: 150
-file_naming: "{family}-{moment}-{epoch_or_step}"
-destinations: "file"
-families:
-  losses: true
-  metrics: true
-  recon:
-    enabled: false
-    mode: curves  # visuals optional
-  codebook: true
-  latency:
-    enabled: true
-    mode: light
-moments:
-  on_epoch_end_quick: true
-  on_train_end_full: true
-```
-
-| Mode                   | Behavior                                                                                        |
-| ---------------------- | ----------------------------------------------------------------------------------------------- |
-| `save_artifacts=false` | Writes outputs to a temporary folder, deleted after run.                                        |
-| `save_artifacts=true`  | Creates a timestamped folder under `outputs/` and saves `cfg.yaml`, `model.pt`, and `loss.png`. |
-
----
-
-## 💡 Plot Families and Orchestrator
-
-Training loops emit lifecycle events and JSONL facts. The orchestrator routes events to enabled families based on `logging` config. Figures go to `{run_dir}/figures`, facts to `{run_dir}/facts/`.
-
-| Family   | Required inputs                              | Moments                                        | Cost      |
-|----------|-----------------------------------------------|-----------------------------------------------|-----------|
-| losses   | `run_dir`, `history_*_loss`                   | `on_epoch_end`, `on_train_end`                 | low       |
-| metrics  | `run_dir`, `history_metrics` or `metrics`     | `on_epoch_end`, `on_train_end`                 | low       |
-| recon    | curves: histories; visuals: `examples`+hook   | `on_epoch_end`, `on_validation_end`, `on_train_end` | med/heavy |
-| codebook | `run_dir`, `history_perplex`/`history_codebook`| `on_epoch_end`, `on_train_end`                 | low       |
-| latency  | `run_dir`, `history_epoch_time_s` (and thr)   | `on_epoch_end`, `on_train_end`                 | low/med   |
-
-## 💡 Extending the project
-
-1. **Add new models** under `src/thesis_ml/models/`.
-2. **Add new training loops** under `src/thesis_ml/train/` (e.g., `vqae_loop.py`, `transformer_loop.py`).
-3. Update `train/__main__.py` with a **dispatcher** if multiple training loops are supported:
-
+1. Create `src/thesis_ml/training_loops/my_loop.py`
+2. Implement `def train(cfg: DictConfig) -> dict`
+3. Register in `src/thesis_ml/cli/train/__init__.py`:
    ```python
-   DISPATCH = {"mlp": mlp_main, "vqae": vqae_main}
+   def _my_loop(cfg):
+       from thesis_ml.training_loops.my_loop import train as _t
+       return _t(cfg)
+
+   DISPATCH = {
+       ...,
+       "my_loop": _my_loop,
+   }
    ```
-4. Add new config groups (`configs/model/<new_model>.yaml`, etc.).
-5. Run:
+4. Run: `thesis-train loop=my_loop`
 
-   ```bash
-   python -m thesis_ml.train trainer.loop=vqae
-   ```
+### New Architecture
 
----
+1. Add encoder/decoder/bottleneck to `src/thesis_ml/architectures/autoencoder/`
+2. Create config in `configs/phase1/encoder/` (or decoder/latent_space)
+3. Run: `thesis-train phase1/encoder=my_encoder`
 
-## 🧠 Design Philosophy
+### New Report
 
-* **Hydra-first** configuration for reproducible and swappable experiments.
-* **Separation of concerns**:
-  * `data/` handles data generation/loading.
-  * `models/` handles architecture creation.
-  * `train/` handles training logic.
-* **Notebook-friendly** imports (`train(cfg)`) without Hydra side-effects.
-* **Minimal dependencies**, pure PyTorch, easily extended.
+1. Create `src/thesis_ml/reports/analyses/my_report.py`
+2. Implement `def run_report(cfg: DictConfig) -> None`
+3. Create config in `configs/report/my_report.yaml`
+4. Run: `thesis-report --config-name my_report`
 
----
+## 🤝 Contributing
 
-## 📦 Outputs and Experiment Tracking
+See [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md) for:
+- Code style guidelines
+- Testing requirements
+- Git workflow
+- Documentation standards
 
-Each run can produce:
+## 📊 Output Directory Structure
 
 ```
 outputs/
-└── 20251015-134512/
-    ├── cfg.yaml           # exact config used
-    ├── model.pt           # trained model weights
-    ├── loss.png           # loss curve
-    └── logs/ (optional)
+├── runs/                   # Single training runs
+│   └── run_YYYYMMDD-HHMMSS_[name]/
+│       ├── .hydra/         # Hydra config snapshot
+│       ├── facts/          # Training facts (events.jsonl, scalars.csv)
+│       ├── figures/        # Training-time plots
+│       ├── model.pt        # Saved model checkpoint
+│       └── *.log           # Logs
+│
+├── multiruns/              # Multi-run experiments
+│   └── exp_YYYYMMDD-HHMMSS_[name]/
+│       └── (structure mirrors runs/)
+│
+└── reports/                # Generated reports
+    └── report_YYYYMMDD-HHMMSS_[name]/
+        ├── manifest.yaml   # Report metadata
+        ├── training/       # Training analysis
+        │   ├── summary.csv
+        │   └── figures/
+        └── inference/      # Inference results (optional)
+            ├── summary.json
+            └── figures/
 ```
 
-Use these folders to compare models, re-run with the same seeds, or analyze metrics.
+## 🏆 Design Philosophy
 
----
+1. **Configuration over Code**: Use Hydra to change behavior without editing Python
+2. **Facts-First**: Training emits facts; reports consume facts. Clean separation.
+3. **Fail-Fast Validation**: Catch config errors early with guardrails
+4. **HPC-Ready**: One codebase, multiple environments, no code changes
+5. **Extensibility**: Adding new components should be straightforward
 
-## 🧰 Dependencies
+## 📄 License
 
-Defined in `environment.yml`:
+[Specify your license here]
 
-* `python=3.11`
-* `pytorch`, `torchvision`, `torchaudio`
-* `hydra-core`, `omegaconf`
-* `numpy`, `pandas`, `matplotlib`, `scikit-learn`
-* `black`, `ruff`, `pytest`, `jupyterlab`
+## 👤 Author
 
----
-
-## ✅ Quick sanity test
-
-```bash
-pytest -q
-```
-
-Ensures package imports, data generation, and a minimal training step all work.
-
----
-
-## Phase 1 Standalone Autoencoders
-
-Phase 1 introduces a unified autoencoder assembly with Hydra composition. Choose encoder, latent space, decoder, trainer, and logging via config overrides.
-
-Run examples (do not execute here):
-
-```bash
-python -m thesis_ml.train logging=plots_minimal phase1/encoder=mlp phase1/decoder=mlp phase1/latent_space=none phase1/trainer=ae
-```
-
-```bash
-python -m thesis_ml.train logging=plots_standard phase1/encoder=mlp phase1/decoder=mlp phase1/latent_space=vq phase1/trainer=ae
-```
-
-Artifacts are saved under `outputs/<stamp>/facts` and `outputs/<stamp>/figures`.
+Niels ter Linde - Master's Thesis, Particle Physics

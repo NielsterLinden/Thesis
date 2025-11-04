@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from thesis_ml.plots.io_utils import save_figure
+from thesis_ml.monitoring.io_utils import save_figure
 
 
 def plot_grid_heatmap(df: pd.DataFrame, row_col: str, col_col: str, value_col: str, title: str, figs_dir: Path, fname: str, fig_cfg: dict) -> None:

@@ -4,6 +4,10 @@ version = "0.1.0"
 description = "Thesis scaffold (configs & tooling)"
 requires-python = ">=3.11"
 
+[project.scripts]
+thesis-train = "thesis_ml.cli.train.__main__:main"
+thesis-report = "thesis_ml.cli.reports.__main__:main"
+
 [tool.black]
 line-length = 1000
 target-version = ["py311"]

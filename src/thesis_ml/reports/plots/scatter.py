@@ -5,7 +5,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from thesis_ml.plots.io_utils import save_figure
+from thesis_ml.monitoring.io_utils import save_figure
 
 
 def plot_scatter_colored(

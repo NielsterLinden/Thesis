@@ -8,7 +8,7 @@ import pytest
 import torch
 from omegaconf import OmegaConf
 
-from thesis_ml.utils.facts_builder import (
+from thesis_ml.facts.builders import (
     _collect_metadata,
     _get_cuda_info,
     _get_git_commit,

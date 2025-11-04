@@ -8,7 +8,7 @@ from . import DISPATCH
 load_dotenv()
 
 
-@hydra.main(config_path="../../../configs", config_name="config", version_base="1.3")
+@hydra.main(config_path="../../../../../configs", config_name="config", version_base="1.3")
 def main(cfg: DictConfig):
     # Guardrail: catch legacy config keys from pre-refactor code
     bad = []

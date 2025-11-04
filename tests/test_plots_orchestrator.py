@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from thesis_ml.plots.orchestrator import handle_event
+from thesis_ml.monitoring.orchestrator import handle_event
 
 
 def _cfg():

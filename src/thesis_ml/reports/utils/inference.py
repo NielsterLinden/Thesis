@@ -9,8 +9,8 @@ from typing import Any
 import torch
 from omegaconf import DictConfig, OmegaConf
 
+from thesis_ml.architectures.autoencoder.base import build_from_config
 from thesis_ml.data.h5_loader import make_dataloaders
-from thesis_ml.phase1.autoenc.base import build_from_config
 from thesis_ml.utils.paths import resolve_run_dir
 
 from ..inference.forward_pass import create_model_adapter as _create_model_adapter
@@ -65,7 +65,7 @@ def load_model_from_run(run_id: str, output_root: Path | str, device: str | None
 
     # Populate meta if missing (needed for model building)
     if not hasattr(cfg, "meta") or cfg.meta is None:
-        from thesis_ml.phase1.train.ae_loop import _gather_meta
+        from thesis_ml.training_loops.ae_loop import _gather_meta
 
         # Create dataloaders temporarily to get meta
         train_dl, val_dl, test_dl, meta = make_dataloaders(cfg)

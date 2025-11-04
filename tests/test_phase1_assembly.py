@@ -5,7 +5,7 @@ import os
 from hydra import compose, initialize_config_dir
 from omegaconf import OmegaConf
 
-from thesis_ml.phase1.train.ae_loop import train as ae_train
+from thesis_ml.training_loops.ae_loop import train as ae_train
 
 
 def test_mlp_none_and_vq_dry_run(tmp_path, monkeypatch):

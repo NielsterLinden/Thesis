@@ -308,6 +308,20 @@ def _discover_pointer_targets(runs_dir: Path) -> list[Path]:
 
 
 def discover_runs(sweep_dir: Path | None, run_dirs: Iterable[Path] | None) -> list[Path]:
+    """Discover run directories from a sweep directory or explicit run list.
+
+    Parameters
+    ----------
+    sweep_dir : Path | None
+        Path to a multirun directory (e.g., outputs/multiruns/exp_...)
+    run_dirs : Iterable[Path] | None
+        Explicit list of run directories
+
+    Returns
+    -------
+    list[Path]
+        Sorted list of discovered run directories
+    """
     if (sweep_dir is None) == (not run_dirs):
         raise ValueError("Provide exactly one of sweep_dir or run_dirs")
     candidates: list[Path] = []
@@ -368,15 +382,34 @@ def discover_runs(sweep_dir: Path | None, run_dirs: Iterable[Path] | None) -> li
 
 
 def load_runs(sweep_dir: str | None = None, run_dirs: list[str] | None = None, *, require_complete: bool = True) -> tuple[pd.DataFrame, dict[str, pd.DataFrame], list[str]]:
+    """Load facts from multiple runs into DataFrames.
+
+    Parameters
+    ----------
+    sweep_dir : str | None
+        Path to multirun sweep directory
+    run_dirs : list[str] | None
+        Explicit list of run directories
+    require_complete : bool
+        If True, skip runs without on_train_end event
+
+    Returns
+    -------
+    runs_df : pd.DataFrame
+        Summary DataFrame with one row per run
+    per_epoch : dict[str, pd.DataFrame]
+        Per-epoch metrics for each run (key is run_dir string)
+    order : list[str]
+        List of run_dir strings in discovery order
+    """
     logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
     sd = Path(sweep_dir) if sweep_dir else None
     rds = [Path(p) for p in (run_dirs or [])] or None
     found = discover_runs(sd, rds)
-    summaries: list[dict[str, Any]] = {}
+    summaries: list[dict[str, Any]] = []
     per_epoch: dict[str, pd.DataFrame] = {}
     order: list[str] = []
 
-    summaries = []
     for rd in found:
         try:
             cfg, cfg_sha1 = _read_cfg(rd)

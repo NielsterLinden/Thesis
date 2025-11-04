@@ -1,23 +1,23 @@
 def _ae(cfg):
-    from thesis_ml.phase1.train.ae_loop import train as _t
+    from thesis_ml.training_loops.autoencoder import train as _t
 
     return _t(cfg)
 
 
 def _gan_ae(cfg):
-    from thesis_ml.phase1.train.gan_ae_loop import train as _t
+    from thesis_ml.training_loops.gan_autoencoder import train as _t
 
     return _t(cfg)
 
 
 def _diffusion_ae(cfg):
-    from thesis_ml.phase1.train.diffusion_ae_loop import train as _t
+    from thesis_ml.training_loops.diffusion_autoencoder import train as _t
 
     return _t(cfg)
 
 
 def _mlp(cfg):
-    from thesis_ml.general.train.test_mlp_loop import train as _t
+    from thesis_ml.training_loops.simple_mlp import train as _t
 
     return _t(cfg)
 
