@@ -1,6 +1,9 @@
 #!/bin/bash
 set -exo pipefail
 
+# Create output directory for this job
+mkdir -p "/data/atlas/users/nterlind/logs/report_${CONDOR_CLUSTER_ID}"
+
 echo "=== Stoomboot Thesis ML Report Job ==="
 echo "Job started at: $(date)"
 echo "Running on node: $(hostname)"
