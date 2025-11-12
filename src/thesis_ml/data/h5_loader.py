@@ -94,6 +94,70 @@ def make_dataloaders(cfg):
     )
 
 
+class ClassificationSplitDataset(Dataset):
+    """Dataset for classification splits (raw format)."""
+
+    def __init__(self, X, Y, T, mu, sd, pad_id: int = 0):
+        self.X = X
+        self.Y = Y
+        self.T = T
+        # Precompute normalization values to avoid repeated indexing
+        self.mu_norm = mu[0, 0] if isinstance(mu, torch.Tensor) else mu
+        self.sd_norm = sd[0, 0] if isinstance(sd, torch.Tensor) else sd
+        self.pad_id = pad_id
+
+    def _create_mask(self, ids: torch.Tensor) -> torch.Tensor:
+        """Create attention mask from token IDs (nonzero = valid token)."""
+        return ids != self.pad_id
+
+    def __len__(self):
+        return len(self.X)
+
+    def __getitem__(self, idx):
+        row = self.X[idx]
+        label = self.Y[idx]
+
+        ids = row[: self.T].to(torch.int64)
+        globals_ = row[self.T : self.T + 2]
+        cont = row[self.T + 2 :].view(self.T, 4)
+
+        tokens_cont = (cont - self.mu_norm) / self.sd_norm
+        mask = self._create_mask(ids)
+
+        return tokens_cont, ids, globals_, mask, label
+
+
+class BinnedClassificationSplitDataset(Dataset):
+    """Dataset for classification splits (binned format)."""
+
+    def __init__(self, X, Y, T, pad_id: int = 0):
+        self.X = X  # [N, 20] integer tokens
+        self.Y = Y
+        self.T = T
+        self.pad_id = pad_id
+
+    def _create_mask(self, tokens: torch.Tensor) -> torch.Tensor:
+        """Create attention mask from tokens (nonzero = valid token)."""
+        return tokens != self.pad_id
+
+    def __len__(self):
+        return len(self.X)
+
+    def __getitem__(self, idx):
+        row = self.X[idx]  # [20] integers
+        label = self.Y[idx]
+
+        # Split: [18 tokens, 2 globals]
+        integer_tokens = row[: self.T].to(torch.long)  # [18]
+        globals_ints = row[self.T : self.T + 2].to(torch.long)  # [2]
+
+        # Create attention mask
+        mask = self._create_mask(integer_tokens)
+
+        # Return: (integer_tokens, globals_ints, mask, label)
+        return integer_tokens, globals_ints, mask, label
+
+
 class H5ClassificationDataset(Dataset):
     """H5 dataset for classification with label filtering and masking."""
 
@@ -217,35 +281,7 @@ class H5ClassificationDataset(Dataset):
 
     def get_split(self, name):
         X, Y = self.splits[name]
-
-        # Create dataset that returns (tokens_cont, ids, globals, mask, label)
-        # We'll use a custom dataset class for this
-        class ClassificationSplitDataset(Dataset):
-            def __init__(self, X, Y, T, mu, sd, create_mask_fn):
-                self.X = X
-                self.Y = Y
-                self.T = T
-                self.mu = mu
-                self.sd = sd
-                self.create_mask = create_mask_fn
-
-            def __len__(self):
-                return len(self.X)
-
-            def __getitem__(self, idx):
-                row = self.X[idx]
-                label = self.Y[idx]
-
-                ids = row[: self.T].to(torch.int64)
-                globals_ = row[self.T : self.T + 2]
-                cont = row[self.T + 2 :].view(self.T, 4)
-
-                tokens_cont = (cont - self.mu[0, 0]) / self.sd[0, 0]
-                mask = self.create_mask(ids)
-
-                return tokens_cont, ids, globals_, mask, label
-
-        return ClassificationSplitDataset(X, Y, self.T, self.mu, self.sd, self._create_mask)
+        return ClassificationSplitDataset(X, Y, self.T, self.mu, self.sd, pad_id=0)
 
 
 class H5BinnedClassificationDataset(Dataset):
@@ -337,33 +373,7 @@ class H5BinnedClassificationDataset(Dataset):
 
     def get_split(self, name):
         X, Y = self.splits[name]
-
-        class BinnedClassificationSplitDataset(Dataset):
-            def __init__(self, X, Y, T, create_mask_fn):
-                self.X = X  # [N, 20] integer tokens
-                self.Y = Y
-                self.T = T
-                self.create_mask = create_mask_fn
-
-            def __len__(self):
-                return len(self.X)
-
-            def __getitem__(self, idx):
-                row = self.X[idx]  # [20] integers
-                label = self.Y[idx]
-
-                # Split: [18 tokens, 2 globals]
-                integer_tokens = row[: self.T].to(torch.long)  # [18]
-                globals_ints = row[self.T : self.T + 2].to(torch.long)  # [2]
-
-                # Create attention mask
-                mask = self.create_mask(integer_tokens)
-
-                # Return: (integer_tokens, globals_ints, mask, label)
-                # Note: For binned tokens, we don't need separate tokens_cont/tokens_id
-                return integer_tokens, globals_ints, mask, label
-
-        return BinnedClassificationSplitDataset(X, Y, self.T, self._create_mask)
+        return BinnedClassificationSplitDataset(X, Y, self.T, pad_id=0)
 
 
 def make_classification_dataloaders(cfg):

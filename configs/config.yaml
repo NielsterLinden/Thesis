@@ -18,7 +18,15 @@
   - phase1/latent_space: none       # latent space configuration (VQ, none, etc.)
   - phase1/trainer: ae            # phase1-specific training hyperparameters
   - phase1/experiment: null
+
+
+  # --- Phase 2 component configs ---
+  - classifier/trainer: default
+  - classifier/model: transformer
+  - classifier/experiment: null
+
+
   - _self_
 
 # --- High-level dispatcher key ---
-loop: ae
+loop: transformer_classifier
