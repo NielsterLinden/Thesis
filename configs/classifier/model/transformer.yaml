@@ -1,0 +1,28 @@
+# @package _global_
+# Transformer classifier model configuration
+
+classifier:
+  model:
+    # Architecture dimensions
+    dim: 256              # Model dimension (hidden size)
+    depth: 6              # Number of transformer encoder layers
+    heads: 8              # Number of attention heads
+    mlp_dim: 1024         # MLP hidden dimension (typically 4x dim)
+    dropout: 0.1          # Dropout rate
+
+    # Normalization policy
+    norm:
+      policy: pre         # "pre" or "post" normalization
+
+    # Positional encoding
+    positional: sinusoidal  # "none", "sinusoidal", or "rotary"
+
+    # Pooling strategy
+    pooling: cls          # "cls" (first token) or "mean" (average pooling)
+
+    # Tokenizer (optional pre-embedding transformation)
+    tokenizer:
+      name: raw           # "identity", "raw", "binned", or "pretrained"
+      id_embed_dim: 8     # Dimension for ID embedding in identity tokenizer (only for "identity")
+      # For "binned": vocab_size will be inferred from data (typically 886)
+      # For "pretrained": checkpoint_path and model_type must be specified

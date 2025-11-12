@@ -4,6 +4,11 @@ datasets:
   x_train: "X_train"
   x_val:   "X_val"
   x_test:  "X_test"
+  # Labels (for classification)
+  # Note: HDF5 file has inconsistent casing: Y_train (capital) but y_val and y_test (lowercase)
+  y_train: "Y_train"
+  y_val:   "y_val"
+  y_test:   "y_test"
 
 n_tokens: 18
 globals:
@@ -13,3 +18,9 @@ globals:
 norm: "zscore"
 seed: 42
 num_workers: 4
+
+# Classification-specific settings
+classifier:
+  # Selected ProcessIDs to include (default: [1, 2] for binary 4t vs ttH)
+  # Can be 2-5 classes: [1, 2] for binary, [1, 2, 3, 4, 5] for 5-way
+  selected_labels: [1, 2]

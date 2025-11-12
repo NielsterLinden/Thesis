@@ -1,0 +1,564 @@
+from __future__ import annotations
+
+import os
+import time
+from collections.abc import Mapping
+from contextlib import nullcontext
+from typing import Any
+
+import torch
+from omegaconf import DictConfig, OmegaConf
+from sklearn.metrics import f1_score, roc_auc_score
+
+from thesis_ml.architectures.transformer_classifier.base import build_from_config
+from thesis_ml.data.h5_loader import make_classification_dataloaders
+from thesis_ml.facts import append_jsonl_event, append_scalars_csv, build_event_payload
+from thesis_ml.monitoring.orchestrator import handle_event
+from thesis_ml.utils import TrainingProgressShower
+from thesis_ml.utils.seed import set_all_seeds
+
+SUPPORTED_PLOT_FAMILIES = {"losses", "metrics"}
+
+
+def _gather_meta(cfg: DictConfig, ds_meta: Mapping[str, Any]) -> None:
+    """Attach data-derived meta to cfg for module constructors."""
+    prev_struct = OmegaConf.is_struct(cfg)
+    try:
+        OmegaConf.set_struct(cfg, False)
+        cfg.meta = OmegaConf.create(
+            {
+                "n_tokens": int(ds_meta["n_tokens"]),
+                "token_feat_dim": int(ds_meta.get("token_feat_dim", 4)),
+                "has_globals": bool(ds_meta.get("has_globals", False)),
+                "n_classes": int(ds_meta["n_classes"]),
+                "num_types": int(ds_meta.get("num_types", 0)),  # For identity tokenizer
+                "vocab_size": ds_meta.get("vocab_size"),  # For binned tokenizer
+            }
+        )
+    finally:
+        OmegaConf.set_struct(cfg, prev_struct)
+
+
+def _compute_class_weights(
+    train_loader: torch.utils.data.DataLoader,
+    n_classes: int,
+    device: torch.device,
+) -> torch.Tensor:
+    """Compute class weights from train loader for imbalanced datasets.
+
+    Parameters
+    ----------
+    train_loader : torch.utils.data.DataLoader
+        Training data loader
+    n_classes : int
+        Number of classes
+    device : torch.device
+        Device to place weights on
+
+    Returns
+    -------
+    torch.Tensor
+        Class weights [n_classes] on specified device
+    """
+    # Count class occurrences in train loader
+    class_counts = torch.zeros(n_classes, dtype=torch.long)
+
+    for batch in train_loader:
+        # Detect format by batch length
+        if len(batch) == 5:  # raw format
+            _, _, _, _, labels = batch
+        else:  # binned format (4 items)
+            _, _, _, labels = batch
+
+        # Count occurrences of each class
+        for c in range(n_classes):
+            class_counts[c] += (labels == c).sum().item()
+
+    # Compute weights: inverse frequency, normalized
+    total = class_counts.sum().float()
+    weights = total / (n_classes * class_counts.float() + 1e-8)
+    weights = weights / weights.sum() * n_classes  # Normalize so sum = n_classes
+
+    return weights.to(device)
+
+
+def _compute_metrics_epoch(
+    all_logits: list[torch.Tensor],
+    all_labels: list[torch.Tensor],
+    n_classes: int,
+) -> dict[str, float | None]:
+    """Compute classification metrics at epoch level (accumulated over all batches).
+
+    Parameters
+    ----------
+    all_logits : list[torch.Tensor]
+        List of logit tensors [B, n_classes] from all batches (CPU tensors)
+    all_labels : list[torch.Tensor]
+        List of label tensors [B] from all batches (CPU tensors)
+    n_classes : int
+        Number of classes
+
+    Returns
+    -------
+    dict[str, float | None]
+        Dictionary with keys: acc, f1, auroc (auroc may be None if single class)
+    """
+    # Concatenate all logits and labels
+    logits_cat = torch.cat(all_logits, dim=0).cpu()  # [N, n_classes]
+    labels_cat = torch.cat(all_labels, dim=0).cpu()  # [N]
+
+    # Compute probabilities and predictions
+    probs = torch.softmax(logits_cat, dim=-1)  # [N, n_classes]
+    preds = probs.argmax(dim=-1)  # [N]
+
+    # Accuracy
+    accuracy = (preds == labels_cat).float().mean().item()
+
+    # F1 score
+    f1 = f1_score(labels_cat.numpy(), preds.numpy(), average="weighted")
+
+    # AUROC (guard edge cases)
+    unique_labels = labels_cat.unique()
+    # Single class in batch/epoch - skip AUROC
+    # Binary classification: use positive class probability
+    # Multi-class: use one-vs-rest
+    auroc = None if unique_labels.numel() < 2 else roc_auc_score(labels_cat.numpy(), probs[:, 1].numpy()) if n_classes == 2 else roc_auc_score(labels_cat.numpy(), probs.numpy(), multi_class="ovr", average="macro")
+
+    return {"acc": accuracy, "f1": f1, "auroc": auroc}
+
+
+def _train_one_epoch(
+    model: torch.nn.Module,
+    loader: torch.utils.data.DataLoader,
+    optimizer: torch.optim.Optimizer,
+    criterion: torch.nn.Module,
+    device: torch.device,
+    cfg: DictConfig,
+    n_classes: int,
+    scheduler: torch.optim.lr_scheduler._LRScheduler | None = None,
+) -> dict[str, float | None]:
+    """Train for one epoch.
+
+    Parameters
+    ----------
+    model : torch.nn.Module
+        Model to train
+    loader : torch.utils.data.DataLoader
+        Training data loader
+    optimizer : torch.optim.Optimizer
+        Optimizer
+    criterion : torch.nn.Module
+        Loss function
+    device : torch.device
+        Device to run on
+    cfg : DictConfig
+        Configuration
+    n_classes : int
+        Number of classes
+    scheduler : torch.optim.lr_scheduler._LRScheduler, optional
+        Learning rate scheduler (for warmup)
+
+    Returns
+    -------
+    dict[str, float | None]
+        Dictionary with keys: loss, acc, f1, auroc (auroc may be None)
+    """
+    model.train()
+
+    # Initialize accumulators
+    all_logits = []
+    all_labels = []
+    total_loss = 0.0
+    num_batches = 0
+
+    # AMP setup
+    use_amp = cfg.classifier.trainer.get("use_amp", False)
+    if use_amp and device.type == "cuda":
+        scaler = torch.cuda.amp.GradScaler()
+        autocast_ctx = torch.autocast(device_type="cuda", dtype=torch.float16)
+    else:
+        scaler = None
+        autocast_ctx = nullcontext()
+
+    # Loop batches
+    for batch in loader:
+        optimizer.zero_grad()
+
+        # Explicit batch unpacking
+        if len(batch) == 5:  # raw format
+            tokens_cont, tokens_id, globals, mask, label = batch
+            tokens_cont = tokens_cont.to(device)
+            tokens_id = tokens_id.to(device)
+            mask = mask.to(device)
+            label = label.to(device)
+
+            with autocast_ctx:
+                logits = model(tokens_cont, tokens_id, mask=mask)
+        else:  # binned format (4 items)
+            integer_tokens, globals_ints, mask, label = batch
+            integer_tokens = integer_tokens.to(device)
+            mask = mask.to(device)
+            label = label.to(device)
+
+            with autocast_ctx:
+                logits = model(integer_tokens, mask=mask)
+
+        # Loss
+        loss = criterion(logits, label)
+
+        # Backward
+        if scaler is not None:
+            scaler.scale(loss).backward()
+            scaler.unscale_(optimizer)
+            torch.nn.utils.clip_grad_norm_(
+                model.parameters(),
+                cfg.classifier.trainer.get("grad_clip", 1.0),
+            )
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(
+                model.parameters(),
+                cfg.classifier.trainer.get("grad_clip", 1.0),
+            )
+            optimizer.step()
+
+        # Scheduler step (for warmup)
+        if scheduler is not None:
+            scheduler.step()
+
+        # Accumulate
+        total_loss += loss.item()
+        num_batches += 1
+        all_logits.append(logits.detach().cpu())
+        all_labels.append(label.cpu())
+
+    # Compute metrics
+    avg_loss = total_loss / num_batches if num_batches > 0 else 0.0
+    metrics = _compute_metrics_epoch(all_logits, all_labels, n_classes)
+
+    return {"loss": avg_loss, **metrics}
+
+
+def _validate_one_epoch(
+    model: torch.nn.Module,
+    loader: torch.utils.data.DataLoader,
+    criterion: torch.nn.Module,
+    device: torch.device,
+    cfg: DictConfig,
+    n_classes: int,
+) -> dict[str, float | None]:
+    """Validate for one epoch.
+
+    Parameters
+    ----------
+    model : torch.nn.Module
+        Model to validate
+    loader : torch.utils.data.DataLoader
+        Validation data loader
+    criterion : torch.nn.Module
+        Loss function
+    device : torch.device
+        Device to run on
+    cfg : DictConfig
+        Configuration
+    n_classes : int
+        Number of classes
+
+    Returns
+    -------
+    dict[str, float | None]
+        Dictionary with keys: loss, acc, f1, auroc (auroc may be None)
+    """
+    model.eval()
+
+    # Initialize accumulators
+    all_logits = []
+    all_labels = []
+    total_loss = 0.0
+    num_batches = 0
+
+    # AMP setup
+    use_amp = cfg.classifier.trainer.get("use_amp", False)
+    autocast_ctx = torch.autocast(device_type="cuda", dtype=torch.float16) if use_amp and device.type == "cuda" else nullcontext()
+
+    with torch.no_grad():
+        for batch in loader:
+            # Explicit batch unpacking
+            if len(batch) == 5:  # raw format
+                tokens_cont, tokens_id, globals, mask, label = batch
+                tokens_cont = tokens_cont.to(device)
+                tokens_id = tokens_id.to(device)
+                mask = mask.to(device)
+                label = label.to(device)
+
+                with autocast_ctx:
+                    logits = model(tokens_cont, tokens_id, mask=mask)
+            else:  # binned format (4 items)
+                integer_tokens, globals_ints, mask, label = batch
+                integer_tokens = integer_tokens.to(device)
+                mask = mask.to(device)
+                label = label.to(device)
+
+                with autocast_ctx:
+                    logits = model(integer_tokens, mask=mask)
+
+            # Loss
+            loss = criterion(logits, label)
+
+            # Accumulate
+            total_loss += loss.item()
+            num_batches += 1
+            all_logits.append(logits.cpu())
+            all_labels.append(label.cpu())
+
+    # Compute metrics
+    avg_loss = total_loss / num_batches if num_batches > 0 else 0.0
+    metrics = _compute_metrics_epoch(all_logits, all_labels, n_classes)
+
+    return {"loss": avg_loss, **metrics}
+
+
+def train(cfg: DictConfig) -> dict:
+    """Train transformer classifier.
+
+    Parameters
+    ----------
+    cfg : DictConfig
+        Hydra configuration
+
+    Returns
+    -------
+    dict
+        Training results with keys: best_val_loss, best_val_acc, test_loss, test_acc
+    """
+    # Reproducibility
+    set_all_seeds(cfg.classifier.trainer.seed)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # Data
+    train_dl, val_dl, test_dl, meta = make_classification_dataloaders(cfg)
+    _gather_meta(cfg, meta)
+
+    # Compute class weights
+    class_weights = _compute_class_weights(train_dl, meta["n_classes"], device)
+
+    # Model assembly
+    model = build_from_config(cfg, meta).to(device)
+
+    # AdamW optimizer
+    opt = torch.optim.AdamW(
+        model.parameters(),
+        lr=cfg.classifier.trainer.lr,
+        weight_decay=cfg.classifier.trainer.get("weight_decay", 1e-2),
+    )
+
+    # Optional warmup scheduler
+    warmup_steps = cfg.classifier.trainer.get("warmup_steps", 0)
+    warmup_scheduler = None
+    if warmup_steps > 0:
+        from torch.optim.lr_scheduler import LinearLR
+
+        warmup_scheduler = LinearLR(opt, start_factor=0.1, total_iters=warmup_steps)
+
+    # Unified loss: Always use CrossEntropyLoss with class weights
+    criterion = torch.nn.CrossEntropyLoss(weight=class_weights)
+
+    # Logging dir from Hydra
+    outdir = None
+    if cfg.logging.save_artifacts:
+        outdir = os.getcwd()
+        os.makedirs(outdir, exist_ok=True)
+
+        # Dump resolved config
+        config_path = os.path.join(outdir, "resolved_config.yaml")
+        with open(config_path, "w") as f:
+            OmegaConf.save(cfg, f)
+
+    # on_start
+    if outdir and cfg.logging.save_artifacts:
+        start_payload = build_event_payload(
+            moment="on_start",
+            run_dir=outdir,
+            cfg=cfg,
+            seed=cfg.classifier.trainer.seed,
+            class_weights=class_weights.cpu().tolist(),
+        )
+        append_jsonl_event(str(outdir), start_payload)
+        handle_event(cfg.logging, SUPPORTED_PLOT_FAMILIES, "on_start", start_payload)
+
+    # Training loop
+    histories = {
+        "train_loss": [],
+        "val_loss": [],
+        "train_acc": [],
+        "val_acc": [],
+        "train_f1": [],
+        "val_f1": [],
+        "train_auroc": [],
+        "val_auroc": [],
+    }
+    best_val_loss = float("inf")
+    best_val_acc = 0.0
+    best_epoch = 0
+    last_valid_auroc = None  # Carry last valid AUROC if single class detected
+    global_step = 0
+    training_start_time = time.time()
+
+    progress = TrainingProgressShower(cfg.classifier.trainer.epochs)
+
+    for epoch in range(cfg.classifier.trainer.epochs):
+        epoch_start = time.time()
+
+        # Train
+        train_metrics = _train_one_epoch(model, train_dl, opt, criterion, device, cfg, meta["n_classes"], warmup_scheduler)
+        histories["train_loss"].append(train_metrics["loss"])
+        histories["train_acc"].append(train_metrics["acc"])
+        histories["train_f1"].append(train_metrics["f1"])
+        # Handle None AUROC (carry last valid value)
+        if train_metrics["auroc"] is not None:
+            last_valid_auroc = train_metrics["auroc"]
+        histories["train_auroc"].append(last_valid_auroc if train_metrics["auroc"] is None else train_metrics["auroc"])
+
+        # Validate
+        val_metrics = _validate_one_epoch(model, val_dl, criterion, device, cfg, meta["n_classes"])
+        histories["val_loss"].append(val_metrics["loss"])
+        histories["val_acc"].append(val_metrics["acc"])
+        histories["val_f1"].append(val_metrics["f1"])
+        # Handle None AUROC (carry last valid value)
+        if val_metrics["auroc"] is not None:
+            last_valid_auroc = val_metrics["auroc"]
+        histories["val_auroc"].append(last_valid_auroc if val_metrics["auroc"] is None else val_metrics["auroc"])
+
+        epoch_time = time.time() - epoch_start
+        global_step += len(train_dl)
+
+        # Checkpointing (comprehensive)
+        if val_metrics["loss"] < best_val_loss:
+            best_val_loss = val_metrics["loss"]
+            best_val_acc = val_metrics["acc"]
+            best_epoch = epoch
+            if outdir:
+                checkpoint = {
+                    "model_state_dict": model.state_dict(),
+                    "optimizer_state_dict": opt.state_dict(),
+                    "scheduler_state_dict": warmup_scheduler.state_dict() if warmup_scheduler else None,
+                    "epoch": epoch,
+                    "global_step": global_step,
+                    "best_metric": best_val_loss,
+                    "meta": {
+                        "n_tokens": meta["n_tokens"],
+                        "num_types": meta.get("num_types"),
+                        "n_classes": meta["n_classes"],
+                        "class_weights": class_weights.cpu().tolist(),
+                        "tokenizer_name": cfg.classifier.model.tokenizer.name,
+                        "tokenizer_version": "1.0",
+                    },
+                    "config": OmegaConf.to_container(cfg, resolve=True),
+                }
+                torch.save(checkpoint, os.path.join(outdir, "best_val.pt"))
+
+                # Create symlink
+                model_path = os.path.join(outdir, "model.pt")
+                if os.path.exists(model_path):
+                    os.remove(model_path)
+                try:
+                    os.symlink("best_val.pt", model_path)
+                except OSError:
+                    import shutil
+
+                    shutil.copy2(os.path.join(outdir, "best_val.pt"), model_path)
+
+        # Emit facts
+        if outdir:
+            # Use last valid AUROC if current is None
+            val_auroc_for_facts = last_valid_auroc if val_metrics["auroc"] is None else val_metrics["auroc"]
+
+            payload = build_event_payload(
+                moment="on_epoch_end",
+                run_dir=outdir,
+                epoch=epoch,
+                train_loss=train_metrics["loss"],
+                val_loss=val_metrics["loss"],
+                metrics={
+                    "acc": val_metrics["acc"],
+                    "f1": val_metrics["f1"],
+                    "auroc": val_auroc_for_facts,
+                },
+                histories=histories,
+                epoch_time_s=epoch_time,
+                cfg=cfg,
+            )
+            append_jsonl_event(str(outdir), payload)
+            append_scalars_csv(
+                str(outdir),
+                epoch=epoch,
+                split="val",
+                train_loss=train_metrics["loss"],
+                val_loss=val_metrics["loss"],
+                metrics={
+                    "acc": val_metrics["acc"],
+                    "f1": val_metrics["f1"],
+                    "auroc": val_auroc_for_facts,
+                },
+                epoch_time_s=epoch_time,
+                throughput=None,
+                max_memory_mib=None,
+            )
+            handle_event(cfg.logging, SUPPORTED_PLOT_FAMILIES, "on_epoch_end", payload)
+
+            # Log AUROC warning if single class detected
+            if val_metrics["auroc"] is None:
+                import warnings
+
+                warnings.warn(
+                    f"Epoch {epoch}: Single class detected in validation set, skipping AUROC computation.",
+                    stacklevel=2,
+                )
+
+        progress.update(epoch, epoch_time, train_loss=train_metrics["loss"], val_loss=val_metrics["loss"])
+
+    # Test evaluation
+    test_metrics = _validate_one_epoch(model, test_dl, criterion, device, cfg, meta["n_classes"])
+
+    # on_train_end
+    if outdir:
+        total_time = time.time() - training_start_time
+        payload_end = build_event_payload(
+            moment="on_train_end",
+            run_dir=outdir,
+            total_time_s=total_time,
+            histories=histories,
+            cfg=cfg,
+        )
+        append_jsonl_event(str(outdir), payload_end)
+        handle_event(cfg.logging, SUPPORTED_PLOT_FAMILIES, "on_train_end", payload_end)
+
+        # Save final checkpoint (comprehensive)
+        checkpoint = {
+            "model_state_dict": model.state_dict(),
+            "optimizer_state_dict": opt.state_dict(),
+            "scheduler_state_dict": warmup_scheduler.state_dict() if warmup_scheduler else None,
+            "epoch": epoch,
+            "global_step": global_step,
+            "best_metric": best_val_loss,
+            "meta": {
+                "n_tokens": meta["n_tokens"],
+                "num_types": meta.get("num_types"),
+                "n_classes": meta["n_classes"],
+                "class_weights": class_weights.cpu().tolist(),
+                "tokenizer_name": cfg.classifier.model.tokenizer.name,
+                "tokenizer_version": "1.0",
+            },
+            "config": OmegaConf.to_container(cfg, resolve=True),
+        }
+        torch.save(checkpoint, os.path.join(outdir, "last.pt"))
+
+    return {
+        "best_val_loss": best_val_loss,
+        "best_val_acc": best_val_acc,
+        "best_epoch": best_epoch,
+        "test_loss": test_metrics["loss"],
+        "test_acc": test_metrics["acc"],
+    }

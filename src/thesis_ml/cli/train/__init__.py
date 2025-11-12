@@ -22,11 +22,18 @@ def _mlp(cfg):
     return _t(cfg)
 
 
+def _transformer_classifier(cfg):
+    from thesis_ml.training_loops.transformer_classifier import train as _t
+
+    return _t(cfg)
+
+
 DISPATCH = {
     "ae": _ae,
     "gan_ae": _gan_ae,
     "diffusion_ae": _diffusion_ae,
     "test_mlp": _mlp,
+    "transformer_classifier": _transformer_classifier,
 }
 
 __all__ = ["DISPATCH"]

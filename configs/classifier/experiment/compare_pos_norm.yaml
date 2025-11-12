@@ -1,0 +1,22 @@
+# @package _global_
+# Example experiment config for comparing positional encodings and normalization
+
+defaults:
+  - /classifier/model/transformer
+  - /classifier/trainer/default
+  - override /classifier/model/transformer: transformer
+  - override /classifier/trainer/default: default
+
+# This config is meant to be used with --multirun to sweep over:
+# - positional encodings: none, sinusoidal, rotary
+# - normalization policies: pre, post
+#
+# Example usage:
+# thesis-train --multirun \
+#   loop=transformer_classifier \
+#   classifier/model/positional=none,sinusoidal,rotary \
+#   classifier/model/norm/policy=pre,post
+
+classifier:
+  trainer:
+    epochs: 20  # Shorter for quick comparison

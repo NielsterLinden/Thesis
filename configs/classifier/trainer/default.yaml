@@ -1,0 +1,29 @@
+# @package _global_
+# Transformer classifier training configuration
+
+classifier:
+  trainer:
+    # Training hyperparameters
+    epochs: 50
+    lr: 0.0001
+    weight_decay: 0.01
+    batch_size: 64
+
+    # Learning rate schedule
+    warmup_steps: 1000
+    lr_schedule: cosine   # "cosine" or "constant"
+
+    # Loss function
+    label_smoothing: 0.0  # Label smoothing factor (0.0 = no smoothing)
+
+    # Metrics to compute
+    metrics:
+      - acc
+      - auroc
+      - f1
+
+    # Reproducibility
+    seed: 42
+
+    # Gradient clipping
+    grad_clip: 1.0
