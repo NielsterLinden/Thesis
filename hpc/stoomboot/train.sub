@@ -4,9 +4,9 @@ arguments      =
 
 initialdir     = /project/atlas/users/nterlind/Thesis-Code
 
-output         = /data/atlas/users/nterlind/logs/train_$(ClusterId)/train_$(ClusterId).out
-error          = /data/atlas/users/nterlind/logs/train_$(ClusterId)/train_$(ClusterId).err
-log            = /data/atlas/users/nterlind/logs/train_$(ClusterId)/train_$(ClusterId).log
+output         = /data/atlas/users/nterlind/logs/train_$(ClusterId).out
+error          = /data/atlas/users/nterlind/logs/train_$(ClusterId).err
+log            = /data/atlas/users/nterlind/logs/train_$(ClusterId).log
 
 request_cpus   = 2
 request_memory = 16GB

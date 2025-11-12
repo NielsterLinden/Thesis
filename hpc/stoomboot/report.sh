@@ -1,9 +1,6 @@
 #!/bin/bash
 set -exo pipefail
 
-# Create output directory for this job
-mkdir -p "/data/atlas/users/nterlind/logs/report_${CONDOR_CLUSTER_ID}"
-
 echo "=== Stoomboot Thesis ML Report Job ==="
 echo "Job started at: $(date)"
 echo "Running on node: $(hostname)"
@@ -27,4 +24,17 @@ python -m thesis_ml.cli.reports "$@"
 
 EXIT_CODE=$?
 echo "Job completed at: $(date) with exit code: $EXIT_CODE"
+
+# Close stdout/stderr to allow HTCondor to close the files
+exec 1>&-
+exec 2>&-
+
+# Small delay to ensure files are closed, then organize into grouped directory
+sleep 0.5
+OUTPUT_DIR="/data/atlas/users/nterlind/logs/report_${CONDOR_CLUSTER_ID}"
+mkdir -p "$OUTPUT_DIR"
+mv "/data/atlas/users/nterlind/logs/report_${CONDOR_CLUSTER_ID}.out" "${OUTPUT_DIR}/report_${CONDOR_CLUSTER_ID}.out" 2>/dev/null || true
+mv "/data/atlas/users/nterlind/logs/report_${CONDOR_CLUSTER_ID}.err" "${OUTPUT_DIR}/report_${CONDOR_CLUSTER_ID}.err" 2>/dev/null || true
+mv "/data/atlas/users/nterlind/logs/report_${CONDOR_CLUSTER_ID}.log" "${OUTPUT_DIR}/report_${CONDOR_CLUSTER_ID}.log" 2>/dev/null || true
+
 exit $EXIT_CODE
