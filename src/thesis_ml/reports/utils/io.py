@@ -8,9 +8,8 @@ from typing import Any
 import pandas as pd
 from omegaconf import DictConfig
 
+from thesis_ml.facts.readers import load_runs
 from thesis_ml.utils.paths import get_report_id, get_run_id, resolve_report_dir
-
-from .read_facts import load_runs
 
 logger = logging.getLogger(__name__)
 
