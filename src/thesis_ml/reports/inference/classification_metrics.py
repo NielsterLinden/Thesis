@@ -114,7 +114,7 @@ def compute_classification_metrics(
                 precision_vals, recall_vals, _ = precision_recall_curve(y_binary, probs_cat[:, class_idx])
                 pr_curves[class_idx] = {"precision": precision_vals.tolist(), "recall": recall_vals.tolist()}
 
-    return {
+    result = {
         "accuracy": float(accuracy),
         "auroc": float(auroc) if auroc is not None else None,
         "precision_macro": float(precision_macro),
@@ -129,3 +129,10 @@ def compute_classification_metrics(
         "roc_curves": roc_curves,
         "pr_curves": pr_curves,
     }
+
+    # Store per-event scores and labels for plotting (binary classification only)
+    if n_classes == 2:
+        result["per_event_scores"] = probs_cat[:, 1].tolist()  # Signal probability
+        result["per_event_labels"] = labels_cat.tolist()  # True labels
+
+    return result

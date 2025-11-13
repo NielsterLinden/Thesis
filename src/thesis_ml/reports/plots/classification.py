@@ -198,3 +198,137 @@ def plot_metrics_comparison(
     plt.tight_layout()
     save_figure(fig, inference_figs_dir, fname, fig_cfg)
     plt.close(fig)
+
+
+def plot_score_distributions(
+    inference_results: dict[str, dict[str, Any]],
+    inference_figs_dir: Path,
+    fig_cfg: dict[str, Any],
+    signal_class_idx: int = 1,
+    fname: str = "figure-score_distributions",
+) -> None:
+    """Plot normalized step-histograms of classifier scores for signal vs background.
+
+    Matches the style of anomaly detection reconstruction-score histograms.
+    Shows signal and background score distributions, optimal threshold (Youden's J),
+    and overlap area.
+
+    Parameters
+    ----------
+    inference_results : dict[str, dict[str, Any]]
+        Nested dict: {run_id: {metrics...}} with per_event_scores and per_event_labels
+    inference_figs_dir : Path
+        Directory to save figures
+    fig_cfg : dict[str, Any]
+        Figure configuration (fig_format, dpi)
+    signal_class_idx : int
+        Which class index represents signal (default: 1 for binary classification)
+    fname : str
+        Base filename for saved figure
+    """
+    from sklearn.metrics import roc_curve
+
+    for run_id, metrics in inference_results.items():
+        # Extract per-event scores and labels (only available for binary classification)
+        per_event_scores = metrics.get("per_event_scores")
+        per_event_labels = metrics.get("per_event_labels")
+
+        if per_event_scores is None or per_event_labels is None:
+            continue  # Skip if not binary classification or data not available
+
+        scores = np.array(per_event_scores)  # [N] - p(signal | event)
+        labels = np.array(per_event_labels)  # [N] - true labels
+
+        # Split into signal and background
+        signal_scores = scores[labels == signal_class_idx]
+        background_scores = scores[labels != signal_class_idx]
+
+        if len(signal_scores) == 0 or len(background_scores) == 0:
+            continue  # Need both classes
+
+        # Create figure matching anomaly detection style
+        fig, ax = plt.subplots(figsize=(10, 6))
+
+        # Compute optimal threshold using Youden's J
+        # Convert labels to binary: signal=1, background=0
+        y_binary = (labels == signal_class_idx).astype(int)
+        fpr, tpr, thresholds = roc_curve(y_binary, scores)
+        youden_j = tpr - fpr
+        optimal_idx = np.argmax(youden_j)
+        optimal_threshold = thresholds[optimal_idx]
+
+        # Compute overlap area (common area of normalized histograms)
+        # Use same bins for both distributions
+        score_min = min(scores.min(), background_scores.min(), signal_scores.min())
+        score_max = max(scores.max(), background_scores.max(), signal_scores.max())
+        bins = np.linspace(score_min, score_max, 50)
+
+        # Compute normalized histograms
+        bg_counts, bg_edges = np.histogram(background_scores, bins=bins)
+        sig_counts, sig_edges = np.histogram(signal_scores, bins=bins)
+
+        # Normalize by total count
+        bg_normalized = bg_counts / len(background_scores)
+        sig_normalized = sig_counts / len(signal_scores)
+
+        # Compute overlap (minimum of the two normalized distributions at each bin)
+        overlap = np.minimum(bg_normalized, sig_normalized)
+        overlap_area = np.sum(overlap) * (bins[1] - bins[0])  # Integrate
+
+        # Plot normalized step histograms (matching anomaly detection style)
+        # Use step plot (no fill) with consistent line width
+        ax.step(
+            bg_edges[:-1],
+            bg_normalized,
+            where="post",
+            label="Background",
+            color="#1f77b4",  # Blue
+            linewidth=2,
+            alpha=0.8,
+        )
+        ax.step(
+            sig_edges[:-1],
+            sig_normalized,
+            where="post",
+            label="Signal",
+            color="#ff7f0e",  # Orange
+            linewidth=2,
+            alpha=0.8,
+        )
+
+        # Plot optimal threshold line
+        ax.axvline(
+            optimal_threshold,
+            color="red",
+            linestyle="--",
+            linewidth=2,
+            alpha=0.7,
+            label=f"Optimal threshold ({optimal_threshold:.3f})",
+        )
+
+        # Annotate overlap area
+        overlap_pct = overlap_area * 100
+        ax.text(
+            0.98,
+            0.98,
+            f"Overlap: {overlap_pct:.1f}%",
+            transform=ax.transAxes,
+            ha="right",
+            va="top",
+            bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.5),
+            fontsize=11,
+        )
+
+        # Set labels and title
+        ax.set_xlabel("Classifier Score (p(signal | event))")
+        ax.set_ylabel("bin count / N")
+        ax.set_title(f"Score Distributions: {run_id}")
+        ax.legend()
+        ax.grid(alpha=0.3)
+
+        # Set x-axis limits to tightly cover the distributions
+        ax.set_xlim([score_min, score_max])
+
+        plt.tight_layout()
+        save_figure(fig, inference_figs_dir, f"{fname}_{run_id}", fig_cfg)
+        plt.close(fig)

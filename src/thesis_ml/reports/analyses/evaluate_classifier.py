@@ -77,6 +77,7 @@ def run_report(cfg: DictConfig) -> None:
             plot_confusion_matrix,
             plot_metrics_comparison,
             plot_roc_curves,
+            plot_score_distributions,
         )
 
         fig_cfg = get_fig_config(cfg)
@@ -84,6 +85,7 @@ def run_report(cfg: DictConfig) -> None:
             plot_roc_curves(inference_results, inference_figs_dir, fig_cfg)
             plot_confusion_matrix(inference_results, inference_figs_dir, fig_cfg)
             plot_metrics_comparison(inference_results, inference_figs_dir, fig_cfg)
+            plot_score_distributions(inference_results, inference_figs_dir, fig_cfg)
         except Exception as e:
             logger.warning("Error generating inference plots: %s", e)
 
