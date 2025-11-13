@@ -93,8 +93,14 @@ def load_model_from_run(run_id: str, output_root: Path | str, device: str | None
     else:
         raise ValueError("Cannot determine model type from config (missing 'classifier' or 'phase1' section)")
 
-    state = torch.load(str(weights_path), map_location=dev, weights_only=False)
-    model.load_state_dict(state)
+    checkpoint = torch.load(str(weights_path), map_location=dev, weights_only=False)
+
+    # Handle different checkpoint formats:
+    # - Classifier: full checkpoint dict with 'model_state_dict' key
+    # - Autoencoder: direct state_dict
+    state_dict = checkpoint["model_state_dict"] if isinstance(checkpoint, dict) and "model_state_dict" in checkpoint else checkpoint
+
+    model.load_state_dict(state_dict)
     model.eval()
     return cfg, model, dev
 
