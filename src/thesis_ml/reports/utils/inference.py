@@ -9,7 +9,6 @@ from typing import Any
 import torch
 from omegaconf import DictConfig, OmegaConf
 
-from thesis_ml.architectures.autoencoder.base import build_from_config
 from thesis_ml.data.h5_loader import make_dataloaders
 from thesis_ml.utils.paths import resolve_run_dir
 
@@ -63,16 +62,37 @@ def load_model_from_run(run_id: str, output_root: Path | str, device: str | None
     else:
         raise FileNotFoundError(f"Missing best_val.pt or model.pt in {run_dir}")
 
-    # Populate meta if missing (needed for model building)
-    if not hasattr(cfg, "meta") or cfg.meta is None:
-        from thesis_ml.training_loops.ae_loop import _gather_meta
-
-        # Create dataloaders temporarily to get meta
-        train_dl, val_dl, test_dl, meta = make_dataloaders(cfg)
-        _gather_meta(cfg, meta)
-
     dev = _resolve_device(device)
-    model = build_from_config(cfg).to(dev)
+
+    # Detect model type and build accordingly
+    if hasattr(cfg, "classifier"):
+        # Classifier model
+        from thesis_ml.architectures.transformer_classifier.base import build_from_config as build_classifier
+        from thesis_ml.data.h5_loader import make_classification_dataloaders
+        from thesis_ml.training_loops.transformer_classifier import _gather_meta
+
+        # Populate meta if missing (needed for model building)
+        if not hasattr(cfg, "meta") or cfg.meta is None:
+            # Create dataloaders temporarily to get meta
+            train_dl, val_dl, test_dl, meta = make_classification_dataloaders(cfg)
+            _gather_meta(cfg, meta)
+
+        model = build_classifier(cfg, cfg.meta).to(dev)
+    elif hasattr(cfg, "phase1"):
+        # Autoencoder model
+        from thesis_ml.architectures.autoencoder.base import build_from_config
+        from thesis_ml.training_loops.autoencoder import _gather_meta
+
+        # Populate meta if missing (needed for model building)
+        if not hasattr(cfg, "meta") or cfg.meta is None:
+            # Create dataloaders temporarily to get meta
+            train_dl, val_dl, test_dl, meta = make_dataloaders(cfg)
+            _gather_meta(cfg, meta)
+
+        model = build_from_config(cfg).to(dev)
+    else:
+        raise ValueError("Cannot determine model type from config (missing 'classifier' or 'phase1' section)")
+
     state = torch.load(str(weights_path), map_location=dev, weights_only=False)
     model.load_state_dict(state)
     model.eval()
