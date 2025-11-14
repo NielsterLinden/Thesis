@@ -21,4 +21,4 @@ hydra:
       classifier.model.norm.policy: pre,post,normformer
       classifier.model.positional: none,sinusoidal
       classifier.model.pooling: cls,mean
-      classifier.trainer.epochs: 50  # Full run
+      classifier.trainer.epochs: 100  # Full run
