@@ -3,12 +3,6 @@
 experiment:
   name: "compare_norm_pos_pool"
 
-defaults:
-  - /classifier/model/transformer
-  - /classifier/trainer/default
-  - override /classifier/model/transformer: transformer
-  - override /classifier/trainer/default: default
-
 hydra:
   mode: MULTIRUN
   job:
