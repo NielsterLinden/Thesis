@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 
 from thesis_ml.monitoring.io_utils import save_figure
+
+logger = logging.getLogger(__name__)
 
 
 def plot_roc_curves(
@@ -332,3 +336,173 @@ def plot_score_distributions(
         plt.tight_layout()
         save_figure(fig, inference_figs_dir, f"{fname}_{run_id}", fig_cfg)
         plt.close(fig)
+
+
+def plot_metrics_by_axis(
+    runs_df: pd.DataFrame,
+    axis_col: str,
+    metric_col: str,
+    inference_results: dict[str, dict[str, Any]] | None,
+    inference_figs_dir: Path,
+    fig_cfg: dict[str, Any],
+    fname: str = "figure-metrics_by_axis",
+    title: str | None = None,
+) -> None:
+    """Bar chart comparing metrics grouped by a single axis (norm_policy, positional, or pooling).
+
+    Can use either training metrics from runs_df or inference metrics from inference_results.
+    If inference_results is provided, uses inference metrics; otherwise uses training metrics.
+
+    Parameters
+    ----------
+    runs_df : pd.DataFrame
+        DataFrame with run information, must contain axis_col and run_dir columns
+    axis_col : str
+        Column name to group by (e.g., 'norm_policy', 'positional', 'pooling')
+    metric_col : str
+        Column name for metric value (for training) or metric name (for inference)
+    inference_results : dict[str, dict[str, Any]] | None
+        Optional inference results dict: {run_id: {metrics...}}
+        If provided, extracts metric_col from inference metrics instead of runs_df
+    inference_figs_dir : Path
+        Directory to save figures
+    fig_cfg : dict[str, Any]
+        Figure configuration (fig_format, dpi)
+    fname : str
+        Base filename for saved figure
+    title : str | None
+        Optional custom title (default: "Metric by {axis_col}")
+    """
+    if axis_col not in runs_df.columns:
+        logger.warning(f"Column '{axis_col}' not found in runs_df, skipping plot")
+        return
+
+    # Group by axis
+    if inference_results is not None:
+        # Use inference metrics
+        # Map run_dir to run_id for lookup
+        from thesis_ml.utils.paths import get_run_id
+
+        axis_groups = {}
+        for _idx, row in runs_df.iterrows():
+            run_dir = row.get("run_dir")
+            if pd.isna(run_dir):
+                continue
+            run_id = get_run_id(Path(str(run_dir)))
+            axis_value = row.get(axis_col)
+
+            if run_id in inference_results:
+                metric_value = inference_results[run_id].get(metric_col)
+                if metric_value is not None:
+                    if axis_value not in axis_groups:
+                        axis_groups[axis_value] = []
+                    axis_groups[axis_value].append(metric_value)
+
+        # Compute mean and std for each axis value
+        axis_values = sorted(axis_groups.keys())
+        means = [np.mean(axis_groups[v]) for v in axis_values]
+        stds = [np.std(axis_groups[v]) if len(axis_groups[v]) > 1 else 0.0 for v in axis_values]
+        labels = [str(v) for v in axis_values]
+    else:
+        # Use training metrics from runs_df
+        grouped = runs_df.groupby(axis_col)[metric_col].agg(["mean", "std", "count"])
+        axis_values = grouped.index.tolist()
+        means = grouped["mean"].tolist()
+        stds = grouped["std"].fillna(0.0).tolist()
+        labels = [str(v) for v in axis_values]
+
+    if not axis_values:
+        logger.warning(f"No data found for axis '{axis_col}', skipping plot")
+        return
+
+    # Create bar chart
+    fig, ax = plt.subplots(figsize=(10, 6))
+    x = np.arange(len(axis_values))
+    width = 0.6
+
+    ax.bar(x, means, width, yerr=stds, capsize=5, alpha=0.7, color="steelblue", edgecolor="black")
+
+    # Add value labels on bars
+    for i, (mean, std) in enumerate(zip(means, stds, strict=False)):
+        ax.text(i, mean + std + 0.01, f"{mean:.3f}", ha="center", va="bottom", fontsize=10)
+
+    ax.set_xlabel(axis_col.replace("_", " ").title())
+    ax.set_ylabel(metric_col.replace("_", " ").title())
+    ax.set_title(title or f"{metric_col.replace('_', ' ').title()} by {axis_col.replace('_', ' ').title()}")
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels, rotation=45, ha="right")
+    ax.grid(axis="y", alpha=0.3)
+
+    plt.tight_layout()
+    save_figure(fig, inference_figs_dir, fname, fig_cfg)
+    plt.close(fig)
+
+
+def plot_grid_metrics(
+    runs_df: pd.DataFrame,
+    row_col: str,
+    col_col: str,
+    metric_col: str,
+    title: str,
+    inference_results: dict[str, dict[str, Any]] | None,
+    inference_figs_dir: Path,
+    fname: str,
+    fig_cfg: dict[str, Any],
+) -> None:
+    """Grid heatmap for classification metrics across 2D parameter combinations.
+
+    Can use either training metrics from runs_df or inference metrics from inference_results.
+    If inference_results is provided, uses inference metrics; otherwise uses training metrics.
+
+    Parameters
+    ----------
+    runs_df : pd.DataFrame
+        DataFrame with run information, must contain row_col, col_col, and run_dir columns
+    row_col : str
+        Column name for row axis (e.g., 'norm_policy')
+    col_col : str
+        Column name for column axis (e.g., 'positional')
+    metric_col : str
+        Column name for metric value (for training) or metric name (for inference)
+    title : str
+        Plot title
+    inference_results : dict[str, dict[str, Any]] | None
+        Optional inference results dict: {run_id: {metrics...}}
+        If provided, extracts metric_col from inference metrics instead of runs_df
+    inference_figs_dir : Path
+        Directory to save figures
+    fname : str
+        Base filename for saved figure
+    fig_cfg : dict[str, Any]
+        Figure configuration (fig_format, dpi)
+    """
+    from ..plots.grids import plot_grid_heatmap
+
+    # Prepare data for grid heatmap
+    if inference_results is not None:
+        # Use inference metrics - need to merge into runs_df temporarily
+        from thesis_ml.utils.paths import get_run_id
+
+        temp_df = runs_df.copy()
+        metric_values = []
+
+        for _idx, row in temp_df.iterrows():
+            run_dir = row.get("run_dir")
+            if pd.isna(run_dir):
+                metric_values.append(None)
+                continue
+            run_id = get_run_id(Path(str(run_dir)))
+            if run_id in inference_results:
+                metric_value = inference_results[run_id].get(metric_col)
+                metric_values.append(metric_value)
+            else:
+                metric_values.append(None)
+
+        temp_df[metric_col] = metric_values
+        plot_df = temp_df
+    else:
+        # Use training metrics from runs_df
+        plot_df = runs_df
+
+    # Use existing grid heatmap function
+    plot_grid_heatmap(plot_df, row_col, col_col, metric_col, title, inference_figs_dir, fname, fig_cfg)
