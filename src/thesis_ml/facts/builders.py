@@ -12,10 +12,29 @@ import torch
 
 
 def _get_git_commit() -> str | None:
-    """Get current git commit hash (short). Returns None if not in a git repo."""
+    """Get current git commit hash (short). Returns None if not in a git repo.
+
+    This function works even when called from subdirectories (like outputs/runs/...)
+    by first finding the git repository root, then getting the commit hash from there.
+    """
     try:
+        # First, find the git repository root
+        # This works even if we're in a subdirectory (like outputs/runs/...)
+        repo_root_result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            timeout=2,
+            check=False,
+        )
+        if repo_root_result.returncode != 0:
+            return None
+
+        repo_root = repo_root_result.stdout.strip()
+
+        # Now get the commit hash from the repo root
         result = subprocess.run(
-            ["git", "rev-parse", "--short", "HEAD"],
+            ["git", "-C", repo_root, "rev-parse", "--short", "HEAD"],
             capture_output=True,
             text=True,
             timeout=2,

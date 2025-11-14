@@ -18,23 +18,28 @@ from thesis_ml.facts.builders import (
 
 def test_get_git_commit_success():
     """Test git commit retrieval when in a git repo."""
-    # Mock successful git command
+    # Mock successful git commands (two calls: show-toplevel, then rev-parse)
     with mock.patch("subprocess.run") as mock_run:
-        mock_run.return_value = mock.Mock(
-            returncode=0,
-            stdout="abc1234\n",
-        )
+        # First call: git rev-parse --show-toplevel
+        # Second call: git -C <repo_root> rev-parse --short HEAD
+        mock_run.side_effect = [
+            mock.Mock(returncode=0, stdout="/path/to/repo\n"),
+            mock.Mock(returncode=0, stdout="abc1234\n"),
+        ]
         result = _get_git_commit()
         assert result == "abc1234"
-        mock_run.assert_called_once()
+        assert mock_run.call_count == 2
 
 
 def test_get_git_commit_not_in_repo():
     """Test git commit gracefully fails when not in a git repo."""
     with mock.patch("subprocess.run") as mock_run:
+        # First call fails (not in git repo)
         mock_run.return_value = mock.Mock(returncode=128, stdout="")
         result = _get_git_commit()
         assert result is None
+        # Should only call once (the show-toplevel check fails)
+        assert mock_run.call_count == 1
 
 
 def test_get_git_commit_timeout():
