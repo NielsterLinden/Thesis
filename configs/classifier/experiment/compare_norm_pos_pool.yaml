@@ -1,0 +1,30 @@
+# @package _global_
+
+experiment:
+  name: "compare_norm_pos_pool"
+
+defaults:
+  - /classifier/model/transformer
+  - /classifier/trainer/default
+  - override /classifier/model/transformer: transformer
+  - override /classifier/trainer/default: default
+
+hydra:
+  mode: MULTIRUN
+  job:
+    chdir: true  # Must be true for Hydra to create .hydra/ directory
+    name: ${experiment.name}
+  # Override run.dir so each job writes directly to outputs/runs/ (not nested under multirun)
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${hydra.job.num}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    # Set subdir to absolute path matching run.dir so Hydra changes to run.dir instead of creating numbered subdirs
+    # Using the same template ensures both resolve to the same path
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${hydra.job.num}
+  sweeper:
+    params:
+      classifier.model.norm.policy: pre,post,normformer
+      classifier.model.positional: none,sinusoidal
+      classifier.model.pooling: cls,mean
+      classifier.trainer.epochs: 50  # Full run

@@ -4,6 +4,8 @@ import torch
 import torch.nn as nn
 from omegaconf import DictConfig
 
+from thesis_ml.architectures.transformer_classifier.modules.attention import MultiHeadAttention
+
 
 class TransformerEncoderBlock(nn.Module):
     """Single transformer encoder block with attention and MLP."""
@@ -29,31 +31,59 @@ class TransformerEncoderBlock(nn.Module):
         dropout : float
             Dropout rate
         norm_policy : str
-            Normalization policy: "pre" or "post"
+            Normalization policy: "pre", "post", or "normformer"
         """
         super().__init__()
         self.norm_policy = norm_policy
 
-        # Multi-head self-attention
-        self.attention = nn.MultiheadAttention(
+        # Head-wise scaling for NormFormer (only used when norm_policy == "normformer")
+        head_scales = None
+        if norm_policy == "normformer":
+            head_scales = nn.Parameter(torch.ones(num_heads))
+
+        # Multi-head self-attention (custom implementation to support head scaling)
+        self.attention = MultiHeadAttention(
             embed_dim=dim,
             num_heads=num_heads,
             dropout=dropout,
             batch_first=True,  # Use [B, T, D] format
+            head_scales=head_scales,
         )
 
-        # MLP: Linear(dim → mlp_dim) → GELU → Dropout → Linear(mlp_dim → dim)
-        self.mlp = nn.Sequential(
-            nn.Linear(dim, mlp_dim),
-            nn.GELU(),
-            nn.Dropout(dropout),
-            nn.Linear(mlp_dim, dim),
-            nn.Dropout(dropout),
-        )
+        # MLP structure depends on normalization policy
+        if norm_policy == "normformer":
+            # For NormFormer: need to insert LayerNorm after first linear
+            self.mlp_fc1 = nn.Linear(dim, mlp_dim)
+            self.norm_mlp_mid = nn.LayerNorm(mlp_dim)
+            self.activation = nn.GELU()
+            self.dropout_mlp = nn.Dropout(dropout)
+            self.mlp_fc2 = nn.Linear(mlp_dim, dim)
+            self.mlp = None  # Not used for NormFormer
+        else:
+            # For pre/post norm: use Sequential as before
+            self.mlp = nn.Sequential(
+                nn.Linear(dim, mlp_dim),
+                nn.GELU(),
+                nn.Dropout(dropout),
+                nn.Linear(mlp_dim, dim),
+                nn.Dropout(dropout),
+            )
+            # Not used for pre/post norm
+            self.mlp_fc1 = None
+            self.norm_mlp_mid = None
+            self.activation = None
+            self.dropout_mlp = None
+            self.mlp_fc2 = None
 
         # Layer normalization
         self.norm1 = nn.LayerNorm(dim)
         self.norm2 = nn.LayerNorm(dim)
+
+        # Additional LayerNorm after attention for NormFormer
+        if norm_policy == "normformer":
+            self.norm_attn_out = nn.LayerNorm(dim)
+        else:
+            self.norm_attn_out = None
 
         # Dropout for residual connections
         self.dropout = nn.Dropout(dropout)
@@ -87,10 +117,18 @@ class TransformerEncoderBlock(nn.Module):
             x_norm = self.norm1(x)
             attn_out, _ = self.attention(x_norm, x_norm, x_norm, key_padding_mask=key_padding_mask)
             x = x + self.dropout(attn_out)
-        else:
+        elif self.norm_policy == "post":
             # Post-norm: LayerNorm after attention
             attn_out, _ = self.attention(x, x, x, key_padding_mask=key_padding_mask)
             x = self.norm1(x + self.dropout(attn_out))
+        elif self.norm_policy == "normformer":
+            # NormFormer: Pre-norm before attention, then norm after attention
+            x_norm = self.norm1(x)
+            attn_out, _ = self.attention(x_norm, x_norm, x_norm, key_padding_mask=key_padding_mask)
+            attn_out = self.norm_attn_out(attn_out)  # LayerNorm after attention
+            x = x + self.dropout(attn_out)
+        else:
+            raise ValueError(f"Unknown norm_policy: {self.norm_policy}")
 
         # MLP block
         if self.norm_policy == "pre":
@@ -98,10 +136,22 @@ class TransformerEncoderBlock(nn.Module):
             x_norm = self.norm2(x)
             mlp_out = self.mlp(x_norm)
             x = x + mlp_out
-        else:
+        elif self.norm_policy == "post":
             # Post-norm: LayerNorm after MLP
             mlp_out = self.mlp(x)
             x = self.norm2(x + mlp_out)
+        elif self.norm_policy == "normformer":
+            # NormFormer: Pre-norm before MLP, then norm after first linear
+            x_norm = self.norm2(x)
+            mlp_hidden = self.mlp_fc1(x_norm)  # First linear
+            mlp_hidden = self.norm_mlp_mid(mlp_hidden)  # LayerNorm after first linear
+            mlp_hidden = self.activation(mlp_hidden)  # GELU
+            mlp_hidden = self.dropout_mlp(mlp_hidden)
+            mlp_out = self.mlp_fc2(mlp_hidden)  # Second linear
+            mlp_out = self.dropout(mlp_out)
+            x = x + mlp_out
+        else:
+            raise ValueError(f"Unknown norm_policy: {self.norm_policy}")
 
         return x
 
@@ -133,7 +183,7 @@ class TransformerEncoder(nn.Module):
         dropout : float
             Dropout rate
         norm_policy : str
-            Normalization policy: "pre" or "post"
+            Normalization policy: "pre", "post", or "normformer"
         """
         super().__init__()
 

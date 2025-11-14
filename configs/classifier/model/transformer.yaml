@@ -12,7 +12,7 @@ classifier:
 
     # Normalization policy
     norm:
-      policy: pre         # "pre" or "post" normalization
+      policy: pre         # "pre", "post", or "normformer" normalization
 
     # Positional encoding
     positional: sinusoidal  # "none", "sinusoidal", or "rotary"
