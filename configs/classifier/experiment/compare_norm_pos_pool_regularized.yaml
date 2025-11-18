@@ -22,5 +22,5 @@ hydra:
       classifier.model.positional: none,sinusoidal
       classifier.model.pooling: cls
       classifier.model.dropout: 0.1,0.2  # Add dropout regularization
-      classifier.optimizer.weight_decay: 0.01,0.05  # Add weight decay regularization
-      classifier.trainer.epochs: 10  # Full run
+      classifier.trainer.weight_decay: 0.01,0.05  # Add weight decay regularization
+      classifier.trainer.epochs: 10  # Partial run for testing
