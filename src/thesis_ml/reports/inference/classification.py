@@ -149,7 +149,8 @@ def run_classification_inference(
         logger.info(f"  Inference complete: {len(all_logits)} batches processed")
 
         # Compute metrics
-        metrics = compute_classification_metrics(all_logits, all_labels, all_probs, n_classes)
+        n_points_roc = inference_cfg.get("n_points_roc", 250)
+        metrics = compute_classification_metrics(all_logits, all_labels, all_probs, n_classes, n_points_roc=n_points_roc)
 
         results[run_id] = metrics
         logger.info(f"  Metrics computed - Accuracy: {metrics.get('accuracy', 0):.4f}, AUROC: {metrics.get('auroc', 'N/A')}")

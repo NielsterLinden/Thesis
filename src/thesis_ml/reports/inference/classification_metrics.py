@@ -21,6 +21,7 @@ def compute_classification_metrics(
     all_labels: list[torch.Tensor],
     all_probs: list[torch.Tensor],
     n_classes: int,
+    n_points_roc: int = 250,
 ) -> dict[str, Any]:
     """Compute comprehensive classification metrics.
 
@@ -34,6 +35,8 @@ def compute_classification_metrics(
         List of probability tensors [B, n_classes] from all batches (CPU tensors)
     n_classes : int
         Number of classes
+    n_points_roc : int
+        Number of points to downsample ROC/PR curves to (default: 250)
 
     Returns
     -------
@@ -91,6 +94,11 @@ def compute_classification_metrics(
     if n_classes == 2:
         # Binary: single curve using positive class
         fpr, tpr, _ = roc_curve(labels_cat, probs_cat[:, 1])
+        # Downsample to n_points_roc if needed
+        if len(fpr) > n_points_roc:
+            indices = np.linspace(0, len(fpr) - 1, n_points_roc, dtype=int)
+            fpr = fpr[indices]
+            tpr = tpr[indices]
         roc_curves[1] = {"fpr": fpr.tolist(), "tpr": tpr.tolist()}
     else:
         # Multi-class: one-vs-rest for each class
@@ -98,6 +106,11 @@ def compute_classification_metrics(
             y_binary = (labels_cat == class_idx).astype(int)
             if y_binary.sum() > 0:  # Class exists in data
                 fpr, tpr, _ = roc_curve(y_binary, probs_cat[:, class_idx])
+                # Downsample to n_points_roc if needed
+                if len(fpr) > n_points_roc:
+                    indices = np.linspace(0, len(fpr) - 1, n_points_roc, dtype=int)
+                    fpr = fpr[indices]
+                    tpr = tpr[indices]
                 roc_curves[class_idx] = {"fpr": fpr.tolist(), "tpr": tpr.tolist()}
 
     # PR curves
@@ -105,6 +118,11 @@ def compute_classification_metrics(
     if n_classes == 2:
         # Binary: single curve using positive class
         precision_vals, recall_vals, _ = precision_recall_curve(labels_cat, probs_cat[:, 1])
+        # Downsample to n_points_roc if needed
+        if len(precision_vals) > n_points_roc:
+            indices = np.linspace(0, len(precision_vals) - 1, n_points_roc, dtype=int)
+            precision_vals = precision_vals[indices]
+            recall_vals = recall_vals[indices]
         pr_curves[1] = {"precision": precision_vals.tolist(), "recall": recall_vals.tolist()}
     else:
         # Multi-class: one-vs-rest for each class
@@ -112,6 +130,11 @@ def compute_classification_metrics(
             y_binary = (labels_cat == class_idx).astype(int)
             if y_binary.sum() > 0:  # Class exists in data
                 precision_vals, recall_vals, _ = precision_recall_curve(y_binary, probs_cat[:, class_idx])
+                # Downsample to n_points_roc if needed
+                if len(precision_vals) > n_points_roc:
+                    indices = np.linspace(0, len(precision_vals) - 1, n_points_roc, dtype=int)
+                    precision_vals = precision_vals[indices]
+                    recall_vals = recall_vals[indices]
                 pr_curves[class_idx] = {"precision": precision_vals.tolist(), "recall": recall_vals.tolist()}
 
     result = {

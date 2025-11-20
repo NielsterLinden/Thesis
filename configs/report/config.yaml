@@ -20,6 +20,7 @@ summary_schema_version: 1
 
 inference:
   enabled: false            # Enable to run inference as part of report
+  n_points_roc: 250         # Number of points to downsample ROC/PR curves to (default: 250)
 
 env:
   output_root: null         # Auto-inferred from inputs when null

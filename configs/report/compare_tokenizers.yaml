@@ -28,6 +28,7 @@ inference:
   persist_raw_scores: false  # If true, save per-event scores (default: minimal artifacts only)
   dataset_split: val
   metrics: [mse, mae]
+  n_points_roc: 250
 
 env:
   output_root: null  # Auto-inferred from sweep_dir path, or set explicitly

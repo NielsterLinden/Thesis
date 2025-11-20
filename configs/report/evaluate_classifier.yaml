@@ -28,6 +28,6 @@ inference:
   persist_raw_scores: false # If true, save per-event scores
   dataset_split: test       # Which split to evaluate on
   metrics: [acc, auroc, f1, precision, recall]
-
+  n_points_roc: 250
 env:
   output_root: null         # Auto-inferred from sweep_dir path, or set explicitly

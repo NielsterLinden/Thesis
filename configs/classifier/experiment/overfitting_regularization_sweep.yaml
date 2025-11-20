@@ -1,0 +1,68 @@
+# @package _global_
+#
+# Overfitting Regularization Sweep Experiment
+#
+# This experiment tests various regularization techniques to combat overfitting
+# with a smaller model capacity (~400k parameters).
+#
+# Model: Small capacity (dim=192, depth=4, mlp_dim=768)
+# Regularization sweep: 4 × 3 × 3 × 2 = 72 combinations
+#   - Dropout: 0.1, 0.2, 0.3, 0.4 (4 values)
+#   - Weight decay: 0.01, 0.05, 0.1 (3 values)
+#   - Learning rate: 0.0001, 0.00005, 0.00003 (3 values)
+#   - Label smoothing: 0.0, 0.1 (2 values)
+
+experiment:
+  name: "overfitting_regularization_sweep"
+
+# Set model capacity to Small (~400k params)
+classifier:
+  model:
+    dim: 192              # Reduced from 256
+    depth: 4              # Reduced from 6
+    heads: 8               # Keep same
+    mlp_dim: 768          # Reduced from 1024
+    dropout: 0.1          # Will be overridden by sweep
+    norm:
+      policy: pre         # Keep default
+    positional: sinusoidal # Keep default
+    pooling: cls          # Keep default
+    tokenizer:
+      name: raw
+      id_embed_dim: 8
+
+  trainer:
+    epochs: 50            # Max epochs
+    lr: 0.0001            # Will be overridden by sweep
+    weight_decay: 0.01    # Will be overridden by sweep
+    batch_size: 64
+    warmup_steps: 1000
+    lr_schedule: cosine
+    label_smoothing: 0.0  # Will be overridden by sweep
+    seed: 42
+    grad_clip: 1.0
+    metrics:
+      - acc
+      - auroc
+      - f1
+
+hydra:
+  mode: MULTIRUN
+  job:
+    chdir: true  # Must be true for Hydra to create .hydra/ directory
+    name: ${experiment.name}
+  # Override run.dir so each job writes directly to outputs/runs/ (not nested under multirun)
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${hydra.job.num}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    # Set subdir to absolute path matching run.dir so Hydra changes to run.dir instead of creating numbered subdirs
+    # Using the same template ensures both resolve to the same path
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${hydra.job.num}
+  sweeper:
+    params:
+      # Regularization sweep: 4 × 3 × 3 × 2 = 72 combinations
+      classifier.model.dropout: 0.1,0.2,0.3,0.4
+      classifier.trainer.weight_decay: 0.01,0.05,0.1
+      classifier.trainer.lr: 0.0001,0.00005,0.00003
+      classifier.trainer.label_smoothing: 0.0,0.1
