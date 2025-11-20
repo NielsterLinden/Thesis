@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +14,80 @@ import pandas as pd
 from thesis_ml.monitoring.io_utils import save_figure
 
 logger = logging.getLogger(__name__)
+
+
+def _extract_job_number(run_id: str) -> int:
+    """Extract job number from run_id for numerical sorting.
+
+    Parameters
+    ----------
+    run_id : str
+        Run ID string (e.g., "run_20251114-153438_compare_norm_pos_pool_job1")
+
+    Returns
+    -------
+    int
+        Job number if found, otherwise 0
+    """
+    match = re.search(r"_job(\d+)$", run_id)
+    if match:
+        return int(match.group(1))
+    return 0  # Default for runs without job number
+
+
+def _sort_run_ids_numerically(run_ids: list[str]) -> list[str]:
+    """Sort run IDs numerically by job number.
+
+    Parameters
+    ----------
+    run_ids : list[str]
+        List of run ID strings
+
+    Returns
+    -------
+    list[str]
+        Sorted list of run IDs (numerically by job number, then lexicographically)
+    """
+    return sorted(run_ids, key=lambda rid: (_extract_job_number(rid), rid))
+
+
+def _get_class_names(signal_class_idx: int, background_class_idx: int | None = None) -> tuple[str, str]:
+    """Get class names for signal and background.
+
+    Default mapping based on ProcessIDs:
+    - ProcessID 1 → "4t" (signal)
+    - ProcessID 2 → "ttH" (background)
+
+    Parameters
+    ----------
+    signal_class_idx : int
+        Class index for signal (0-indexed)
+    background_class_idx : int | None
+        Class index for background (0-indexed), if None uses the other class
+
+    Returns
+    -------
+    tuple[str, str]
+        (signal_name, background_name)
+    """
+    # Default mapping: ProcessID 1 → "4t", ProcessID 2 → "ttH"
+    # Note: signal_class_idx is 0-indexed, but ProcessIDs are 1-indexed
+    # For binary classification with selected_labels=[1, 2]:
+    #   - signal_class_idx=1 maps to ProcessID 2 → "ttH"
+    #   - signal_class_idx=0 maps to ProcessID 1 → "4t"
+
+    # Common mapping: 0 → "4t", 1 → "ttH"
+    class_name_map = {0: "4t", 1: "ttH"}
+
+    signal_name = class_name_map.get(signal_class_idx, f"Signal-{signal_class_idx}")
+
+    if background_class_idx is None:
+        # Use the other class
+        background_class_idx = 1 - signal_class_idx if signal_class_idx < 2 else 0
+
+    background_name = class_name_map.get(background_class_idx, f"Background-{background_class_idx}")
+
+    return signal_name, background_name
 
 
 def plot_roc_curves(
@@ -36,9 +111,12 @@ def plot_roc_curves(
     """
     fig, ax = plt.subplots(figsize=(10, 8))
 
-    colors = plt.cm.tab10(np.linspace(0, 1, len(inference_results)))
+    # Sort run IDs numerically by job number
+    sorted_run_ids = _sort_run_ids_numerically(list(inference_results.keys()))
+    colors = plt.cm.tab10(np.linspace(0, 1, len(sorted_run_ids)))
 
-    for i, (run_id, metrics) in enumerate(inference_results.items()):
+    for i, run_id in enumerate(sorted_run_ids):
+        metrics = inference_results[run_id]
         roc_curves = metrics.get("roc_curves", {})
 
         if not roc_curves:
@@ -74,10 +152,10 @@ def plot_roc_curves(
     # Diagonal reference line (random classifier)
     ax.plot([0, 1], [0, 1], "k--", linewidth=1, alpha=0.5, label="Random (0.5)")
 
-    ax.set_xlabel("False Positive Rate")
-    ax.set_ylabel("True Positive Rate")
-    ax.set_title("ROC Curves")
-    ax.legend()
+    ax.set_xlabel("False Positive Rate", fontsize=14)
+    ax.set_ylabel("True Positive Rate", fontsize=14)
+    ax.set_title("ROC Curves", fontsize=16)
+    ax.legend(fontsize=12)
     ax.grid(alpha=0.3)
     ax.set_xlim([0, 1])
     ax.set_ylim([0, 1])
@@ -115,8 +193,10 @@ def plot_confusion_matrix(
         n_classes = cm.shape[0]
 
         fig, ax = plt.subplots(figsize=(8, 6))
-        im = ax.imshow(cm, interpolation="nearest", cmap=plt.cm.Blues)
-        ax.figure.colorbar(im, ax=ax)
+        # Set colorbar limits to [0, 1] for normalized confusion matrix
+        im = ax.imshow(cm, interpolation="nearest", cmap=plt.cm.Blues, vmin=0, vmax=1)
+        cbar = ax.figure.colorbar(im, ax=ax)
+        cbar.set_label("Normalized Count", fontsize=12)
 
         ax.set(
             xticks=np.arange(n_classes),
@@ -125,6 +205,9 @@ def plot_confusion_matrix(
             ylabel="True",
             title=f"Confusion Matrix: {run_id}",
         )
+        ax.set_xlabel("Predicted", fontsize=14)
+        ax.set_ylabel("True", fontsize=14)
+        ax.set_title(f"Confusion Matrix: {run_id}", fontsize=16)
 
         # Add text annotations
         thresh = cm.max() / 2.0
@@ -137,6 +220,7 @@ def plot_confusion_matrix(
                     ha="center",
                     va="center",
                     color="white" if cm[i, j] > thresh else "black",
+                    fontsize=12,
                 )
 
         plt.tight_layout()
@@ -163,7 +247,8 @@ def plot_metrics_comparison(
     fname : str
         Base filename for saved figure
     """
-    run_ids = sorted(inference_results.keys())
+    # Sort run IDs numerically by job number
+    run_ids = _sort_run_ids_numerically(list(inference_results.keys()))
     x = np.arange(len(run_ids))
     width = 0.25
 
@@ -190,12 +275,12 @@ def plot_metrics_comparison(
             alpha=0.7,
         )
 
-    ax.set_xlabel("Model (Run ID)")
-    ax.set_ylabel("Score")
-    ax.set_title("Classification Performance Comparison")
+    ax.set_xlabel("Model (Run ID)", fontsize=14)
+    ax.set_ylabel("Score", fontsize=14)
+    ax.set_title("Classification Performance Comparison", fontsize=16)
     ax.set_xticks(x + width)
-    ax.set_xticklabels(run_ids, rotation=45, ha="right")
-    ax.legend()
+    ax.set_xticklabels(run_ids, rotation=45, ha="right", fontsize=10)
+    ax.legend(fontsize=12)
     ax.grid(axis="y", alpha=0.3)
     ax.set_ylim([0, 1])
 
@@ -250,6 +335,13 @@ def plot_score_distributions(
         if len(signal_scores) == 0 or len(background_scores) == 0:
             continue  # Need both classes
 
+        # Get class names
+        # Determine background class index (the other class)
+        unique_labels = np.unique(labels)
+        background_class_idx = unique_labels[unique_labels != signal_class_idx][0] if len(unique_labels) > 1 else None
+
+        signal_name, background_name = _get_class_names(signal_class_idx, background_class_idx)
+
         # Create figure matching anomaly detection style
         fig, ax = plt.subplots(figsize=(10, 6))
 
@@ -285,7 +377,7 @@ def plot_score_distributions(
             bg_edges[:-1],
             bg_normalized,
             where="post",
-            label="Background",
+            label=f"Background - {background_name}",
             color="#1f77b4",  # Blue
             linewidth=2,
             alpha=0.8,
@@ -294,7 +386,7 @@ def plot_score_distributions(
             sig_edges[:-1],
             sig_normalized,
             where="post",
-            label="Signal",
+            label=f"Signal - {signal_name}",
             color="#ff7f0e",  # Orange
             linewidth=2,
             alpha=0.8,
@@ -324,10 +416,10 @@ def plot_score_distributions(
         )
 
         # Set labels and title
-        ax.set_xlabel("Classifier Score (p(signal | event))")
-        ax.set_ylabel("bin count / N")
-        ax.set_title(f"Score Distributions: {run_id}")
-        ax.legend()
+        ax.set_xlabel("Classifier Score (p(signal | event))", fontsize=14)
+        ax.set_ylabel("bin count / N", fontsize=14)
+        ax.set_title(f"Score Distributions: {run_id}", fontsize=16)
+        ax.legend(fontsize=12)
         ax.grid(alpha=0.3)
 
         # Set x-axis limits to tightly cover the distributions
@@ -426,11 +518,11 @@ def plot_metrics_by_axis(
     for i, (mean, std) in enumerate(zip(means, stds, strict=False)):
         ax.text(i, mean + std + 0.01, f"{mean:.3f}", ha="center", va="bottom", fontsize=10)
 
-    ax.set_xlabel(axis_col.replace("_", " ").title())
-    ax.set_ylabel(metric_col.replace("_", " ").title())
-    ax.set_title(title or f"{metric_col.replace('_', ' ').title()} by {axis_col.replace('_', ' ').title()}")
+    ax.set_xlabel(axis_col.replace("_", " ").title(), fontsize=14)
+    ax.set_ylabel(metric_col.replace("_", " ").title(), fontsize=14)
+    ax.set_title(title or f"{metric_col.replace('_', ' ').title()} by {axis_col.replace('_', ' ').title()}", fontsize=16)
     ax.set_xticks(x)
-    ax.set_xticklabels(labels, rotation=45, ha="right")
+    ax.set_xticklabels(labels, rotation=45, ha="right", fontsize=12)
     ax.grid(axis="y", alpha=0.3)
 
     plt.tight_layout()
