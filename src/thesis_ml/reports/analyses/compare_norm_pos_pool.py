@@ -162,7 +162,7 @@ def run_report(cfg: DictConfig) -> None:
         plot_all_val_curves(runs_df, per_epoch, training_figs_dir, fig_cfg, fname="figure-all_val_curves")
 
     if "all_train_curves" in wanted:
-        plot_all_train_curves(runs_df, training_figs_dir, fig_cfg, fname="figure-all_train_curves")
+        plot_all_train_curves(runs_df, per_epoch, training_figs_dir, fig_cfg, fname="figure-all_train_curves")
 
     # Inference section
     inference_results = None

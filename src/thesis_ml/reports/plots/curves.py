@@ -62,16 +62,19 @@ def plot_all_val_curves(
     fig_cfg: dict,
     fname: str = "figure-all_val_curves",
 ) -> None:
-    """Plot all runs' validation loss vs epoch, color by latent space, style by globals_beta."""
-    fig, ax = plt.subplots(figsize=(10, 6))
+    """Plot all runs' validation loss vs epoch with individual run legends."""
+    fig, ax = plt.subplots(figsize=(12, 8))
 
-    # Track best values for annotation
-    best_values = []
+    # Generate distinct colors for each run
+    num_runs = len(runs_df)
+    colors = plt.cm.tab20(np.linspace(0, 1, max(num_runs, 20)))
 
-    for _, row in runs_df.iterrows():
+    # Track runs and their best values for legend
+    legend_handles = []
+    run_data = []
+
+    for idx, (_, row) in enumerate(runs_df.iterrows()):
         rd = str(row.get("run_dir"))
-        ls = row.get("latent_space")
-        beta = row.get("globals_beta")
         if rd not in per_epoch:
             continue
         hist = per_epoch[rd]
@@ -86,39 +89,44 @@ def plot_all_val_curves(
         best_idx = np.argmin(vals)
         best_val = vals[best_idx]
         best_epoch = epochs[best_idx]
-        best_values.append((best_val, best_epoch, rd))
 
+        # Get run name (extract from path)
+        run_name = Path(rd).name
+
+        # Assign color to this run
+        color = colors[idx % len(colors)]
+
+        # Plot the curve
         ax.plot(
             epochs,
             vals,
-            color=_color_for_latent(ls),
-            linestyle=_linestyle_for_beta(beta),
+            color=color,
             linewidth=1.5,
             alpha=0.9,
         )
 
-    # Add annotation showing overall best value
-    if best_values:
-        overall_best_val, overall_best_epoch, overall_best_rd = min(best_values, key=lambda x: x[0])
-        ax.annotate(
-            f"Best: {overall_best_val:.4f} @ epoch {overall_best_epoch}",
-            xy=(overall_best_epoch, overall_best_val),
-            xytext=(10, 10),
-            textcoords="offset points",
-            bbox=dict(boxstyle="round,pad=0.3", facecolor="yellow", alpha=0.7),
-            arrowprops=dict(arrowstyle="->", connectionstyle="arc3,rad=0"),
-            fontsize=11,
+        # Store data for legend
+        run_data.append((run_name, color, best_val, best_epoch))
+
+    # Create legend with run name and best values
+    for run_name, color, best_val, best_epoch in run_data:
+        legend_handles.append(
+            Line2D(
+                [0],
+                [0],
+                color=color,
+                lw=2,
+                label=f"{run_name}\n(best: {best_val:.4f}, epoch: {best_epoch})",
+            )
         )
 
-    # Legends: colors for latent, linestyles for betas
-    color_handles = [Line2D([0], [0], color=_color_for_latent(k), lw=2, label=str(k)) for k in sorted(set([str(v).lower() for v in runs_df.get("latent_space", []) if pd.notna(v)]))]
-    beta_values = sorted(set([float(v) for v in runs_df.get("globals_beta", []) if pd.notna(v)]))
-    ls_handles = [Line2D([0], [0], color="black", lw=2, linestyle=_linestyle_for_beta(b), label=f"β={int(b) if b.is_integer() else b}") for b in beta_values]
-    if color_handles:
-        leg1 = ax.legend(handles=color_handles, title="latent_space", loc="upper right", fontsize=11)
-        ax.add_artist(leg1)
-    if ls_handles:
-        ax.legend(handles=ls_handles, title="globals_beta", loc="upper left", fontsize=11)
+    if legend_handles:
+        ax.legend(
+            handles=legend_handles,
+            loc="best",
+            fontsize=9,
+            framealpha=0.9,
+        )
 
     ax.set_xlabel("Epoch", fontsize=14)
     ax.set_ylabel("Validation Loss", fontsize=14)
@@ -130,45 +138,76 @@ def plot_all_val_curves(
 
 def plot_all_train_curves(
     runs_df: pd.DataFrame,
+    per_epoch: dict[str, pd.DataFrame],
     figs_dir: Path,
     fig_cfg: dict,
     fname: str = "figure-all_train_curves",
 ) -> None:
-    """Plot all runs' training loss vs epoch, color by latent space, style by globals_beta."""
-    fig, ax = plt.subplots(figsize=(10, 6))
-    for _, row in runs_df.iterrows():
+    """Plot all runs' training loss vs epoch with individual run legends."""
+    fig, ax = plt.subplots(figsize=(12, 8))
+
+    # Generate distinct colors for each run
+    num_runs = len(runs_df)
+    colors = plt.cm.tab20(np.linspace(0, 1, max(num_runs, 20)))
+
+    # Track runs and their best values for legend
+    legend_handles = []
+    run_data = []
+
+    for idx, (_, row) in enumerate(runs_df.iterrows()):
         rd = str(row.get("run_dir"))
-        ls = row.get("latent_space")
-        beta = row.get("globals_beta")
-        scalars_path = Path(rd) / "facts" / "scalars.csv"
-        if not scalars_path.exists():
+        if rd not in per_epoch:
             continue
-        try:
-            df = pd.read_csv(scalars_path)
-        except Exception:
-            continue
-        cur = df[df.get("split", "train") == "train"].copy()
-        if cur.empty or "train_loss" not in cur.columns:
+        hist = per_epoch[rd]
+        cur = hist.copy()
+        cur = cur[cur["split"] == "train"] if "split" in cur.columns else cur
+        if "train_loss" not in cur.columns:
             continue
         epochs = cur["epoch"].astype(int).values
         vals = cur["train_loss"].astype(float).values
+
+        # Find best (lowest) value and its epoch
+        best_idx = np.argmin(vals)
+        best_val = vals[best_idx]
+        best_epoch = epochs[best_idx]
+
+        # Get run name (extract from path)
+        run_name = Path(rd).name
+
+        # Assign color to this run
+        color = colors[idx % len(colors)]
+
+        # Plot the curve
         ax.plot(
             epochs,
             vals,
-            color=_color_for_latent(ls),
-            linestyle=_linestyle_for_beta(beta),
+            color=color,
             linewidth=1.5,
             alpha=0.9,
         )
 
-    color_handles = [Line2D([0], [0], color=_color_for_latent(k), lw=2, label=str(k)) for k in sorted(set([str(v).lower() for v in runs_df.get("latent_space", []) if pd.notna(v)]))]
-    beta_values = sorted(set([float(v) for v in runs_df.get("globals_beta", []) if pd.notna(v)]))
-    ls_handles = [Line2D([0], [0], color="black", lw=2, linestyle=_linestyle_for_beta(b), label=f"β={int(b) if b.is_integer() else b}") for b in beta_values]
-    if color_handles:
-        leg1 = ax.legend(handles=color_handles, title="latent_space", loc="upper right")
-        ax.add_artist(leg1)
-    if ls_handles:
-        ax.legend(handles=ls_handles, title="globals_beta", loc="upper left")
+        # Store data for legend
+        run_data.append((run_name, color, best_val, best_epoch))
+
+    # Create legend with run name and best values
+    for run_name, color, best_val, best_epoch in run_data:
+        legend_handles.append(
+            Line2D(
+                [0],
+                [0],
+                color=color,
+                lw=2,
+                label=f"{run_name}\n(best: {best_val:.4f}, epoch: {best_epoch})",
+            )
+        )
+
+    if legend_handles:
+        ax.legend(
+            handles=legend_handles,
+            loc="best",
+            fontsize=9,
+            framealpha=0.9,
+        )
 
     ax.set_xlabel("Epoch", fontsize=14)
     ax.set_ylabel("Training Loss", fontsize=14)
