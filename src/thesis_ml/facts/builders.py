@@ -6,33 +6,87 @@ import subprocess
 import uuid
 from collections.abc import Mapping
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any, Literal
 
 import torch
+
+# Cache git repo root at module import time (before Hydra changes directory)
+_GIT_REPO_ROOT: str | None = None
+
+
+def _find_git_repo_root() -> str | None:
+    """Find git repository root by walking up from current directory or script location.
+
+    This is more robust than git rev-parse when called from outside the repo.
+    """
+    # Try to find git repo root starting from current directory
+    current = os.getcwd()
+    path = Path(current)
+
+    # Walk up the directory tree looking for .git
+    while path != path.parent:  # Stop at filesystem root
+        git_dir = path / ".git"
+        if git_dir.exists():
+            return str(path)
+        path = path.parent
+
+    # If that fails, try from the script's directory (where this module is located)
+    # This helps when called from outside the repo but the script is in the repo
+    try:
+        import thesis_ml.facts.builders as this_module
+
+        module_path = Path(this_module.__file__).parent
+        # Walk up from module location to find repo root
+        path = module_path
+        while path != path.parent:
+            git_dir = path / ".git"
+            if git_dir.exists():
+                return str(path)
+            path = path.parent
+    except Exception:
+        pass
+
+    return None
+
+
+def _get_git_repo_root() -> str | None:
+    """Get git repository root, caching the result."""
+    global _GIT_REPO_ROOT
+    if _GIT_REPO_ROOT is None:
+        # First try git rev-parse (fastest if we're in the repo)
+        try:
+            repo_root_result = subprocess.run(
+                ["git", "rev-parse", "--show-toplevel"],
+                capture_output=True,
+                text=True,
+                timeout=2,
+                check=False,
+            )
+            if repo_root_result.returncode == 0:
+                _GIT_REPO_ROOT = repo_root_result.stdout.strip()
+                return _GIT_REPO_ROOT
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+            pass
+
+        # Fallback: walk up directory tree
+        _GIT_REPO_ROOT = _find_git_repo_root()
+
+    return _GIT_REPO_ROOT
 
 
 def _get_git_commit() -> str | None:
     """Get current git commit hash (short). Returns None if not in a git repo.
 
-    This function works even when called from subdirectories (like outputs/runs/...)
-    by first finding the git repository root, then getting the commit hash from there.
+    This function works even when called from outside the git repo (e.g., from output directories)
+    by finding the git repository root and getting the commit hash from there.
     """
+    repo_root = _get_git_repo_root()
+    if repo_root is None:
+        return None
+
     try:
-        # First, find the git repository root
-        # This works even if we're in a subdirectory (like outputs/runs/...)
-        repo_root_result = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
-            capture_output=True,
-            text=True,
-            timeout=2,
-            check=False,
-        )
-        if repo_root_result.returncode != 0:
-            return None
-
-        repo_root = repo_root_result.stdout.strip()
-
-        # Now get the commit hash from the repo root
+        # Get the commit hash from the repo root
         result = subprocess.run(
             ["git", "-C", repo_root, "rev-parse", "--short", "HEAD"],
             capture_output=True,
