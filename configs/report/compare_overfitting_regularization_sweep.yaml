@@ -1,0 +1,24 @@
+# Minimal report: Overfitting/Regularization sweep
+
+inputs:
+  sweep_dir: null           # Path to multirun (exp_... directory)
+  run_dirs: []              # Alternative: explicit list of run dirs
+  select: null              # Not used
+
+# Keep the config name; matching analysis module added under reports/analyses/
+report_name: compare_overfitting_regularization_sweep
+
+outputs:
+  report_subdir: report
+  fig_format: png
+  dpi: 150
+  which_figures:
+    - all_val_curves
+
+summary_schema_version: 1
+
+inference:
+  enabled: false            # No inference for this report
+
+env:
+  output_root: null         # Auto-inferred from inputs.sweep_dir
