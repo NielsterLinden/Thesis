@@ -27,3 +27,10 @@ classifier:
 
     # Gradient clipping
     grad_clip: 1.0
+
+    # Early stopping
+    early_stopping:
+      enabled: false
+      patience: 10
+      min_delta: 0.0
+      restore_best_weights: true

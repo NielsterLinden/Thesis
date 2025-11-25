@@ -1,3 +1,5 @@
+import ast
+
 import h5py
 import torch
 from hydra.utils import to_absolute_path
@@ -158,6 +160,64 @@ class BinnedClassificationSplitDataset(Dataset):
         return integer_tokens, globals_ints, mask, label
 
 
+def _parse_selected_labels(selected_labels):
+    """Parse selected_labels from config, handling various input formats.
+
+    Supports:
+    - List: [1, 2]
+    - String representation of list: "[1,2]" or '"[1,2]"'
+    - Comma-separated string: "1,2" (for Hydra sweeper compatibility)
+    - Single int/float: 1 or 2.0
+
+    Parameters
+    ----------
+    selected_labels : Any
+        Input from config (list, string, int, float)
+
+    Returns
+    -------
+    list[int]
+        Parsed list of integer labels
+    """
+    # Handle single int/float
+    if isinstance(selected_labels, int | float):
+        return [int(selected_labels)]
+
+    # Handle string (from Hydra sweeper or config)
+    if isinstance(selected_labels, str):
+        s = selected_labels.strip()
+
+        # Remove outer quotes if present (e.g., '"[1,2]"' -> "[1,2]")
+        if (s.startswith('"') and s.endswith('"')) or (s.startswith("'") and s.endswith("'")):
+            s = s[1:-1]
+
+        # Check if it's a comma-separated list of numbers (e.g., "1,2")
+        if "," in s and not s.startswith("[") and not s.startswith("("):
+            # Parse comma-separated values
+            try:
+                return sorted([int(x.strip()) for x in s.split(",")])
+            except ValueError as e:
+                raise ValueError(f"Cannot parse comma-separated selected_labels '{selected_labels}': {e}") from e
+
+        # Try to parse as Python literal (list, tuple, etc.)
+        try:
+            parsed = ast.literal_eval(s)
+            if isinstance(parsed, list | tuple):
+                return [int(x) for x in parsed]
+            elif isinstance(parsed, int | float):
+                return [int(parsed)]
+            else:
+                raise ValueError(f"Cannot parse selected_labels string '{selected_labels}': parsed to {type(parsed)}")
+        except (ValueError, SyntaxError) as e:
+            raise ValueError(f"Cannot parse selected_labels string '{selected_labels}': {e}") from e
+
+    # Handle list/tuple
+    if isinstance(selected_labels, list | tuple):
+        return [int(x) for x in selected_labels]
+
+    raise TypeError(f"selected_labels must be list, tuple, int, float, or string, got {type(selected_labels)}")
+
+
 class H5ClassificationDataset(Dataset):
     """H5 dataset for classification with label filtering and masking."""
 
@@ -167,9 +227,7 @@ class H5ClassificationDataset(Dataset):
 
         # Get selected labels from config (default: [1, 2] for binary)
         selected_labels = cfg.data.classifier.get("selected_labels", [1, 2])
-        if isinstance(selected_labels, int | float):
-            selected_labels = [int(selected_labels)]
-        self.selected_labels = sorted([int(x) for x in selected_labels])
+        self.selected_labels = sorted(_parse_selected_labels(selected_labels))
         self.n_classes = len(self.selected_labels)
 
         # Create label mapping: {original_label: 0_indexed_label}
@@ -297,9 +355,7 @@ class H5BinnedClassificationDataset(Dataset):
 
         # Get selected labels
         selected_labels = cfg.data.classifier.get("selected_labels", [1, 2])
-        if isinstance(selected_labels, int | float):
-            selected_labels = [int(selected_labels)]
-        self.selected_labels = sorted([int(x) for x in selected_labels])
+        self.selected_labels = sorted(_parse_selected_labels(selected_labels))
         self.n_classes = len(self.selected_labels)
         self.label_map = {orig: idx for idx, orig in enumerate(self.selected_labels)}
 

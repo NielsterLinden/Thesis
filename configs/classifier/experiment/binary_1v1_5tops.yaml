@@ -1,0 +1,42 @@
+# @package _global_
+
+experiment:
+  name: "binary_1v1_5tops"
+
+hydra:
+  mode: MULTIRUN
+  job:
+    chdir: true  # Must be true for Hydra to create .hydra/ directory
+    name: ${experiment.name}
+  # Override run.dir so each job writes directly to outputs/runs/ (not nested under multirun)
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${hydra.job.num}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    # Set subdir to absolute path matching run.dir so Hydra changes to run.dir instead of creating numbered subdirs
+    # Using the same template ensures both resolve to the same path
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${hydra.job.num}
+  sweeper:
+    params:
+      # Sweep over all 10 binary combinations: (5 choose 2) = 10
+      # Label mapping: 1=tttt, 2=ttH, 3=ttW, 4=ttWW, 5=ttZ
+      # Format: YAML list syntax - each value like "1,2" will be parsed by the data loader into list [1,2]
+      data.classifier.selected_labels:
+        - "1,2"  # tttt vs ttH
+        - "1,3"  # tttt vs ttW
+        - "1,4"  # tttt vs ttWW
+        - "1,5"  # tttt vs ttZ
+        - "2,3"  # ttH vs ttW
+        - "2,4"  # ttH vs ttWW
+        - "2,5"  # ttH vs ttZ
+        - "3,4"  # ttW vs ttWW
+        - "3,5"  # ttW vs ttZ
+        - "4,5"  # ttWW vs ttZ
+      # Hyperparameters
+      classifier.trainer.epochs: 100
+      classifier.trainer.lr: 0.00003
+      classifier.trainer.weight_decay: 0.1
+      classifier.model.dropout: 0.2
+      # Early stopping
+      classifier.trainer.early_stopping.enabled: true
+      classifier.trainer.early_stopping.patience: 10

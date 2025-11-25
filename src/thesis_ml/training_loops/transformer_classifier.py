@@ -406,6 +406,13 @@ def train(cfg: DictConfig) -> dict:
     global_step = 0
     training_start_time = time.time()
 
+    # Early stopping state
+    early_stopping_cfg = cfg.classifier.trainer.get("early_stopping", {})
+    early_stopping_enabled = early_stopping_cfg.get("enabled", False)
+    patience_counter = 0
+    best_model_state = None
+    early_stopping_triggered = False
+
     progress = TrainingProgressShower(cfg.classifier.trainer.epochs)
 
     for epoch in range(cfg.classifier.trainer.epochs):
@@ -435,28 +442,36 @@ def train(cfg: DictConfig) -> dict:
         global_step += len(train_dl)
 
         # Checkpointing (comprehensive)
+        improved = False
         if val_metrics["loss"] < best_val_loss:
-            best_val_loss = val_metrics["loss"]
-            best_val_acc = val_metrics["acc"]
-            best_epoch = epoch
-            if outdir:
-                checkpoint = {
-                    "model_state_dict": model.state_dict(),
-                    "optimizer_state_dict": opt.state_dict(),
-                    "scheduler_state_dict": warmup_scheduler.state_dict() if warmup_scheduler else None,
-                    "epoch": epoch,
-                    "global_step": global_step,
-                    "best_metric": best_val_loss,
-                    "meta": {
-                        "n_tokens": meta["n_tokens"],
-                        "num_types": meta.get("num_types"),
-                        "n_classes": meta["n_classes"],
-                        "class_weights": class_weights.cpu().tolist(),
-                        "tokenizer_name": cfg.classifier.model.tokenizer.name,
-                        "tokenizer_version": "1.0",
-                    },
-                    "config": OmegaConf.to_container(cfg, resolve=True),
-                }
+            improvement = best_val_loss - val_metrics["loss"]
+            min_delta = early_stopping_cfg.get("min_delta", 0.0)
+            if improvement >= min_delta:
+                improved = True
+                best_val_loss = val_metrics["loss"]
+                best_val_acc = val_metrics["acc"]
+                best_epoch = epoch
+                # Save best model state for early stopping restoration
+                if early_stopping_enabled:
+                    best_model_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
+                if outdir:
+                    checkpoint = {
+                        "model_state_dict": model.state_dict(),
+                        "optimizer_state_dict": opt.state_dict(),
+                        "scheduler_state_dict": warmup_scheduler.state_dict() if warmup_scheduler else None,
+                        "epoch": epoch,
+                        "global_step": global_step,
+                        "best_metric": best_val_loss,
+                        "meta": {
+                            "n_tokens": meta["n_tokens"],
+                            "num_types": meta.get("num_types"),
+                            "n_classes": meta["n_classes"],
+                            "class_weights": class_weights.cpu().tolist(),
+                            "tokenizer_name": cfg.classifier.model.tokenizer.name,
+                            "tokenizer_version": "1.0",
+                        },
+                        "config": OmegaConf.to_container(cfg, resolve=True),
+                    }
                 torch.save(checkpoint, os.path.join(outdir, "best_val.pt"))
 
                 # Create symlink
@@ -469,6 +484,24 @@ def train(cfg: DictConfig) -> dict:
                     import shutil
 
                     shutil.copy2(os.path.join(outdir, "best_val.pt"), model_path)
+
+        # Early stopping check
+        if early_stopping_enabled:
+            if improved:
+                patience_counter = 0
+            else:
+                patience_counter += 1
+                patience = early_stopping_cfg.get("patience", 10)
+                if patience_counter >= patience:
+                    early_stopping_triggered = True
+                    if outdir:
+                        import warnings
+
+                        warnings.warn(
+                            f"Early stopping triggered at epoch {epoch}: validation loss did not improve for {patience} epochs. " f"Best validation loss: {best_val_loss:.6f} at epoch {best_epoch}",
+                            stacklevel=2,
+                        )
+                    break
 
         # Emit facts
         if outdir:
@@ -518,6 +551,19 @@ def train(cfg: DictConfig) -> dict:
                 )
 
         progress.update(epoch, epoch_time, train_loss=train_metrics["loss"], val_loss=val_metrics["loss"])
+
+    # Restore best model weights if early stopping was enabled and triggered
+    if early_stopping_enabled and early_stopping_triggered and best_model_state is not None:
+        restore_best_weights = early_stopping_cfg.get("restore_best_weights", True)
+        if restore_best_weights:
+            model.load_state_dict(best_model_state)
+            if outdir:
+                import warnings
+
+                warnings.warn(
+                    f"Restored best model weights from epoch {best_epoch} (val_loss: {best_val_loss:.6f})",
+                    stacklevel=2,
+                )
 
     # Test evaluation
     test_metrics = _validate_one_epoch(model, test_dl, criterion, device, cfg, meta["n_classes"])
