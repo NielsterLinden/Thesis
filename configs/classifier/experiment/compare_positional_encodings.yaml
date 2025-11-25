@@ -1,5 +1,11 @@
 # @package _global_
-# Experiment to compare all 4 positional encoding strategies
+# Experiment to compare positional encoding strategies across model sizes
+#
+# Sweep dimensions:
+#   - 4 positional encodings: none, sinusoidal, learned, rotary
+#   - 3 model sizes: small (1/4), medium (1/2), base (full)
+#
+# Total runs: 4 × 3 = 12 jobs
 
 experiment:
   name: "compare_positional_encodings"
@@ -19,10 +25,9 @@ hydra:
     subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${hydra.job.num}
   sweeper:
     params:
-      # Compare all 4 positional encoding strategies
-      classifier.model.positional:
-        - none
-        - sinusoidal
-        - learned
-        - rotary
-      classifier.trainer.epochs: 100  # Full run
+      # Positional encoding strategies (comma-separated for basic sweeper)
+      classifier.model.positional: none,sinusoidal,learned,rotary
+      # Model sizes: small (~1/4), medium (~1/2), base (full)
+      +classifier/model_size: small,medium,base
+      # Training settings
+      classifier.trainer.epochs: 100

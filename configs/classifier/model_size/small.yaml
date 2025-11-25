@@ -1,0 +1,9 @@
+# @package _global_
+# Small model size (~1/4 of base)
+
+classifier:
+  model:
+    dim: 64               # Model dimension (1/4 of base)
+    depth: 3              # Number of transformer layers
+    heads: 4              # Number of attention heads (head_dim = 16)
+    mlp_dim: 256          # MLP hidden dimension (4x dim)
