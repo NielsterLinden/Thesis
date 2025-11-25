@@ -1,7 +1,8 @@
 # @package _global_
+# Experiment to compare all 4 positional encoding strategies
 
 experiment:
-  name: "binary_1v1_5tops"
+  name: "compare_positional_encodings"
 
 hydra:
   mode: MULTIRUN
@@ -18,16 +19,10 @@ hydra:
     subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${hydra.job.num}
   sweeper:
     params:
-      # Sweep over all 10 binary combinations: (5 choose 2) = 10
-      # Label mapping: 1=tttt, 2=ttH, 3=ttW, 4=ttWW, 5=ttZ
-      # Format: Comma-separated values using colon separator for label pairs (e.g., 1:2 for labels [1,2])
-      # Hydra sweeper splits on commas, data loader parses colon-separated pairs
-      data.classifier.selected_labels: 1:2,1:3,1:4,1:5,2:3,2:4,2:5,3:4,3:5,4:5
-      # Hyperparameters
-      classifier.trainer.epochs: 100
-      classifier.trainer.lr: 0.00003
-      classifier.trainer.weight_decay: 0.1
-      classifier.model.dropout: 0.2
-      # Early stopping
-      classifier.trainer.early_stopping.enabled: true
-      classifier.trainer.early_stopping.patience: 10
+      # Compare all 4 positional encoding strategies
+      classifier.model.positional:
+        - none
+        - sinusoidal
+        - learned
+        - rotary
+      classifier.trainer.epochs: 100  # Full run

@@ -10,7 +10,10 @@ from omegaconf import DictConfig
 from thesis_ml.architectures.transformer_classifier.modules.embedding import build_input_embedding
 from thesis_ml.architectures.transformer_classifier.modules.encoder_block import build_transformer_encoder
 from thesis_ml.architectures.transformer_classifier.modules.head import build_classifier_head
-from thesis_ml.architectures.transformer_classifier.modules.positional import get_positional_encoding
+from thesis_ml.architectures.transformer_classifier.modules.positional import (
+    RotaryEmbedding,
+    get_positional_encoding,
+)
 
 
 class TransformerClassifier(nn.Module):
@@ -98,6 +101,7 @@ def build_from_config(cfg: DictConfig, meta: Mapping[str, Any]) -> nn.Module:
         Transformer classifier model
     """
     dim = cfg.classifier.model.dim
+    num_heads = cfg.classifier.model.heads
     n_classes = meta["n_classes"]
     max_seq_length = meta["n_tokens"]
 
@@ -106,9 +110,21 @@ def build_from_config(cfg: DictConfig, meta: Mapping[str, Any]) -> nn.Module:
 
     # Positional encoding
     pos_enc_name = cfg.classifier.model.get("positional", "sinusoidal")
-    pos_enc = None if pos_enc_name == "none" else get_positional_encoding(pos_enc_name, dim, max_seq_length)
 
-    encoder = build_transformer_encoder(cfg, dim)
+    # Handle rotary PE specially: it goes into attention, not as additive PE
+    rotary_emb = None
+    pos_enc = None
+
+    if pos_enc_name == "rotary":
+        # Rotary embedding: applied in attention to Q and K
+        head_dim = dim // num_heads
+        rotary_base = cfg.classifier.model.get("rotary", {}).get("base", 10000.0)
+        rotary_emb = RotaryEmbedding(head_dim=head_dim, base=rotary_base)
+    elif pos_enc_name != "none":
+        # Additive positional encodings: sinusoidal or learned
+        pos_enc = get_positional_encoding(pos_enc_name, dim, max_seq_length)
+
+    encoder = build_transformer_encoder(cfg, dim, rotary_emb=rotary_emb)
     head = build_classifier_head(cfg, dim, n_classes)
 
     # Assemble model

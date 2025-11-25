@@ -3,6 +3,7 @@ import ast
 import h5py
 import torch
 from hydra.utils import to_absolute_path
+from omegaconf import ListConfig
 from torch.utils.data import DataLoader, Dataset, TensorDataset
 
 
@@ -165,6 +166,7 @@ def _parse_selected_labels(selected_labels):
 
     Supports:
     - List: [1, 2]
+    - ListConfig (OmegaConf): ListConfig(['1,2']) or ListConfig([1, 2])
     - String representation of list: "[1,2]" or '"[1,2]"'
     - Comma-separated string: "1,2" (for Hydra sweeper compatibility)
     - Single int/float: 1 or 2.0
@@ -172,13 +174,30 @@ def _parse_selected_labels(selected_labels):
     Parameters
     ----------
     selected_labels : Any
-        Input from config (list, string, int, float)
+        Input from config (list, ListConfig, string, int, float)
 
     Returns
     -------
     list[int]
         Parsed list of integer labels
     """
+    # Handle OmegaConf ListConfig (from Hydra)
+    if isinstance(selected_labels, ListConfig):
+        # Convert to Python list and process
+        # If ListConfig contains strings like ['1,2'], parse the first element
+        # If ListConfig contains integers like [1, 2], use directly
+        if len(selected_labels) == 0:
+            raise ValueError("selected_labels ListConfig is empty")
+
+        # If it's a single-element list with a comma-separated string, parse it
+        if len(selected_labels) == 1 and isinstance(selected_labels[0], str) and "," in str(selected_labels[0]):
+            # This is likely from Hydra sweeper: ListConfig(['1,2'])
+            return _parse_selected_labels(selected_labels[0])
+        else:
+            # ListConfig with multiple elements or integers: ListConfig([1, 2]) or ListConfig(['1', '2'])
+            # Convert to list and parse each element
+            return sorted([int(x) for x in selected_labels])
+
     # Handle single int/float
     if isinstance(selected_labels, int | float):
         return [int(selected_labels)]
@@ -191,13 +210,16 @@ def _parse_selected_labels(selected_labels):
         if (s.startswith('"') and s.endswith('"')) or (s.startswith("'") and s.endswith("'")):
             s = s[1:-1]
 
-        # Check if it's a comma-separated list of numbers (e.g., "1,2")
-        if "," in s and not s.startswith("[") and not s.startswith("("):
-            # Parse comma-separated values
+        # Check if it's a comma-separated list of numbers (e.g., "1,2") or colon-separated (e.g., "1:2")
+        # Support both formats for flexibility
+        if ("," in s or ":" in s) and not s.startswith("[") and not s.startswith("("):
+            # Use colon as separator if present, otherwise comma
+            separator = ":" if ":" in s else ","
+            # Parse separated values
             try:
-                return sorted([int(x.strip()) for x in s.split(",")])
+                return sorted([int(x.strip()) for x in s.split(separator)])
             except ValueError as e:
-                raise ValueError(f"Cannot parse comma-separated selected_labels '{selected_labels}': {e}") from e
+                raise ValueError(f"Cannot parse {separator}-separated selected_labels '{selected_labels}': {e}") from e
 
         # Try to parse as Python literal (list, tuple, etc.)
         try:
@@ -213,9 +235,9 @@ def _parse_selected_labels(selected_labels):
 
     # Handle list/tuple
     if isinstance(selected_labels, list | tuple):
-        return [int(x) for x in selected_labels]
+        return sorted([int(x) for x in selected_labels])
 
-    raise TypeError(f"selected_labels must be list, tuple, int, float, or string, got {type(selected_labels)}")
+    raise TypeError(f"selected_labels must be list, tuple, ListConfig, int, float, or string, got {type(selected_labels)}")
 
 
 class H5ClassificationDataset(Dataset):

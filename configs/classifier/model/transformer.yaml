@@ -15,7 +15,11 @@ classifier:
       policy: pre         # "pre", "post", or "normformer" normalization
 
     # Positional encoding
-    positional: sinusoidal  # "none", "sinusoidal", or "rotary"
+    positional: sinusoidal  # "none", "sinusoidal", "learned", or "rotary"
+
+    # Rotary positional encoding options (only used when positional: rotary)
+    rotary:
+      base: 10000.0       # Base for computing inverse frequencies
 
     # Pooling strategy
     pooling: cls          # "cls" (first token) or "mean" (average pooling)

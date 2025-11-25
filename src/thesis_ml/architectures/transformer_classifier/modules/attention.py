@@ -10,7 +10,7 @@ import torch.nn.functional as F
 class MultiHeadAttention(nn.Module):
     """Custom multi-head attention that supports head-wise scaling for NormFormer.
 
-    Matches nn.MultiheadAttention behavior exactly when head_scales=None.
+    Matches nn.MultiheadAttention behavior exactly when head_scales=None and rotary_emb=None.
     """
 
     def __init__(
@@ -20,6 +20,7 @@ class MultiHeadAttention(nn.Module):
         dropout: float = 0.0,
         batch_first: bool = True,
         head_scales: nn.Parameter | None = None,
+        rotary_emb: nn.Module | None = None,
     ):
         """Initialize multi-head attention.
 
@@ -36,6 +37,9 @@ class MultiHeadAttention(nn.Module):
         head_scales : nn.Parameter | None
             Optional learnable per-head scaling factors [num_heads].
             If None, no scaling applied (matches nn.MultiheadAttention exactly)
+        rotary_emb : nn.Module | None
+            Optional RotaryEmbedding module for rotary positional encoding.
+            If provided, applies RoPE to Q and K after projection.
         """
         super().__init__()
         if embed_dim % num_heads != 0:
@@ -57,6 +61,9 @@ class MultiHeadAttention(nn.Module):
 
         # Head-wise scaling (for NormFormer)
         self.head_scales = head_scales
+
+        # Rotary positional embeddings (for RoPE)
+        self.rotary_emb = rotary_emb
 
         # Initialize weights (matching PyTorch defaults)
         nn.init.xavier_uniform_(self.in_proj_weight)
@@ -124,6 +131,10 @@ class MultiHeadAttention(nn.Module):
         q = q.transpose(1, 2)  # [B, num_heads, T_q, head_dim]
         k = k.transpose(1, 2)  # [B, num_heads, T_k, head_dim]
         v = v.transpose(1, 2)  # [B, num_heads, T_v, head_dim]
+
+        # Apply rotary positional embeddings to Q and K (if enabled)
+        if self.rotary_emb is not None:
+            q, k = self.rotary_emb(q, k)
 
         # Compute attention scores: [B, num_heads, T_q, T_k]
         attn_scores = torch.matmul(q, k.transpose(-2, -1)) * self.scaling

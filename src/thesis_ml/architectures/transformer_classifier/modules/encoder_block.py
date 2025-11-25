@@ -17,6 +17,7 @@ class TransformerEncoderBlock(nn.Module):
         mlp_dim: int,
         dropout: float = 0.1,
         norm_policy: str = "post",
+        rotary_emb: nn.Module | None = None,
     ):
         """Initialize encoder block.
 
@@ -32,6 +33,9 @@ class TransformerEncoderBlock(nn.Module):
             Dropout rate
         norm_policy : str
             Normalization policy: "pre", "post", or "normformer"
+        rotary_emb : nn.Module | None
+            Optional RotaryEmbedding module for rotary positional encoding.
+            Shared across all encoder blocks.
         """
         super().__init__()
         self.norm_policy = norm_policy
@@ -41,13 +45,14 @@ class TransformerEncoderBlock(nn.Module):
         if norm_policy == "normformer":
             head_scales = nn.Parameter(torch.ones(num_heads))
 
-        # Multi-head self-attention (custom implementation to support head scaling)
+        # Multi-head self-attention (custom implementation to support head scaling and RoPE)
         self.attention = MultiHeadAttention(
             embed_dim=dim,
             num_heads=num_heads,
             dropout=dropout,
             batch_first=True,  # Use [B, T, D] format
             head_scales=head_scales,
+            rotary_emb=rotary_emb,
         )
 
         # MLP structure depends on normalization policy
@@ -167,6 +172,7 @@ class TransformerEncoder(nn.Module):
         mlp_dim: int,
         dropout: float = 0.1,
         norm_policy: str = "post",
+        rotary_emb: nn.Module | None = None,
     ):
         """Initialize encoder stack.
 
@@ -184,8 +190,14 @@ class TransformerEncoder(nn.Module):
             Dropout rate
         norm_policy : str
             Normalization policy: "pre", "post", or "normformer"
+        rotary_emb : nn.Module | None
+            Optional RotaryEmbedding module for rotary positional encoding.
+            Shared across all encoder blocks.
         """
         super().__init__()
+
+        # Store rotary embedding (shared across blocks, not owned by encoder)
+        self.rotary_emb = rotary_emb
 
         # Stack encoder blocks
         self.blocks = nn.ModuleList(
@@ -196,6 +208,7 @@ class TransformerEncoder(nn.Module):
                     mlp_dim=mlp_dim,
                     dropout=dropout,
                     norm_policy=norm_policy,
+                    rotary_emb=rotary_emb,
                 )
                 for _ in range(depth)
             ]
@@ -221,7 +234,11 @@ class TransformerEncoder(nn.Module):
         return x
 
 
-def build_transformer_encoder(cfg: DictConfig, dim: int) -> nn.Module:
+def build_transformer_encoder(
+    cfg: DictConfig,
+    dim: int,
+    rotary_emb: nn.Module | None = None,
+) -> nn.Module:
     """Build transformer encoder stack.
 
     Parameters
@@ -230,6 +247,8 @@ def build_transformer_encoder(cfg: DictConfig, dim: int) -> nn.Module:
         Configuration with classifier.model.* keys (depth, heads, mlp_dim, dropout, norm.policy)
     dim : int
         Model dimension
+    rotary_emb : nn.Module | None
+        Optional RotaryEmbedding module for rotary positional encoding.
 
     Returns
     -------
@@ -249,4 +268,5 @@ def build_transformer_encoder(cfg: DictConfig, dim: int) -> nn.Module:
         mlp_dim=mlp_dim,
         dropout=dropout,
         norm_policy=norm_policy,
+        rotary_emb=rotary_emb,
     )
