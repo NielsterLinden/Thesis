@@ -1,0 +1,40 @@
+# @package _global_
+# Experiment to compare positional encoding strategies for 4t vs background classification
+#
+# Task: Classify 4t (label 1) vs background (labels 2,3,4,5 combined)
+# Sweep dimensions:
+#   - 4 positional encodings: none, sinusoidal, learned, rotary
+#
+# Total runs: 4 jobs
+
+experiment:
+  name: "4t_vs_background_positional"
+
+hydra:
+  mode: MULTIRUN
+  job:
+    chdir: true  # Must be true for Hydra to create .hydra/ directory
+    name: ${experiment.name}
+  # Override run.dir so each job writes directly to outputs/runs/ (not nested under multirun)
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${hydra.job.num}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    # Set subdir to absolute path matching run.dir so Hydra changes to run.dir instead of creating numbered subdirs
+    # Using the same template ensures both resolve to the same path
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${hydra.job.num}
+  sweeper:
+    params:
+      # Positional encoding strategies (comma-separated for basic sweeper)
+      classifier.model.positional: none,sinusoidal,learned,rotary
+      # Training settings
+      classifier.trainer.epochs: 100
+
+# Signal vs background configuration
+# Signal: label 1 (4t/tttt) → class 1
+# Background: labels 2,3,4,5 (ttH, ttW, ttWW, ttZ) → class 0
+data:
+  classifier:
+    signal_vs_background:
+      signal: 1
+      background: [2, 3, 4, 5]

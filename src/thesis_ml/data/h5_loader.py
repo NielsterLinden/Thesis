@@ -247,13 +247,34 @@ class H5ClassificationDataset(Dataset):
         self.cfg = cfg
         self.T = int(cfg.data.n_tokens)  # 18
 
-        # Get selected labels from config (default: [1, 2] for binary)
-        selected_labels = cfg.data.classifier.get("selected_labels", [1, 2])
-        self.selected_labels = sorted(_parse_selected_labels(selected_labels))
-        self.n_classes = len(self.selected_labels)
+        # Check for signal vs background mode
+        signal_vs_bg = cfg.data.classifier.get("signal_vs_background", None)
 
-        # Create label mapping: {original_label: 0_indexed_label}
-        self.label_map = {orig: idx for idx, orig in enumerate(self.selected_labels)}
+        if signal_vs_bg is not None:
+            # Signal vs background mode: signal → class 1, background → class 0
+            self.signal_vs_background_mode = True
+            self.signal_label = int(signal_vs_bg.get("signal"))
+            bg_labels_raw = signal_vs_bg.get("background", [])
+            # Parse background labels (could be list, ListConfig, or string)
+            self.background_labels = sorted(_parse_selected_labels(bg_labels_raw))
+            # Ensure signal label is not in background labels
+            if self.signal_label in self.background_labels:
+                raise ValueError(f"Signal label {self.signal_label} cannot be in background labels {self.background_labels}")
+            # All labels to include: signal + background
+            self.selected_labels = sorted([self.signal_label] + self.background_labels)
+            self.n_classes = 2  # Binary classification
+            # Create label mapping: signal → 1, any background → 0
+            self.label_map = {self.signal_label: 1}
+            for bg_label in self.background_labels:
+                self.label_map[bg_label] = 0
+        else:
+            # Standard mode: 1-to-1 label mapping
+            self.signal_vs_background_mode = False
+            selected_labels = cfg.data.classifier.get("selected_labels", [1, 2])
+            self.selected_labels = sorted(_parse_selected_labels(selected_labels))
+            self.n_classes = len(self.selected_labels)
+            # Create label mapping: {original_label: 0_indexed_label}
+            self.label_map = {orig: idx for idx, orig in enumerate(self.selected_labels)}
 
         # Load data and labels
         with h5py.File(to_absolute_path(str(cfg.data.path)), "r") as f:
@@ -375,11 +396,33 @@ class H5BinnedClassificationDataset(Dataset):
         self.cfg = cfg
         self.T = int(cfg.data.n_tokens)  # 18
 
-        # Get selected labels
-        selected_labels = cfg.data.classifier.get("selected_labels", [1, 2])
-        self.selected_labels = sorted(_parse_selected_labels(selected_labels))
-        self.n_classes = len(self.selected_labels)
-        self.label_map = {orig: idx for idx, orig in enumerate(self.selected_labels)}
+        # Check for signal vs background mode
+        signal_vs_bg = cfg.data.classifier.get("signal_vs_background", None)
+
+        if signal_vs_bg is not None:
+            # Signal vs background mode: signal → class 1, background → class 0
+            self.signal_vs_background_mode = True
+            self.signal_label = int(signal_vs_bg.get("signal"))
+            bg_labels_raw = signal_vs_bg.get("background", [])
+            # Parse background labels (could be list, ListConfig, or string)
+            self.background_labels = sorted(_parse_selected_labels(bg_labels_raw))
+            # Ensure signal label is not in background labels
+            if self.signal_label in self.background_labels:
+                raise ValueError(f"Signal label {self.signal_label} cannot be in background labels {self.background_labels}")
+            # All labels to include: signal + background
+            self.selected_labels = sorted([self.signal_label] + self.background_labels)
+            self.n_classes = 2  # Binary classification
+            # Create label mapping: signal → 1, any background → 0
+            self.label_map = {self.signal_label: 1}
+            for bg_label in self.background_labels:
+                self.label_map[bg_label] = 0
+        else:
+            # Standard mode: 1-to-1 label mapping
+            self.signal_vs_background_mode = False
+            selected_labels = cfg.data.classifier.get("selected_labels", [1, 2])
+            self.selected_labels = sorted(_parse_selected_labels(selected_labels))
+            self.n_classes = len(self.selected_labels)
+            self.label_map = {orig: idx for idx, orig in enumerate(self.selected_labels)}
 
         # Load binned token data
         with h5py.File(to_absolute_path(str(cfg.data.path)), "r") as f:
