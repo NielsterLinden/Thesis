@@ -8,6 +8,61 @@ from thesis_ml.architectures.transformer_classifier.modules.tokenizers.pretraine
 from thesis_ml.architectures.transformer_classifier.modules.tokenizers.raw import RawTokenizer
 
 
+def get_feature_map(tokenizer_name: str, tokenizer_output_dim: int, id_embed_dim: int = 8) -> dict[str, list[int]]:
+    """Get feature mapping from semantic names to dimension indices.
+
+    Parameters
+    ----------
+    tokenizer_name : str
+        Tokenizer type: "identity", "raw", "binned", or "pretrained"
+    tokenizer_output_dim : int
+        Output dimension of tokenizer
+    id_embed_dim : int
+        Dimension for ID embedding (only used for IdentityTokenizer)
+
+    Returns
+    -------
+    dict[str, list[int]]
+        Mapping from semantic names to dimension indices.
+        For IdentityTokenizer: includes "E", "Pt", "eta", "phi", "continuous", "id"
+        For RawTokenizer: includes "E", "Pt", "eta", "phi", "continuous" (no "id")
+        For BinnedTokenizer: returns empty dict {} (no semantic names)
+    """
+    if tokenizer_name == "identity":
+        return {
+            "E": [0],
+            "Pt": [1],
+            "eta": [2],
+            "phi": [3],
+            "continuous": [0, 1, 2, 3],
+            "id": list(range(4, 4 + id_embed_dim)),
+        }
+    elif tokenizer_name == "raw":
+        return {
+            "E": [0],
+            "Pt": [1],
+            "eta": [2],
+            "phi": [3],
+            "continuous": [0, 1, 2, 3],
+        }
+    elif tokenizer_name == "binned":
+        # BinnedTokenizer has no semantic structure - return empty dict
+        return {}
+    elif tokenizer_name == "pretrained":
+        # PretrainedTokenizer: assume same structure as IdentityTokenizer
+        # (may need adjustment based on actual pretrained model structure)
+        return {
+            "E": [0],
+            "Pt": [1],
+            "eta": [2],
+            "phi": [3],
+            "continuous": [0, 1, 2, 3],
+            "id": list(range(4, 4 + id_embed_dim)),
+        }
+    else:
+        raise ValueError(f"Unknown tokenizer: {tokenizer_name}")
+
+
 def get_tokenizer(name: str, num_types: int | None = None, cont_dim: int = 4, id_embed_dim: int = 8, vocab_size: int | None = None, embed_dim: int = 256, **kwargs) -> nn.Module:  # Only needed for identity  # Only needed for identity  # For binned tokenizer  # Model dimension (for binned)
     """Get tokenizer module by name.
 

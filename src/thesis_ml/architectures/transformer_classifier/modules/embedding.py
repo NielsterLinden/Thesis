@@ -23,6 +23,7 @@ class InputEmbedding(nn.Module):
         tokenizer_output_dim: int,
         model_dim: int,
         use_cls_token: bool = False,
+        pos_enc: nn.Module | None = None,
     ):
         """Initialize input embedding.
 
@@ -36,11 +37,21 @@ class InputEmbedding(nn.Module):
             Target model dimension
         use_cls_token : bool
             Whether to prepend CLS token (for cls pooling)
+        pos_enc : nn.Module, optional
+            Positional encoding module to apply before projection.
+            Must have dim == tokenizer_output_dim if provided.
         """
         super().__init__()
         self.tokenizer = tokenizer
         self.use_cls_token = use_cls_token
         self.is_binned = hasattr(tokenizer, "token_embedding")  # BinnedTokenizer has token_embedding
+
+        # Validate pos_enc dimension
+        if pos_enc is not None:
+            if not hasattr(pos_enc, "dim"):
+                raise ValueError("pos_enc must have 'dim' attribute")
+            assert pos_enc.dim == tokenizer_output_dim, f"pos_enc.dim ({pos_enc.dim}) must match tokenizer_output_dim ({tokenizer_output_dim})"
+        self.pos_enc = pos_enc
 
         # Projection layer (only needed if tokenizer output != model_dim)
         if tokenizer_output_dim != model_dim:
@@ -82,6 +93,11 @@ class InputEmbedding(nn.Module):
             tokens_cont, tokens_id = args[0], args[1]
             x = self.tokenizer(tokens_cont, tokens_id)  # [B, T, tokenizer_output_dim]
 
+        # Apply positional encoding BEFORE projection (if provided)
+        # This allows selective PE on semantic dimensions (E, Pt, eta, phi, ID)
+        if self.pos_enc is not None:
+            x = self.pos_enc(x, mask=mask)  # [B, T, tokenizer_output_dim]
+
         # Project to model dimension
         x = self.projection(x)  # [B, T, model_dim]
 
@@ -107,7 +123,7 @@ class InputEmbedding(nn.Module):
         return x, mask
 
 
-def build_input_embedding(cfg: DictConfig, meta: Mapping[str, Any]) -> nn.Module:
+def build_input_embedding(cfg: DictConfig, meta: Mapping[str, Any], pos_enc: nn.Module | None = None) -> nn.Module:
     """Build input embedding layer.
 
     Parameters
@@ -116,6 +132,8 @@ def build_input_embedding(cfg: DictConfig, meta: Mapping[str, Any]) -> nn.Module
         Configuration with classifier.model.* keys
     meta : Mapping[str, Any]
         Data metadata with n_tokens, token_feat_dim, has_globals, vocab_size, num_types
+    pos_enc : nn.Module, optional
+        Positional encoding module to apply before projection (for token-space PE)
 
     Returns
     -------
@@ -170,4 +188,5 @@ def build_input_embedding(cfg: DictConfig, meta: Mapping[str, Any]) -> nn.Module
         tokenizer_output_dim=tokenizer_output_dim,
         model_dim=model_dim,
         use_cls_token=use_cls_token,
+        pos_enc=pos_enc,
     )

@@ -1,0 +1,52 @@
+# @package _global_
+# Experiment to test selective positional encoding on different feature dimensions
+#
+# Sweep dimensions:
+#   - 7 different positional_dim_mask configurations:
+#     1. ID only: ["id"]
+#     2. E only: ["E"]
+#     3. Pt only: ["Pt"]
+#     4. phi only: ["phi"]
+#     5. eta only: ["eta"]
+#     6. All continuous (no ID): ["continuous"]
+#     7. phi and eta only: ["phi", "eta"]
+#   - 4 positional encoding types: none, sinusoidal, learned, rotary
+#
+# Total runs: 7 × 4 = 28 jobs
+#
+# Note: This experiment uses positional_space: "token" to apply PE before projection,
+# allowing selective PE on semantic dimensions (E, Pt, eta, phi, ID).
+# Note: Rotary PE (RoPE) is applied in attention and may not support selective dim_mask.
+
+experiment:
+  name: "selective_positional_encoding"
+
+hydra:
+  mode: MULTIRUN
+  job:
+    chdir: true
+    name: ${experiment.name}
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${hydra.job.num}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${hydra.job.num}
+  sweeper:
+    params:
+      # Use token-space PE for selective encoding
+      classifier.model.positional_space: token
+      # Sweep over different dimension masks using config groups
+      +classifier/positional_dim_mask@classifier.model.positional_dim_mask: id_only,E_only,Pt_only,phi_only,eta_only,continuous_only,phi_eta_only
+      # Use small model size
+      +classifier/model_size: small
+      # Sweep over positional encoding types
+      classifier.model.positional: none,sinusoidal,learned,rotary
+      # Training settings
+      classifier.trainer.epochs: 50
+      # Hyperparameters (from binary_1v1_5tops experiment)
+      classifier.trainer.lr: 0.00003
+      classifier.trainer.weight_decay: 0.1
+      classifier.model.dropout: 0.2
+      # Early stopping
+      classifier.trainer.early_stopping.enabled: true
+      classifier.trainer.early_stopping.patience: 10

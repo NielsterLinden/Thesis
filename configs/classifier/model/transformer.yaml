@@ -17,6 +17,16 @@ classifier:
     # Positional encoding
     positional: sinusoidal  # "none", "sinusoidal", "learned", or "rotary"
 
+    # Positional encoding space (where PE is applied)
+    positional_space: model  # "model" (after projection, old behavior) or "token" (before projection, for selective PE)
+
+    # Positional encoding dimension mask (only used when positional_space: "token")
+    # null: apply PE to all dimensions
+    # List of ints: explicit dimension indices (e.g., [0, 1, 2, 3])
+    # List of strings: semantic names (e.g., ["id"], ["E", "Pt"], ["continuous"])
+    #   Available names: "E", "Pt", "eta", "phi", "continuous", "id" (only for IdentityTokenizer)
+    positional_dim_mask: null
+
     # Rotary positional encoding options (only used when positional: rotary)
     rotary:
       base: 10000.0       # Base for computing inverse frequencies

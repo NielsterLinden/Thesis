@@ -1,0 +1,6 @@
+# @package _global_
+# Positional encoding dimension mask: ID dimensions only
+
+classifier:
+  model:
+    positional_dim_mask: ["id"]

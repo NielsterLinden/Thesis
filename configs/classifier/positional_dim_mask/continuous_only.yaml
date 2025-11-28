@@ -1,0 +1,6 @@
+# @package _global_
+# Positional encoding dimension mask: continuous features only (E, Pt, eta, phi)
+
+classifier:
+  model:
+    positional_dim_mask: ["continuous"]

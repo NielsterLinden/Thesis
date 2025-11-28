@@ -4,6 +4,7 @@ import math
 
 import torch
 import torch.nn as nn
+from omegaconf import DictConfig, ListConfig, OmegaConf
 
 
 class NonePositional(nn.Module):
@@ -34,7 +35,19 @@ class NonePositional(nn.Module):
 class SinusoidalPositional(nn.Module):
     """Sinusoidal positional encoding from "Attention is All You Need"."""
 
-    def __init__(self, dim: int, max_seq_length: int):
+    def __init__(self, dim: int, max_seq_length: int, dim_mask: torch.Tensor | None = None):
+        """Initialize sinusoidal positional encoding.
+
+        Parameters
+        ----------
+        dim : int
+            Dimension of positional encoding
+        max_seq_length : int
+            Maximum sequence length
+        dim_mask : torch.Tensor, optional
+            Boolean mask [dim] indicating which dimensions to apply PE to.
+            If None, applies PE to all dimensions.
+        """
         super().__init__()
         self.dim = dim
         self.max_seq_length = max_seq_length
@@ -62,43 +75,58 @@ class SinusoidalPositional(nn.Module):
         # persistent=False means it won't be saved in state_dict (we'll recompute if needed)
         self.register_buffer("pe", pe, persistent=False)
 
+        # Register dim_mask as buffer if provided
+        if dim_mask is not None:
+            if dim_mask.shape != (dim,):
+                raise ValueError(f"dim_mask must have shape [dim]={dim}, got {dim_mask.shape}")
+            if dim_mask.dtype != torch.bool:
+                raise ValueError(f"dim_mask must be bool tensor, got {dim_mask.dtype}")
+            self.register_buffer("dim_mask", dim_mask)
+        else:
+            self.dim_mask = None
+
     def forward(self, x: torch.Tensor, mask: torch.Tensor | None = None) -> torch.Tensor:
         """Apply sinusoidal positional encoding.
 
         Parameters
         ----------
         x : torch.Tensor
-            Input tensor [B, T, D] or [B, T+1, D] if CLS token is prepended
+            Input tensor [B, T, D]
         mask : torch.Tensor, optional
-            Attention mask [B, T] or [B, T+1] (True=valid, False=padding). Used to determine sequence length.
+            Attention mask [B, T] (True=valid, False=padding). Not used.
 
         Returns
         -------
         torch.Tensor
-            Output tensor [B, T, D] or [B, T+1, D] with positional encoding added
+            Output tensor [B, T, D] with positional encoding added
         """
-        seq_len = x.size(1)
+        B, T, D = x.shape
+        pe = self.pe[:T].to(x.device)  # [T, D]
 
-        # Check if CLS token is prepended (sequence length > max_seq_length)
-        # If so, skip positional encoding for the first token (CLS)
-        if seq_len > self.max_seq_length:
-            # CLS token is prepended: apply PE to tokens 1:seq_len
-            # PE indices should be 0:seq_len-1 (for tokens after CLS)
-            pos_enc = self.pe[: seq_len - 1].to(x.device)  # [seq_len-1, dim]
-            # Apply PE to all tokens except the first (CLS)
-            x[:, 1:] = x[:, 1:] + pos_enc.unsqueeze(0)  # [B, seq_len-1, dim]
+        if self.dim_mask is None:
+            return x + pe.unsqueeze(0)
         else:
-            # No CLS token: apply PE to all tokens
-            pos_enc = self.pe[:seq_len].to(x.device)  # [seq_len, dim]
-            x = x + pos_enc.unsqueeze(0)  # [B, seq_len, dim]
-
-        return x
+            x = x.clone()  # Avoid in-place modification
+            x[..., self.dim_mask] = x[..., self.dim_mask] + pe[..., self.dim_mask].unsqueeze(0)
+            return x
 
 
 class LearnedPositional(nn.Module):
     """Learned positional encoding with trainable parameters."""
 
-    def __init__(self, dim: int, max_seq_length: int):
+    def __init__(self, dim: int, max_seq_length: int, dim_mask: torch.Tensor | None = None):
+        """Initialize learned positional encoding.
+
+        Parameters
+        ----------
+        dim : int
+            Dimension of positional encoding
+        max_seq_length : int
+            Maximum sequence length
+        dim_mask : torch.Tensor, optional
+            Boolean mask [dim] indicating which dimensions to apply PE to.
+            If None, applies PE to all dimensions.
+        """
         super().__init__()
         self.dim = dim
         self.max_seq_length = max_seq_length
@@ -106,38 +134,40 @@ class LearnedPositional(nn.Module):
         # Learnable positional embeddings, initialized with small random values
         self.pe = nn.Parameter(torch.randn(max_seq_length, dim) * 0.02)
 
+        # Register dim_mask as buffer if provided
+        if dim_mask is not None:
+            if dim_mask.shape != (dim,):
+                raise ValueError(f"dim_mask must have shape [dim]={dim}, got {dim_mask.shape}")
+            if dim_mask.dtype != torch.bool:
+                raise ValueError(f"dim_mask must be bool tensor, got {dim_mask.dtype}")
+            self.register_buffer("dim_mask", dim_mask)
+        else:
+            self.dim_mask = None
+
     def forward(self, x: torch.Tensor, mask: torch.Tensor | None = None) -> torch.Tensor:
         """Apply learned positional encoding.
 
         Parameters
         ----------
         x : torch.Tensor
-            Input tensor [B, T, D] or [B, T+1, D] if CLS token is prepended
+            Input tensor [B, T, D]
         mask : torch.Tensor, optional
-            Attention mask [B, T] or [B, T+1] (True=valid, False=padding). Not used.
+            Attention mask [B, T] (True=valid, False=padding). Not used.
 
         Returns
         -------
         torch.Tensor
-            Output tensor [B, T, D] or [B, T+1, D] with positional encoding added
+            Output tensor [B, T, D] with positional encoding added
         """
-        seq_len = x.size(1)
+        B, T, D = x.shape
+        pe = self.pe[:T]  # [T, D]
 
-        # Check if CLS token is prepended (sequence length > max_seq_length)
-        # If so, skip positional encoding for the first token (CLS)
-        if seq_len > self.max_seq_length:
-            # CLS token is prepended: apply PE to tokens 1:seq_len
-            # PE indices should be 0:seq_len-1 (for tokens after CLS)
-            pos_enc = self.pe[: seq_len - 1]  # [seq_len-1, dim]
-            # Apply PE to all tokens except the first (CLS)
-            x = x.clone()  # Avoid in-place modification
-            x[:, 1:] = x[:, 1:] + pos_enc.unsqueeze(0)  # [B, seq_len-1, dim]
+        if self.dim_mask is None:
+            return x + pe.unsqueeze(0)
         else:
-            # No CLS token: apply PE to all tokens
-            pos_enc = self.pe[:seq_len]  # [seq_len, dim]
-            x = x + pos_enc.unsqueeze(0)  # [B, seq_len, dim]
-
-        return x
+            x = x.clone()  # Avoid in-place modification
+            x[..., self.dim_mask] = x[..., self.dim_mask] + pe[..., self.dim_mask].unsqueeze(0)
+            return x
 
 
 def _rotate_half(x: torch.Tensor) -> torch.Tensor:
@@ -287,7 +317,99 @@ class RotaryEmbedding(nn.Module):
         return apply_rotary_pos_emb(q, k, cos, sin)
 
 
-def get_positional_encoding(name: str, dim: int, max_seq_length: int, **kwargs) -> nn.Module:
+def parse_dim_mask(
+    config_value: list[int] | list[str] | ListConfig | DictConfig | None,
+    dim: int,
+    feature_map: dict[str, list[int]],
+) -> torch.Tensor | None:
+    """Parse dimension mask from config value.
+
+    Parameters
+    ----------
+    config_value : list[int] | list[str] | ListConfig | DictConfig | None
+        Config value: None (all dimensions), list of ints (explicit indices),
+        or list of strings (semantic names mapped via feature_map).
+        Can be Python list, OmegaConf ListConfig, or DictConfig (will be converted).
+    dim : int
+        Total dimension size
+    feature_map : dict[str, list[int]]
+        Mapping from semantic names to dimension indices
+
+    Returns
+    -------
+    torch.Tensor | None
+        Boolean mask [dim] with True for dimensions to apply PE, or None for all dimensions
+
+    Raises
+    ------
+    ValueError
+        If config_value contains invalid names/indices or mixes ints and strings
+    """
+    if config_value is None:
+        return None
+
+    # Convert OmegaConf types to Python native types
+    if isinstance(config_value, ListConfig | DictConfig):
+        config_value = OmegaConf.to_container(config_value, resolve=True)
+
+    # Handle nested dict structures from config groups with @package _global_
+    # Extract list from: {'classifier': {'model': {'positional_dim_mask': [...]}}}
+    if isinstance(config_value, dict):
+        # Recursively find the first list value
+        def find_list(d):
+            if isinstance(d, list):
+                return d
+            if isinstance(d, dict):
+                for v in d.values():
+                    result = find_list(v)
+                    if result is not None:
+                        return result
+            return None
+
+        found = find_list(config_value)
+        if found is not None:
+            config_value = found
+
+    if not isinstance(config_value, list):
+        raise ValueError(f"positional_dim_mask must be None, list, ListConfig, or DictConfig containing a list, " f"got {type(config_value)}: {config_value}")
+
+    if len(config_value) == 0:
+        raise ValueError("positional_dim_mask cannot be empty list")
+
+    # Check if mixing ints and strings
+    has_ints = any(isinstance(item, int) for item in config_value)
+    has_strings = any(isinstance(item, str) for item in config_value)
+
+    if has_ints and has_strings:
+        raise ValueError("positional_dim_mask cannot mix integers and strings. " "Use either all integers (explicit indices) or all strings (semantic names).")
+
+    # Collect dimension indices
+    dim_indices: set[int] = set()
+
+    if has_ints:
+        # Direct integer indices
+        for idx in config_value:
+            if not isinstance(idx, int):
+                raise ValueError(f"All items must be int when using explicit indices, got {type(idx)}")
+            if idx < 0 or idx >= dim:
+                raise ValueError(f"Dimension index {idx} out of range [0, {dim})")
+            dim_indices.add(idx)
+    else:
+        # String semantic names
+        for name in config_value:
+            if not isinstance(name, str):
+                raise ValueError(f"All items must be str when using semantic names, got {type(name)}")
+            if name not in feature_map:
+                raise ValueError(f"Unknown feature name '{name}'. " f"Available names: {list(feature_map.keys())}")
+            dim_indices.update(feature_map[name])
+
+    # Create boolean mask
+    mask = torch.zeros(dim, dtype=torch.bool)
+    mask[list(dim_indices)] = True
+    return mask
+
+
+def get_positional_encoding(name: str, dim: int, max_seq_length: int, dim_mask: torch.Tensor | None = None, **kwargs) -> nn.Module:
     """Get additive positional encoding module by name.
 
     Parameters
@@ -299,6 +421,9 @@ def get_positional_encoding(name: str, dim: int, max_seq_length: int, **kwargs) 
         Model dimension
     max_seq_length : int
         Maximum sequence length
+    dim_mask : torch.Tensor, optional
+        Boolean mask [dim] indicating which dimensions to apply PE to.
+        If None, applies PE to all dimensions.
     **kwargs
         Additional arguments passed to constructor
 
@@ -310,9 +435,9 @@ def get_positional_encoding(name: str, dim: int, max_seq_length: int, **kwargs) 
     if name == "none":
         return NonePositional(dim, max_seq_length, **kwargs)
     elif name == "sinusoidal":
-        return SinusoidalPositional(dim, max_seq_length, **kwargs)
+        return SinusoidalPositional(dim, max_seq_length, dim_mask=dim_mask, **kwargs)
     elif name == "learned":
-        return LearnedPositional(dim, max_seq_length, **kwargs)
+        return LearnedPositional(dim, max_seq_length, dim_mask=dim_mask, **kwargs)
     elif name == "rotary":
         # Rotary is handled specially - return None here, actual RoPE is in attention
         return NonePositional(dim, max_seq_length, **kwargs)
