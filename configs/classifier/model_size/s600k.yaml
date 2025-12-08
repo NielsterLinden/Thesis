@@ -1,0 +1,9 @@
+# @package _global_
+# Approx. 600k parameters (common dims/heads, mlp_dim = 2×dim)
+
+classifier:
+  model:
+    dim: 96
+    depth: 8
+    heads: 8
+    mlp_dim: 192

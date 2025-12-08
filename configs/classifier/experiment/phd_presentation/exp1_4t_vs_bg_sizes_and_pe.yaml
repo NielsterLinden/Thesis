@@ -1,0 +1,45 @@
+# @package _global_
+# PhD Presentation - Experiment 1
+# 4t vs background: sweep 4 model sizes × 4 positional encodings
+#
+# Task: Classify 4t (label 1) vs background (labels 2,3,4,5 combined)
+#
+# Notes:
+# - Model-space additive PEs require CLS-aware length; handled automatically by model when pooling=cls.
+# - Rotary is applied in attention (ignores positional_dim_mask).
+
+experiment:
+  name: "phd_exp1_4t_vs_bg_sizes_and_pe"
+
+hydra:
+  mode: MULTIRUN
+  job:
+    chdir: true
+    name: ${experiment.name}
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${hydra.job.num}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${hydra.job.num}
+  sweeper:
+    params:
+      # Model sizes
+      +classifier/model_size: s200k,s600k,s1500k,s3000k
+      # Positional encoding strategies
+      classifier.model.positional: none,sinusoidal,learned,rotary
+      classifier.model.positional_space: model
+      # Tokenizer setup (identity: 4 continuous + 8 ID)
+      classifier.model.tokenizer.name: identity
+      classifier.model.tokenizer.id_embed_dim: 8
+      # Pooling and normalization
+      classifier.model.pooling: cls
+      classifier.model.norm.policy: post
+      # Training basics
+      classifier.trainer.epochs: 50
+
+# Signal vs background configuration
+data:
+  classifier:
+    signal_vs_background:
+      signal: 1
+      background: [2, 3, 4, 5]

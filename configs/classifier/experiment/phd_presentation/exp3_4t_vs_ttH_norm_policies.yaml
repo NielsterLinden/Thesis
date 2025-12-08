@@ -1,0 +1,42 @@
+# @package _global_
+# PhD Presentation - Experiment 3
+# 4t vs ttH: sweep norm policies × 4 model sizes
+#
+# Notes:
+# - Fix positional encoding to sinusoidal (model-space) for fairness across norms.
+# - Ensure head_dim is even for rotary (not used here).
+
+experiment:
+  name: "phd_exp3_4t_vs_ttH_norm_policies"
+
+hydra:
+  mode: MULTIRUN
+  job:
+    chdir: true
+    name: ${experiment.name}
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${hydra.job.num}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${hydra.job.num}
+  sweeper:
+    params:
+      # Model sizes
+      +classifier/model_size: s200k,s600k,s1500k,s3000k
+      # Norm policies
+      classifier.model.norm.policy: pre,post,normformer
+      # Fix positional encoding for fairness across norms
+      classifier.model.positional: sinusoidal
+      classifier.model.positional_space: model
+      # Tokenizer setup (identity: 4 continuous + 8 ID)
+      classifier.model.tokenizer.name: identity
+      classifier.model.tokenizer.id_embed_dim: 8
+      # Pooling
+      classifier.model.pooling: cls
+      # Training basics
+      classifier.trainer.epochs: 50
+
+# 4t vs ttH (binary)
+data:
+  classifier:
+    selected_labels: [1, 2]

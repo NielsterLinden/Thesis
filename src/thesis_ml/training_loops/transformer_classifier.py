@@ -20,6 +20,75 @@ from thesis_ml.utils.seed import set_all_seeds
 SUPPORTED_PLOT_FAMILIES = {"losses", "metrics"}
 
 
+def _save_split_scores_and_embeddings(
+    model: torch.nn.Module,
+    loader: torch.utils.data.DataLoader,
+    device: torch.device,
+    outdir: str,
+    split: str = "val",
+) -> None:
+    """Save logits, probabilities, labels, and CLS-pooled embeddings for a split.
+
+    Uses a forward hook on the classifier linear layer to capture pooled embeddings.
+    """
+    model.eval()
+
+    # Storage
+    all_logits: list[torch.Tensor] = []
+    all_labels: list[torch.Tensor] = []
+    all_pooled: list[torch.Tensor] = []
+
+    # Forward hook to capture Linear input (pooled features)
+    captured: list[torch.Tensor] = []
+
+    def hook_fn(module, inputs, output):
+        # inputs is a tuple; take first tensor [B, D]
+        if inputs and torch.is_tensor(inputs[0]):
+            captured.append(inputs[0].detach().cpu())
+
+    hook = None
+    if hasattr(model, "head") and hasattr(model.head, "classifier"):
+        hook = model.head.classifier.register_forward_hook(hook_fn)
+
+    with torch.no_grad():
+        for batch in loader:
+            # Unpack batch (raw vs binned)
+            if len(batch) == 5:  # raw format
+                tokens_cont, tokens_id, _globals, mask, label = batch
+                tokens_cont = tokens_cont.to(device)
+                tokens_id = tokens_id.to(device)
+                mask = mask.to(device)
+                label = label.to(device)
+                logits = model(tokens_cont, tokens_id, mask=mask)
+            else:  # binned format
+                integer_tokens, _globals_ints, mask, label = batch
+                integer_tokens = integer_tokens.to(device)
+                mask = mask.to(device)
+                label = label.to(device)
+                logits = model(integer_tokens, mask=mask)
+
+            all_logits.append(logits.detach().cpu())
+            all_labels.append(label.detach().cpu())
+
+            # Collect pooled features captured by hook (if available)
+            if captured:
+                all_pooled.append(captured[-1])
+
+    # Remove hook
+    if hook is not None:
+        hook.remove()
+
+    # Concatenate
+    logits_cat = torch.cat(all_logits, dim=0) if all_logits else torch.empty(0, 0)
+    labels_cat = torch.cat(all_labels, dim=0) if all_labels else torch.empty(0, dtype=torch.long)
+    probs_cat = torch.softmax(logits_cat, dim=-1) if logits_cat.numel() > 0 else logits_cat
+    pooled_cat = torch.cat(all_pooled, dim=0) if all_pooled else torch.empty(0, 0)
+
+    # Persist
+    os.makedirs(outdir, exist_ok=True)
+    torch.save({"logits": logits_cat, "probs": probs_cat, "labels": labels_cat, "pooled": pooled_cat}, os.path.join(outdir, f"{split}_scores.pt"))
+
+
 def _gather_meta(cfg: DictConfig, ds_meta: Mapping[str, Any]) -> None:
     """Attach data-derived meta to cfg for module constructors."""
     prev_struct = OmegaConf.is_struct(cfg)
@@ -485,6 +554,14 @@ def train(cfg: DictConfig) -> dict:
 
                     shutil.copy2(os.path.join(outdir, "best_val.pt"), model_path)
 
+                # Save per-event scores and CLS embeddings on validation split for downstream analysis
+                try:
+                    _save_split_scores_and_embeddings(model, val_dl, device, outdir, split="val")
+                except Exception as e:
+                    import warnings
+
+                    warnings.warn(f"Failed to save validation scores/embeddings: {e}", stacklevel=2)
+
         # Early stopping check
         if early_stopping_enabled:
             if improved:
@@ -571,6 +648,15 @@ def train(cfg: DictConfig) -> dict:
     # on_train_end
     if outdir:
         total_time = time.time() - training_start_time
+
+        # Save per-event scores and CLS embeddings on test split as well
+        try:
+            _save_split_scores_and_embeddings(model, test_dl, device, outdir, split="test")
+        except Exception as e:
+            import warnings
+
+            warnings.warn(f"Failed to save test scores/embeddings: {e}", stacklevel=2)
+
         payload_end = build_event_payload(
             moment="on_train_end",
             run_dir=outdir,

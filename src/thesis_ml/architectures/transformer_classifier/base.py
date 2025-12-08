@@ -110,7 +110,9 @@ def build_from_config(cfg: DictConfig, meta: Mapping[str, Any]) -> nn.Module:
     dim = cfg.classifier.model.dim
     num_heads = cfg.classifier.model.heads
     n_classes = meta["n_classes"]
-    max_seq_length = meta["n_tokens"]
+
+    # Base sequence length from data (number of physical tokens/objects)
+    seq_len_tokens = meta["n_tokens"]
 
     # Parse positional_space config (default "model" for backward compatibility)
     positional_space = cfg.classifier.model.get("positional_space", "model")
@@ -149,6 +151,19 @@ def build_from_config(cfg: DictConfig, meta: Mapping[str, Any]) -> nn.Module:
     # Positional encoding
     pos_enc_name = cfg.classifier.model.get("positional", "sinusoidal")
 
+    # Determine whether we use a CLS token (for pooling) and which sequence
+    # length positional encodings should target.
+    pooling = cfg.classifier.model.get("pooling", "cls")
+    use_cls_token = pooling == "cls"
+
+    # For token-space PE, we always use the physical token length (no CLS yet).
+    max_seq_length_tokens = seq_len_tokens
+
+    # For model-space PE, the encoder sees the CLS token *prepended* by
+    # InputEmbedding when pooling="cls", so we need PE with length T+1
+    # to avoid shape mismatches (e.g. 19 vs 18).
+    max_seq_length_model = seq_len_tokens + 1 if positional_space == "model" and use_cls_token else seq_len_tokens
+
     # Handle rotary PE specially: it goes into attention, not as additive PE
     rotary_emb = None
     pos_enc = None
@@ -162,13 +177,26 @@ def build_from_config(cfg: DictConfig, meta: Mapping[str, Any]) -> nn.Module:
     elif pos_enc_name != "none":
         # Additive positional encodings: sinusoidal or learned
         if positional_space == "token":
-            # Token-space PE: create with tokenizer_output_dim and pass to embedding
-            pos_enc_for_embedding = get_positional_encoding(pos_enc_name, tokenizer_output_dim, max_seq_length, dim_mask=dim_mask)
+            # Token-space PE: create with tokenizer_output_dim and pass to embedding.
+            # Here we do NOT include the CLS token; it is added later in the
+            # embedding, after token-space PE is applied.
+            pos_enc_for_embedding = get_positional_encoding(
+                pos_enc_name,
+                tokenizer_output_dim,
+                max_seq_length_tokens,
+                dim_mask=dim_mask,
+            )
             # Don't create pos_enc for TransformerClassifier (handled in embedding)
             pos_enc = None
         else:
-            # Model-space PE: create with model_dim (old behavior)
-            pos_enc = get_positional_encoding(pos_enc_name, dim, max_seq_length)
+            # Model-space PE: create with model_dim. If pooling='cls', we use a
+            # sequence length of T+1 so that positional encodings match the
+            # CLS-augmented sequence produced by the embedding.
+            pos_enc = get_positional_encoding(
+                pos_enc_name,
+                dim,
+                max_seq_length_model,
+            )
             # Don't pass to embedding
             pos_enc_for_embedding = None
 

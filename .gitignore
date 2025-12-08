@@ -31,3 +31,6 @@ mlruns/
 # HPC-specific
 hpc/stoomboot/*.log
 *.sub.backup
+
+# Notebooks
+notebooks/*.ipynb

@@ -1,0 +1,6 @@
+# @package _global_
+# Apply positional encoding to all semantic dimensions (continuous + id)
+
+classifier:
+  model:
+    positional_dim_mask: ["continuous", "id"]

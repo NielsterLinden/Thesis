@@ -1,0 +1,46 @@
+# @package _global_
+# PhD Presentation - Experiment 2
+# 4t vs background: fixed ~1.5M model; selective token-space PE masks
+#
+# Notes:
+# - Selective masks only affect additive PEs (sinusoidal, learned).
+# - Include baseline no-PE runs (positional=none); masks are ignored in that case.
+# - Token-space PE applied before projection (no CLS yet), then CLS token is added.
+
+experiment:
+  name: "phd_exp2_4t_vs_bg_selective_masks"
+
+hydra:
+  mode: MULTIRUN
+  job:
+    chdir: true
+    name: ${experiment.name}
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${hydra.job.num}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${hydra.job.num}
+  sweeper:
+    params:
+      # Fixed model size ≈ 1.5M
+      +classifier/model_size: s1500k
+      # Token-space additive PEs (plus baseline none)
+      classifier.model.positional_space: token
+      classifier.model.positional: sinusoidal,learned,none
+      # Selective masks (ignored when positional=none)
+      +classifier/positional_dim_mask@classifier.model.positional_dim_mask: id_only,E_only,Pt_only,phi_only,eta_only,continuous_only,phi_eta_only,all
+      # Tokenizer setup (identity: 4 continuous + 8 ID)
+      classifier.model.tokenizer.name: identity
+      classifier.model.tokenizer.id_embed_dim: 8
+      # Pooling and normalization
+      classifier.model.pooling: cls
+      classifier.model.norm.policy: post
+      # Training basics
+      classifier.trainer.epochs: 50
+
+# Signal vs background configuration
+data:
+  classifier:
+    signal_vs_background:
+      signal: 1
+      background: [2, 3, 4, 5]
