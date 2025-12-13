@@ -28,12 +28,26 @@ def _transformer_classifier(cfg):
     return _t(cfg)
 
 
+def _mlp_classifier(cfg):
+    from thesis_ml.training_loops.mlp_classifier import train as _t
+
+    return _t(cfg)
+
+
+def _bdt_classifier(cfg):
+    from thesis_ml.training_loops.bdt_classifier import train as _t
+
+    return _t(cfg)
+
+
 DISPATCH = {
     "ae": _ae,
     "gan_ae": _gan_ae,
     "diffusion_ae": _diffusion_ae,
     "test_mlp": _mlp,
     "transformer_classifier": _transformer_classifier,
+    "mlp_classifier": _mlp_classifier,
+    "bdt_classifier": _bdt_classifier,
 }
 
 __all__ = ["DISPATCH"]

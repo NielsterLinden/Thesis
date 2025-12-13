@@ -1,0 +1,35 @@
+# @package _global_
+# PhD Presentation - BDT Baseline Experiment
+# 4t vs background: sweep 4 BDT complexity levels
+#
+# Task: Classify 4t (label 1) vs background (labels 2,3,4,5 combined)
+#
+# Usage:
+#   condor_submit hpc/stoomboot/train.sub -append "arguments = --multirun classifier/experiment=phd_presentation/exp_baseline_bdt loop=bdt_classifier"
+
+experiment:
+  name: "phd_baseline_bdt"
+
+hydra:
+  mode: MULTIRUN
+  job:
+    chdir: true
+    name: ${experiment.name}
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${hydra.job.num}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${hydra.job.num}
+  sweeper:
+    params:
+      # BDT complexity levels (small, medium, large, xlarge)
+      +classifier/bdt_size: small,medium,large,xlarge
+      # BDT model config
+      classifier/model: bdt_classifier
+
+# Signal vs background configuration
+data:
+  classifier:
+    signal_vs_background:
+      signal: 1
+      background: [2, 3, 4, 5]

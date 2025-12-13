@@ -1,0 +1,62 @@
+# @package _global_
+# PhD Presentation - Baseline Comparison Experiment
+# Compare MLP and BDT baselines at 4 complexity levels each
+#
+# Task: Classify 4t (label 1) vs background (labels 2,3,4,5 combined)
+#
+# This experiment runs 8 models total:
+# - 4 MLP models (s200k, s600k, s1500k, s3000k parameter counts)
+# - 4 BDT models (small, medium, large, xlarge complexity)
+#
+# Usage:
+#   For MLP models:
+#     python -m thesis_ml.cli.train loop=mlp_classifier \
+#       classifier/model=mlp_classifier \
+#       +classifier/model_size=s200k \
+#       classifier/experiment=phd_presentation/exp_baseline_comparison
+#
+#   For BDT models:
+#     python -m thesis_ml.cli.train loop=bdt_classifier \
+#       classifier/model=bdt_classifier \
+#       +classifier/bdt_size=small \
+#       classifier/experiment=phd_presentation/exp_baseline_comparison
+#
+# For a full sweep of all MLP sizes:
+#     python -m thesis_ml.cli.train -m loop=mlp_classifier \
+#       classifier/model=mlp_classifier \
+#       +classifier/model_size=s200k,s600k,s1500k,s3000k \
+#       classifier/experiment=phd_presentation/exp_baseline_comparison
+#
+# For a full sweep of all BDT sizes:
+#     python -m thesis_ml.cli.train -m loop=bdt_classifier \
+#       classifier/model=bdt_classifier \
+#       +classifier/bdt_size=small,medium,large,xlarge \
+#       classifier/experiment=phd_presentation/exp_baseline_comparison
+
+experiment:
+  name: "phd_baseline_comparison"
+
+hydra:
+  mode: MULTIRUN
+  job:
+    chdir: true
+    name: ${experiment.name}
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${hydra.job.num}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${hydra.job.num}
+
+# Training settings
+classifier:
+  trainer:
+    epochs: 50
+    lr: 0.0001
+    batch_size: 64
+
+# Signal vs background configuration (same as transformer experiments)
+data:
+  classifier:
+    signal_vs_background:
+      signal: 1
+      background: [2, 3, 4, 5]

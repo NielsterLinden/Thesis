@@ -1,0 +1,16 @@
+# @package _global_
+# MLP classifier model configuration
+
+classifier:
+  model:
+    # Hidden layer sizes (will be overridden by model_size configs)
+    hidden_sizes: [512, 256]
+
+    # Regularization
+    dropout: 0.1
+
+    # Activation function: "relu", "gelu", or "silu"
+    activation: gelu
+
+    # Whether to use batch normalization
+    use_batch_norm: true

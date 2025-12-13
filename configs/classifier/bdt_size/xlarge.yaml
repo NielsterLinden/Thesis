@@ -1,0 +1,8 @@
+# @package _global_
+# BDT extra-large configuration (~3M computational equivalent)
+# 1000 trees of depth 12
+
+classifier:
+  model:
+    n_estimators: 1000
+    max_depth: 12

@@ -1,9 +1,14 @@
 # @package _global_
-# Approx. 1.5M parameters (common dims/heads, mlp_dim = 2×dim)
+# Approx. 1.5M parameters
+# Transformer: dim=128, depth=12, heads=8, mlp_dim=256
+# MLP: hidden_sizes=[1024, 1024, 384] -> ~1.52M params
 
 classifier:
   model:
+    # Transformer settings
     dim: 128
     depth: 12
     heads: 8
     mlp_dim: 256
+    # MLP settings
+    hidden_sizes: [1024, 1024, 384]

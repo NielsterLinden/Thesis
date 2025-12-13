@@ -1,0 +1,37 @@
+# @package _global_
+# PhD Presentation - MLP Baseline Experiment
+# 4t vs background: sweep 4 MLP model sizes
+#
+# Task: Classify 4t (label 1) vs background (labels 2,3,4,5 combined)
+#
+# Usage:
+#   condor_submit hpc/stoomboot/train.sub -append "arguments = --multirun classifier/experiment=phd_presentation/exp_baseline_mlp loop=mlp_classifier"
+
+experiment:
+  name: "phd_baseline_mlp"
+
+hydra:
+  mode: MULTIRUN
+  job:
+    chdir: true
+    name: ${experiment.name}
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${hydra.job.num}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${hydra.job.num}
+  sweeper:
+    params:
+      # MLP model sizes (200k, 600k, 1.5M, 3M params)
+      +classifier/model_size: s200k,s600k,s1500k,s3000k
+      # MLP model config
+      classifier/model: mlp_classifier
+      # Training settings
+      classifier.trainer.epochs: 50
+
+# Signal vs background configuration
+data:
+  classifier:
+    signal_vs_background:
+      signal: 1
+      background: [2, 3, 4, 5]

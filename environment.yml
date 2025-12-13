@@ -22,6 +22,7 @@ dependencies:
   - pytorch-cuda=12.1  # requires the nvidia channel
   - h5py
   - python-dotenv
+  - xgboost
   - pip:
       - black==25.9.0
       - hydra-colorlog==1.2.0

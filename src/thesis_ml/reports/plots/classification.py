@@ -598,3 +598,880 @@ def plot_grid_metrics(
 
     # Use existing grid heatmap function
     plot_grid_heatmap(plot_df, row_col, col_col, metric_col, title, inference_figs_dir, fname, fig_cfg)
+
+
+# ============================================================================
+# DataFrame-based plotting functions (new API)
+# ============================================================================
+
+
+def plot_metric_vs_hparam(
+    df: pd.DataFrame,
+    x_col: str,
+    group_col: str | None,
+    metric_col: str,
+    style: str = "line",
+    show_individual: bool = True,
+    figsize: tuple[float, float] = (10, 8),
+) -> tuple[plt.Figure, plt.Axes]:
+    """Plot metric vs hyperparameter with optional grouping.
+
+    Handles: AUROC vs model size; AUROC vs PE type; AUROC vs norm policy.
+    Style: Mean line (thick, linewidth=2-3) with individual runs behind (alpha=0.15-0.3).
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame with columns x_col, group_col (if provided), metric_col, and run_id/run_dir
+    x_col : str
+        Column name for x-axis (e.g., 'model_size')
+    group_col : str | None
+        Column name to group by (e.g., 'positional', 'norm_policy'). If None, no grouping.
+    metric_col : str
+        Column name for metric value (e.g., 'auroc', 'accuracy')
+    style : str
+        Plot style: "line" or "bar" (default: "line")
+    show_individual : bool
+        If True, show individual runs behind mean (default: True)
+    figsize : tuple[float, float]
+        Figure size (default: (10, 8))
+
+    Returns
+    -------
+    tuple[plt.Figure, plt.Axes]
+        Figure and axes objects
+    """
+    # Validate columns
+    required_cols = [x_col, metric_col]
+    if group_col:
+        required_cols.append(group_col)
+    missing_cols = [c for c in required_cols if c not in df.columns]
+    if missing_cols:
+        raise ValueError(f"Missing required columns: {missing_cols}")
+
+    # Get run identifier column
+    run_id_col = "run_id" if "run_id" in df.columns else "run_dir"
+
+    # Filter out NaN values
+    plot_df = df.dropna(subset=required_cols).copy()
+
+    if len(plot_df) == 0:
+        raise ValueError("No valid data after filtering NaN values")
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    # Get distinct colors for groups
+    if group_col:
+        groups = sorted(plot_df[group_col].unique())
+        colors = plt.cm.tab10(np.linspace(0, 1, len(groups)))
+        color_map = {g: colors[i] for i, g in enumerate(groups)}
+    else:
+        groups = [None]
+        color_map = {None: "#1f77b4"}
+
+    for group_val in groups:
+        if group_col:
+            group_df = plot_df[plot_df[group_col] == group_val]
+            label_prefix = f"{group_val} "
+        else:
+            group_df = plot_df
+            label_prefix = ""
+
+        if len(group_df) == 0:
+            continue
+
+        color = color_map[group_val]
+
+        # Plot individual runs if requested
+        if show_individual:
+            for _run_id, run_data in group_df.groupby(run_id_col):
+                x_vals = run_data[x_col].values
+                y_vals = run_data[metric_col].values
+                if style == "line":
+                    ax.plot(
+                        x_vals,
+                        y_vals,
+                        color=color,
+                        alpha=0.2,
+                        linewidth=1,
+                        zorder=1,
+                    )
+                else:  # bar
+                    ax.scatter(
+                        x_vals,
+                        y_vals,
+                        color=color,
+                        alpha=0.2,
+                        s=30,
+                        zorder=1,
+                    )
+
+        # Compute and plot mean
+        if style == "line":
+            # For line plots, need to handle x-axis ordering
+            x_unique = sorted(group_df[x_col].unique())
+            y_means = []
+            y_stds = []
+            for x_val in x_unique:
+                subset = group_df[group_df[x_col] == x_val]
+                y_means.append(subset[metric_col].mean())
+                y_stds.append(subset[metric_col].std() if len(subset) > 1 else 0.0)
+
+            ax.plot(
+                x_unique,
+                y_means,
+                color=color,
+                linewidth=2.5,
+                marker="o",
+                markersize=8,
+                label=f"{label_prefix}mean (n={len(group_df)})",
+                zorder=2,
+            )
+            # Add error bars
+            if len(group_df) > 1:
+                ax.fill_between(
+                    x_unique,
+                    np.array(y_means) - np.array(y_stds),
+                    np.array(y_means) + np.array(y_stds),
+                    color=color,
+                    alpha=0.2,
+                    zorder=1,
+                )
+        else:  # bar
+            grouped = group_df.groupby(x_col)[metric_col].agg(["mean", "std", "count"])
+            x_pos = np.arange(len(grouped))
+            means = grouped["mean"].values
+            stds = grouped["std"].fillna(0.0).values
+
+            width = 0.6 / len(groups) if group_col else 0.6
+            offset = groups.index(group_val) * width if group_col else 0
+
+            ax.bar(
+                x_pos + offset,
+                means,
+                width,
+                yerr=stds if len(group_df) > 1 else None,
+                capsize=5,
+                color=color,
+                alpha=0.7,
+                edgecolor="black",
+                label=f"{label_prefix}mean (n={len(group_df)})",
+                zorder=2,
+            )
+
+    # Formatting
+    ax.set_xlabel(f"{x_col.replace('_', ' ').title()} [parameters]" if "size" in x_col.lower() else f"{x_col.replace('_', ' ').title()}", fontsize=14)
+    ax.set_ylabel(f"{metric_col.replace('_', ' ').title()} [unitless]", fontsize=14)
+    ax.set_title(f"{metric_col.replace('_', ' ').title()} vs {x_col.replace('_', ' ').title()}", fontsize=16)
+    ax.legend(fontsize=12)
+    ax.grid(alpha=0.3)
+
+    if style == "bar" and group_col:
+        # Set x-axis ticks for bar plots
+        grouped_all = plot_df.groupby(x_col)[metric_col].mean()
+        ax.set_xticks(np.arange(len(grouped_all)))
+        ax.set_xticklabels(grouped_all.index, rotation=45, ha="right", fontsize=12)
+
+    plt.tight_layout()
+    return fig, ax
+
+
+def plot_metric_heatmap(
+    df: pd.DataFrame,
+    row_col: str,
+    col_col: str,
+    metric_col: str,
+    annotate: bool = True,
+    figsize: tuple[float, float] = (10, 8),
+) -> tuple[plt.Figure, plt.Axes]:
+    """Plot 2D heatmap of metric across parameter combinations.
+
+    Handles: model size × PE; model size × norm policy; etc.
+    Style: Color-coded cells with numeric values displayed.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame with columns row_col, col_col, metric_col
+    row_col : str
+        Column name for row axis (e.g., 'model_size')
+    col_col : str
+        Column name for column axis (e.g., 'positional', 'norm_policy')
+    metric_col : str
+        Column name for metric value
+    annotate : bool
+        If True, display numeric values on cells (default: True)
+    figsize : tuple[float, float]
+        Figure size (default: (10, 8))
+
+    Returns
+    -------
+    tuple[plt.Figure, plt.Axes]
+        Figure and axes objects
+    """
+    # Validate columns
+    required_cols = [row_col, col_col, metric_col]
+    missing_cols = [c for c in required_cols if c not in df.columns]
+    if missing_cols:
+        raise ValueError(f"Missing required columns: {missing_cols}")
+
+    # Filter out NaN values
+    plot_df = df.dropna(subset=required_cols).copy()
+
+    if len(plot_df) == 0:
+        raise ValueError("No valid data after filtering NaN values")
+
+    # Create pivot table (mean aggregation)
+    pivot = plot_df.pivot_table(
+        index=row_col,
+        columns=col_col,
+        values=metric_col,
+        aggfunc="mean",
+    )
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    # Plot heatmap
+    im = ax.imshow(pivot.values, aspect="auto", cmap="viridis", interpolation="nearest")
+
+    # Annotate cells with numeric values
+    if annotate:
+        for i in range(len(pivot.index)):
+            for j in range(len(pivot.columns)):
+                val = pivot.values[i, j]
+                if not np.isnan(val):
+                    # Choose text color based on cell value
+                    text_color = "white" if val < pivot.values[~np.isnan(pivot.values)].mean() else "black"
+                    ax.text(
+                        j,
+                        i,
+                        f"{val:.3f}",
+                        ha="center",
+                        va="center",
+                        color=text_color,
+                        fontsize=11,
+                        fontweight="bold",
+                    )
+
+    # Set ticks and labels
+    ax.set_xticks(range(len(pivot.columns)))
+    ax.set_xticklabels(pivot.columns, rotation=45, ha="right", fontsize=12)
+    ax.set_yticks(range(len(pivot.index)))
+    ax.set_yticklabels(pivot.index, fontsize=12)
+    ax.set_xlabel(f"{col_col.replace('_', ' ').title()}", fontsize=14)
+    ax.set_ylabel(f"{row_col.replace('_', ' ').title()}", fontsize=14)
+    ax.set_title(f"{metric_col.replace('_', ' ').title()} Heatmap", fontsize=16)
+
+    # Add colorbar
+    cbar = fig.colorbar(im, ax=ax)
+    cbar.set_label(f"{metric_col.replace('_', ' ').title()} [unitless]", fontsize=12)
+
+    plt.tight_layout()
+    return fig, ax
+
+
+def plot_epoch_curves_grouped(
+    df: pd.DataFrame,
+    group_col: str,
+    y_col: str,
+    x_col: str = "epoch",
+    show_individual: bool = True,
+    figsize: tuple[float, float] = (10, 8),
+) -> tuple[plt.Figure, plt.Axes]:
+    """Plot epoch curves grouped by a parameter.
+
+    Handles: val loss / val AUROC vs epoch, grouped by size / PE / norm.
+    Style: Mean line (thick, linewidth=2-3) with individual runs behind (alpha=0.15-0.3).
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Per-epoch DataFrame with columns x_col, group_col, y_col, and run_id/run_dir
+    x_col : str
+        Column name for x-axis (default: "epoch")
+    group_col : str
+        Column name to group by (e.g., 'model_size', 'positional', 'norm_policy')
+    y_col : str
+        Column name for y-axis metric (e.g., 'val_loss', 'val_auroc')
+    show_individual : bool
+        If True, show individual runs behind mean (default: True)
+    figsize : tuple[float, float]
+        Figure size (default: (10, 8))
+
+    Returns
+    -------
+    tuple[plt.Figure, plt.Axes]
+        Figure and axes objects
+    """
+    # Validate columns
+    required_cols = [x_col, group_col, y_col]
+    missing_cols = [c for c in required_cols if c not in df.columns]
+    if missing_cols:
+        raise ValueError(f"Missing required columns: {missing_cols}")
+
+    # Get run identifier column
+    run_id_col = "run_id" if "run_id" in df.columns else "run_dir"
+    if run_id_col not in df.columns:
+        raise ValueError("DataFrame must contain 'run_id' or 'run_dir' column")
+
+    # Filter out NaN values
+    plot_df = df.dropna(subset=required_cols).copy()
+
+    if len(plot_df) == 0:
+        raise ValueError("No valid data after filtering NaN values")
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    # Get distinct colors for groups
+    groups = sorted(plot_df[group_col].unique())
+    colors = plt.cm.tab10(np.linspace(0, 1, len(groups)))
+    color_map = {g: colors[i] for i, g in enumerate(groups)}
+
+    for group_val in groups:
+        group_df = plot_df[plot_df[group_col] == group_val]
+
+        if len(group_df) == 0:
+            continue
+
+        color = color_map[group_val]
+
+        # Plot individual runs if requested
+        if show_individual:
+            for _run_id, run_data in group_df.groupby(run_id_col):
+                x_vals = run_data[x_col].values
+                y_vals = run_data[y_col].values
+                # Sort by x_col for proper line plotting
+                sort_idx = np.argsort(x_vals)
+                ax.plot(
+                    x_vals[sort_idx],
+                    y_vals[sort_idx],
+                    color=color,
+                    alpha=0.2,
+                    linewidth=1,
+                    zorder=1,
+                )
+
+        # Compute mean curve
+        # Group by x_col and compute mean/std
+        x_unique = sorted(group_df[x_col].unique())
+        y_means = []
+        y_stds = []
+
+        for x_val in x_unique:
+            subset = group_df[group_df[x_col] == x_val]
+            y_means.append(subset[y_col].mean())
+            y_stds.append(subset[y_col].std() if len(subset) > 1 else 0.0)
+
+        # Plot mean line
+        ax.plot(
+            x_unique,
+            y_means,
+            color=color,
+            linewidth=2.5,
+            marker="o",
+            markersize=6,
+            label=f"{group_val} (n={len(group_df[run_id_col].unique())})",
+            zorder=2,
+        )
+
+        # Add error band
+        if len(group_df) > 1:
+            ax.fill_between(
+                x_unique,
+                np.array(y_means) - np.array(y_stds),
+                np.array(y_means) + np.array(y_stds),
+                color=color,
+                alpha=0.15,
+                zorder=1,
+            )
+
+    # Formatting
+    ax.set_xlabel(f"{x_col.replace('_', ' ').title()} [#]", fontsize=14)
+    ax.set_ylabel(f"{y_col.replace('_', ' ').title()} [unitless]", fontsize=14)
+    ax.set_title(f"{y_col.replace('_', ' ').title()} vs {x_col.replace('_', ' ').title()}", fontsize=16)
+    ax.legend(fontsize=12)
+    ax.grid(alpha=0.3)
+
+    plt.tight_layout()
+    return fig, ax
+
+
+def plot_grouped_roc_curves(
+    df: pd.DataFrame,
+    group_col: str,
+    n_points: int = 500,
+    show_individual: bool = True,
+    figsize: tuple[float, float] = (10, 8),
+) -> tuple[plt.Figure, plt.Axes]:
+    """Plot ROC curves grouped by a parameter.
+
+    Handles: ROC grouped by PE, by norm policy, or top models.
+    Style: Mean curve (thick, linewidth=2-3) with individual curves behind (alpha=0.15-0.3).
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame with columns group_col, run_id, and 'fpr'/'tpr' columns (or 'roc_curve' dict column)
+    group_col : str
+        Column name to group by (e.g., 'positional', 'norm_policy')
+    n_points : int
+        Number of points for downsampling ROC curves (default: 500)
+    show_individual : bool
+        If True, show individual curves behind mean (default: True)
+    figsize : tuple[float, float]
+        Figure size (default: (10, 8))
+
+    Returns
+    -------
+    tuple[plt.Figure, plt.Axes]
+        Figure and axes objects
+    """
+    # Validate columns
+    if group_col not in df.columns:
+        raise ValueError(f"Column '{group_col}' not found in DataFrame")
+
+    # Check for ROC curve data
+    has_fpr_tpr = "fpr" in df.columns and "tpr" in df.columns
+    has_roc_dict = "roc_curve" in df.columns
+
+    if not (has_fpr_tpr or has_roc_dict):
+        raise ValueError("DataFrame must contain either ('fpr', 'tpr') columns or 'roc_curve' dict column")
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    # Get distinct colors for groups
+    groups = sorted(df[group_col].dropna().unique())
+    colors = plt.cm.tab10(np.linspace(0, 1, len(groups)))
+    color_map = {g: colors[i] for i, g in enumerate(groups)}
+
+    for group_val in groups:
+        group_df = df[df[group_col] == group_val]
+
+        if len(group_df) == 0:
+            continue
+
+        color = color_map[group_val]
+        all_fprs = []
+        all_tprs = []
+
+        # Extract ROC curves
+        for _, row in group_df.iterrows():
+            if has_roc_dict:
+                roc_curve = row["roc_curve"]
+                if isinstance(roc_curve, dict):
+                    fpr = np.array(roc_curve.get("fpr", []))
+                    tpr = np.array(roc_curve.get("tpr", []))
+                else:
+                    continue
+            else:
+                fpr = np.array(row["fpr"])
+                tpr = np.array(row["tpr"])
+
+            if len(fpr) == 0 or len(tpr) == 0:
+                continue
+
+            # Downsample if needed
+            if len(fpr) > n_points:
+                indices = np.linspace(0, len(fpr) - 1, n_points, dtype=int)
+                fpr = fpr[indices]
+                tpr = tpr[indices]
+
+            all_fprs.append(fpr)
+            all_tprs.append(tpr)
+
+            # Plot individual curve if requested
+            if show_individual:
+                ax.plot(
+                    fpr,
+                    tpr,
+                    color=color,
+                    alpha=0.2,
+                    linewidth=1,
+                    zorder=1,
+                )
+
+        if len(all_fprs) == 0:
+            continue
+
+        # Compute mean curve
+        # Interpolate all curves to common FPR points
+        fpr_common = np.linspace(0, 1, n_points)
+        tpr_interp = []
+
+        for fpr, tpr in zip(all_fprs, all_tprs, strict=False):
+            # Remove duplicates in FPR (keep last)
+            unique_idx = np.unique(fpr, return_index=True)[1]
+            fpr_unique = fpr[unique_idx]
+            tpr_unique = tpr[unique_idx]
+            # Interpolate
+            tpr_interp.append(np.interp(fpr_common, fpr_unique, tpr_unique))
+
+        tpr_mean = np.mean(tpr_interp, axis=0)
+        tpr_std = np.std(tpr_interp, axis=0) if len(tpr_interp) > 1 else np.zeros_like(tpr_mean)
+
+        # Plot mean curve
+        ax.plot(
+            fpr_common,
+            tpr_mean,
+            color=color,
+            linewidth=2.5,
+            label=f"{group_val} (n={len(all_fprs)})",
+            zorder=2,
+        )
+
+        # Add error band
+        if len(all_fprs) > 1:
+            ax.fill_between(
+                fpr_common,
+                tpr_mean - tpr_std,
+                tpr_mean + tpr_std,
+                color=color,
+                alpha=0.15,
+                zorder=1,
+            )
+
+    # Diagonal reference line (random classifier)
+    ax.plot([0, 1], [0, 1], "k--", linewidth=1, alpha=0.5, label="Random (0.5)", zorder=0)
+
+    ax.set_xlabel("False Positive Rate [unitless]", fontsize=14)
+    ax.set_ylabel("True Positive Rate [unitless]", fontsize=14)
+    ax.set_title("ROC Curves", fontsize=16)
+    ax.legend(fontsize=12)
+    ax.grid(alpha=0.3)
+    ax.set_xlim([0, 1])
+    ax.set_ylim([0, 1])
+
+    plt.tight_layout()
+    return fig, ax
+
+
+def plot_grouped_bars(
+    df: pd.DataFrame,
+    group_col: str,
+    metric_col: str,
+    show_points: bool = True,
+    error_bars: bool = True,
+    figsize: tuple[float, float] = (10, 6),
+) -> tuple[plt.Figure, plt.Axes]:
+    """Plot grouped bar chart comparing metrics.
+
+    Handles: AUROC vs PE; AUROC vs norm; AUROC vs mask; etc.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame with columns group_col, metric_col
+    group_col : str
+        Column name to group by (e.g., 'positional', 'norm_policy')
+    metric_col : str
+        Column name for metric value
+    show_points : bool
+        If True, show individual data points (default: True)
+    error_bars : bool
+        If True, show error bars (std) (default: True)
+    figsize : tuple[float, float]
+        Figure size (default: (10, 6))
+
+    Returns
+    -------
+    tuple[plt.Figure, plt.Axes]
+        Figure and axes objects
+    """
+    # Validate columns
+    required_cols = [group_col, metric_col]
+    missing_cols = [c for c in required_cols if c not in df.columns]
+    if missing_cols:
+        raise ValueError(f"Missing required columns: {missing_cols}")
+
+    # Filter out NaN values
+    plot_df = df.dropna(subset=required_cols).copy()
+
+    if len(plot_df) == 0:
+        raise ValueError("No valid data after filtering NaN values")
+
+    # Group and aggregate
+    grouped = plot_df.groupby(group_col)[metric_col].agg(["mean", "std", "count"])
+
+    groups = grouped.index.tolist()
+    means = grouped["mean"].values
+    stds = grouped["std"].fillna(0.0).values
+    counts = grouped["count"].values
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    x_pos = np.arange(len(groups))
+    width = 0.6
+
+    # Plot bars
+    ax.bar(
+        x_pos,
+        means,
+        width,
+        yerr=stds if error_bars and len(plot_df) > 1 else None,
+        capsize=5,
+        alpha=0.7,
+        color="steelblue",
+        edgecolor="black",
+        zorder=2,
+    )
+
+    # Show individual points if requested
+    if show_points:
+        for i, group_val in enumerate(groups):
+            group_data = plot_df[plot_df[group_col] == group_val][metric_col].values
+            x_jitter = np.random.normal(i, 0.05, len(group_data))
+            ax.scatter(
+                x_jitter,
+                group_data,
+                color="black",
+                alpha=0.3,
+                s=20,
+                zorder=3,
+            )
+
+    # Add value labels on bars
+    for i, (mean, std, count) in enumerate(zip(means, stds, counts, strict=False)):
+        label_y = mean + std + 0.01 if error_bars else mean + 0.01
+        ax.text(
+            i,
+            label_y,
+            f"{mean:.3f}\n(n={int(count)})",
+            ha="center",
+            va="bottom",
+            fontsize=10,
+        )
+
+    ax.set_xlabel(f"{group_col.replace('_', ' ').title()}", fontsize=14)
+    ax.set_ylabel(f"{metric_col.replace('_', ' ').title()} [unitless]", fontsize=14)
+    ax.set_title(f"{metric_col.replace('_', ' ').title()} by {group_col.replace('_', ' ').title()}", fontsize=16)
+    ax.set_xticks(x_pos)
+    ax.set_xticklabels([str(g) for g in groups], rotation=45, ha="right", fontsize=12)
+    ax.grid(axis="y", alpha=0.3)
+
+    plt.tight_layout()
+    return fig, ax
+
+
+def plot_score_distributions_df(
+    df: pd.DataFrame,
+    layout: str = "single",
+    group_col: str | None = None,
+    signal_class_idx: int = 1,
+    figsize: tuple[float, float] | None = None,
+) -> tuple[plt.Figure, plt.Axes] | list[tuple[plt.Figure, plt.Axes]]:
+    """Plot score distributions from DataFrame (DataFrame-based API).
+
+    Extends existing function to support grid layout.
+    Grid style: Clean, small subplots arranged in grid.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame with columns 'run_id' (or 'run_dir'), 'per_event_scores', 'per_event_labels'
+        OR flattened columns: 'scores', 'labels' per run
+    layout : str
+        Layout style: "single" or "grid" (default: "single")
+    group_col : str | None
+        Optional column to group by for grid layout (default: None)
+    signal_class_idx : int
+        Which class index represents signal (default: 1)
+    figsize : tuple[float, float] | None
+        Figure size (default: None, auto-determined)
+
+    Returns
+    -------
+    tuple[plt.Figure, plt.Axes] | list[tuple[plt.Figure, plt.Axes]]
+        Single figure/axes for "single" layout, or list for "grid" layout
+    """
+
+    # Get run identifier
+    run_id_col = "run_id" if "run_id" in df.columns else "run_dir"
+    if run_id_col not in df.columns:
+        raise ValueError("DataFrame must contain 'run_id' or 'run_dir' column")
+
+    # Check for score/label columns
+    has_per_event = "per_event_scores" in df.columns and "per_event_labels" in df.columns
+    has_flat = "scores" in df.columns and "labels" in df.columns
+
+    if not (has_per_event or has_flat):
+        raise ValueError("DataFrame must contain ('per_event_scores', 'per_event_labels') or ('scores', 'labels') columns")
+
+    if layout == "single":
+        # Single plot - plot all runs on one figure
+        if figsize is None:
+            figsize = (10, 6)
+
+        fig, ax = plt.subplots(figsize=figsize)
+
+        for run_id, run_data in df.groupby(run_id_col):
+            if has_per_event:
+                scores = np.array(run_data["per_event_scores"].iloc[0])
+                labels = np.array(run_data["per_event_labels"].iloc[0])
+            else:
+                scores = np.array(run_data["scores"].values)
+                labels = np.array(run_data["labels"].values)
+
+            if len(scores) == 0 or len(labels) == 0:
+                continue
+
+            signal_scores = scores[labels == signal_class_idx]
+            background_scores = scores[labels != signal_class_idx]
+
+            if len(signal_scores) == 0 or len(background_scores) == 0:
+                continue
+
+            # Get class names
+            unique_labels = np.unique(labels)
+            background_class_idx = unique_labels[unique_labels != signal_class_idx][0] if len(unique_labels) > 1 else None
+            signal_name, background_name = _get_class_names(signal_class_idx, background_class_idx)
+
+            # Compute bins
+            score_min = min(scores.min(), background_scores.min(), signal_scores.min())
+            score_max = max(scores.max(), background_scores.max(), signal_scores.max())
+            bins = np.linspace(score_min, score_max, 50)
+
+            # Compute normalized histograms
+            bg_counts, bg_edges = np.histogram(background_scores, bins=bins)
+            sig_counts, sig_edges = np.histogram(signal_scores, bins=bins)
+
+            bg_normalized = bg_counts / len(background_scores)
+            sig_normalized = sig_counts / len(signal_scores)
+
+            # Plot
+            ax.step(
+                bg_edges[:-1],
+                bg_normalized,
+                where="post",
+                label=f"{run_id} - {background_name}",
+                linewidth=1.5,
+                alpha=0.6,
+            )
+            ax.step(
+                sig_edges[:-1],
+                sig_normalized,
+                where="post",
+                label=f"{run_id} - {signal_name}",
+                linewidth=1.5,
+                alpha=0.6,
+            )
+
+        ax.set_xlabel("Classifier Score (p(signal | event)) [probability]", fontsize=14)
+        ax.set_ylabel("bin count / N [unitless]", fontsize=14)
+        ax.set_title("Score Distributions", fontsize=16)
+        ax.legend(fontsize=10)
+        ax.grid(alpha=0.3)
+
+        plt.tight_layout()
+        return fig, ax
+
+    else:  # grid layout
+        # Determine grid size
+        if group_col:
+            groups = sorted(df[group_col].dropna().unique())
+            n_plots = len(groups)
+        else:
+            groups = df[run_id_col].unique()
+            n_plots = len(groups)
+
+        if n_plots == 0:
+            raise ValueError("No valid groups found for grid layout")
+
+        # Calculate grid dimensions
+        n_cols = min(4, n_plots)
+        n_rows = (n_plots + n_cols - 1) // n_cols
+
+        if figsize is None:
+            figsize = (4 * n_cols, 3 * n_rows)
+
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize, squeeze=False)
+        axes_flat = axes.flatten()
+
+        plot_idx = 0
+        for group_val in groups:
+            if plot_idx >= len(axes_flat):
+                break
+
+            ax = axes_flat[plot_idx]
+
+            group_df = df[df[group_col] == group_val] if group_col else df[df[run_id_col] == group_val].head(1)
+
+            if len(group_df) == 0:
+                plot_idx += 1
+                continue
+
+            # Get first run's data
+            run_data = group_df.iloc[0]
+
+            if has_per_event:
+                scores = np.array(run_data["per_event_scores"])
+                labels = np.array(run_data["per_event_labels"])
+            else:
+                # For flat format, need to get all rows for this run
+                run_df = df[df[group_col] == group_val] if group_col else df[df[run_id_col] == run_data[run_id_col]]
+                scores = np.array(run_df["scores"].values)
+                labels = np.array(run_df["labels"].values)
+
+            if len(scores) == 0 or len(labels) == 0:
+                plot_idx += 1
+                continue
+
+            signal_scores = scores[labels == signal_class_idx]
+            background_scores = scores[labels != signal_class_idx]
+
+            if len(signal_scores) == 0 or len(background_scores) == 0:
+                plot_idx += 1
+                continue
+
+            # Get class names
+            unique_labels = np.unique(labels)
+            background_class_idx = unique_labels[unique_labels != signal_class_idx][0] if len(unique_labels) > 1 else None
+            signal_name, background_name = _get_class_names(signal_class_idx, background_class_idx)
+
+            # Compute bins
+            score_min = min(scores.min(), background_scores.min(), signal_scores.min())
+            score_max = max(scores.max(), background_scores.max(), signal_scores.max())
+            bins = np.linspace(score_min, score_max, 30)  # Fewer bins for small subplots
+
+            # Compute normalized histograms
+            bg_counts, bg_edges = np.histogram(background_scores, bins=bins)
+            sig_counts, sig_edges = np.histogram(signal_scores, bins=bins)
+
+            bg_normalized = bg_counts / len(background_scores)
+            sig_normalized = sig_counts / len(signal_scores)
+
+            # Plot
+            ax.step(
+                bg_edges[:-1],
+                bg_normalized,
+                where="post",
+                label=background_name,
+                color="#1f77b4",
+                linewidth=1.5,
+                alpha=0.8,
+            )
+            ax.step(
+                sig_edges[:-1],
+                sig_normalized,
+                where="post",
+                label=signal_name,
+                color="#ff7f0e",
+                linewidth=1.5,
+                alpha=0.8,
+            )
+
+            # Title
+            title = str(group_val) if group_col else str(run_data[run_id_col])
+            ax.set_title(title, fontsize=11)
+            ax.set_xlabel("Score [probability]", fontsize=9)
+            ax.set_ylabel("Density [unitless]", fontsize=9)
+            ax.legend(fontsize=8)
+            ax.grid(alpha=0.3)
+
+            plot_idx += 1
+
+        # Hide unused subplots
+        for i in range(plot_idx, len(axes_flat)):
+            axes_flat[i].axis("off")
+
+        plt.tight_layout()
+        return fig, axes

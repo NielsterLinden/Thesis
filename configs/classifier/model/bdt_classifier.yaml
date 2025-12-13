@@ -1,0 +1,37 @@
+# @package _global_
+# BDT (Boosted Decision Tree) classifier model configuration using XGBoost
+
+classifier:
+  model:
+    # Number of boosting rounds (trees)
+    n_estimators: 100
+
+    # Maximum tree depth
+    max_depth: 6
+
+    # Boosting learning rate
+    learning_rate: 0.1
+
+    # Subsample ratio of training instances
+    subsample: 0.8
+
+    # Subsample ratio of columns when constructing each tree
+    colsample_bytree: 0.8
+
+    # Minimum sum of instance weight needed in a child
+    min_child_weight: 1
+
+    # Minimum loss reduction required to make a split
+    gamma: 0.0
+
+    # L1 regularization term on weights
+    reg_alpha: 0.0
+
+    # L2 regularization term on weights
+    reg_lambda: 1.0
+
+    # Number of parallel threads (-1 for all)
+    n_jobs: -1
+
+    # Whether to use GPU acceleration (if available)
+    use_gpu: false
