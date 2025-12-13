@@ -191,7 +191,14 @@ class BDTClassifier:
         path : str
             Path to save model (will use .json format)
         """
-        self.model.save_model(path)
+        # Prefer sklearn API, but fall back to raw Booster on older/newer xgboost combos
+        try:
+            self.model.save_model(path)  # xgboost>=1.6
+        except Exception:
+            booster = getattr(self.model, "get_booster", None)
+            if booster is None:
+                raise
+            booster().save_model(path)
 
     def load(self, path: str) -> BDTClassifier:
         """Load model from file.
@@ -206,6 +213,7 @@ class BDTClassifier:
         BDTClassifier
             Loaded model (self)
         """
+        # Use sklearn API (handles estimator metadata)
         self.model.load_model(path)
         self._is_fitted = True
         return self
