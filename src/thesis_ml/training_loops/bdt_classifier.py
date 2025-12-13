@@ -241,13 +241,71 @@ def train(cfg: DictConfig) -> dict:
     model.fit(
         X_train,
         y_train,
-        eval_set=[(X_val, y_val)],
+        # Log both train and validation to obtain per-round curves
+        eval_set=[(X_train, y_train), (X_val, y_val)],
         early_stopping_rounds=early_stopping_rounds,
         verbose=True,
     )
 
     training_time = time.time() - training_start
     print(f"Training completed in {training_time:.2f}s")
+
+    # Extract per-iteration metrics from XGBoost (if available)
+    evals_result: dict[str, dict[str, list[float]]] | None = None
+    try:
+        # sklearn API exposes evals_result() directly
+        evals_result = model.model.evals_result()
+    except Exception:
+        try:
+            evals_result = model.model.get_booster().evals_result()
+        except Exception:
+            evals_result = None
+
+    # Prepare histories for plotting like epochs (boosting rounds ~ epochs)
+    histories = {
+        "train_loss": [],
+        "val_loss": [],
+        "train_acc": [],
+        "val_acc": [],
+        "train_f1": [],
+        "val_f1": [],
+        "train_auroc": [],
+        "val_auroc": [],
+    }
+
+    if evals_result is not None:
+        # Names are 'validation_0' (train), 'validation_1' (val) by sklearn convention
+        train_key = "validation_0"
+        val_key = "validation_1" if "validation_1" in evals_result else "validation_0"
+
+        train_loss_curve = evals_result.get(train_key, {}).get("logloss", [])
+        val_loss_curve = evals_result.get(val_key, {}).get("logloss", [])
+        # AUROC only for binary config (we enabled it in model params)
+        train_auc_curve = evals_result.get(train_key, {}).get("auc", [])
+        val_auc_curve = evals_result.get(val_key, {}).get("auc", [])
+
+        # Populate histories
+        histories["train_loss"] = list(train_loss_curve)
+        histories["val_loss"] = list(val_loss_curve)
+        histories["train_auroc"] = list(train_auc_curve) if train_auc_curve else []
+        histories["val_auroc"] = list(val_auc_curve) if val_auc_curve else []
+
+        # Also append scalars.csv per iteration to mimic epoch logging
+        if outdir and cfg.logging.save_artifacts and val_loss_curve:
+            for i in range(len(val_loss_curve)):
+                append_scalars_csv(
+                    str(outdir),
+                    epoch=i,
+                    split="val",
+                    train_loss=float(train_loss_curve[i]) if i < len(train_loss_curve) else None,
+                    val_loss=float(val_loss_curve[i]),
+                    metrics={
+                        "auroc": float(val_auc_curve[i]) if i < len(val_auc_curve) else None,
+                    },
+                    epoch_time_s=None,
+                    throughput=None,
+                    max_memory_mib=None,
+                )
 
     # Evaluate on validation set
     y_val_pred = model.predict(X_val)
@@ -288,49 +346,37 @@ def train(cfg: DictConfig) -> dict:
         # Save test scores
         _save_split_scores(y_test, y_test_proba, outdir, split="test")
 
-        # Create fake "epoch 0" event for compatibility with analysis scripts
-        histories = {
-            "train_loss": [0.0],  # BDT doesn't have epoch-wise training loss
-            "val_loss": [val_loss],
-            "train_acc": [0.0],
-            "val_acc": [val_metrics["acc"]],
-            "train_f1": [0.0],
-            "val_f1": [val_metrics["f1"]],
-            "train_auroc": [0.0],
-            "val_auroc": [val_metrics["auroc"]],
-        }
+        # If we did not manage to get per-iteration curves, at least log a single point
+        if not histories["val_loss"]:
+            histories = {
+                "train_loss": [0.0],
+                "val_loss": [val_loss],
+                "train_acc": [0.0],
+                "val_acc": [val_metrics["acc"]],
+                "train_f1": [0.0],
+                "val_f1": [val_metrics["f1"]],
+                "train_auroc": [0.0],
+                "val_auroc": [val_metrics["auroc"]],
+            }
 
+        # Emit a final on_epoch_end payload carrying full histories (so reports can see the curves)
+        final_epoch = len(histories["val_loss"]) - 1 if histories["val_loss"] else 0
         payload = build_event_payload(
             moment="on_epoch_end",
             run_dir=outdir,
-            epoch=0,
-            train_loss=0.0,
-            val_loss=val_loss,
+            epoch=final_epoch,
+            train_loss=histories["train_loss"][final_epoch] if histories["train_loss"] else 0.0,
+            val_loss=histories["val_loss"][final_epoch] if histories["val_loss"] else val_loss,
             metrics={
                 "acc": val_metrics["acc"],
                 "f1": val_metrics["f1"],
-                "auroc": val_metrics["auroc"],
+                "auroc": histories["val_auroc"][final_epoch] if histories["val_auroc"] else val_metrics["auroc"],
             },
             histories=histories,
             epoch_time_s=training_time,
             cfg=cfg,
         )
         append_jsonl_event(str(outdir), payload)
-        append_scalars_csv(
-            str(outdir),
-            epoch=0,
-            split="val",
-            train_loss=0.0,
-            val_loss=val_loss,
-            metrics={
-                "acc": val_metrics["acc"],
-                "f1": val_metrics["f1"],
-                "auroc": val_metrics["auroc"],
-            },
-            epoch_time_s=training_time,
-            throughput=None,
-            max_memory_mib=None,
-        )
         handle_event(cfg.logging, SUPPORTED_PLOT_FAMILIES, "on_epoch_end", payload)
 
         # on_train_end

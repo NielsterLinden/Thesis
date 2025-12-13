@@ -75,7 +75,8 @@ class BDTClassifier:
         # Determine objective based on number of classes
         if n_classes == 2:
             objective = "binary:logistic"
-            eval_metric = "logloss"
+            # Track both loss and AUROC per boosting round for plotting
+            eval_metric = ["logloss", "auc"]
         else:
             objective = "multi:softprob"
             eval_metric = "mlogloss"
