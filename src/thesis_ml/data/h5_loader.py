@@ -240,6 +240,87 @@ def _parse_selected_labels(selected_labels):
     raise TypeError(f"selected_labels must be list, tuple, ListConfig, int, float, or string, got {type(selected_labels)}")
 
 
+def _normalize_label_groups(cfg) -> tuple[list[dict], dict[int, int], list[int]]:
+    """Normalize label configuration to label_groups format.
+
+    Converts any of the three input formats (label_groups, signal_vs_background, selected_labels)
+    into a unified label_groups structure. This is the single canonical mechanism for label mapping.
+
+    Parameters
+    ----------
+    cfg : DictConfig
+        Configuration with data.classifier.* keys
+
+    Returns
+    -------
+    tuple[list[dict], dict[int, int], list[int]]
+        - label_groups: List of {name: str, labels: list[int]} dicts
+        - label_map: Dict mapping original label -> class index (0-indexed)
+        - selected_labels: Union of all labels from all groups (for data filtering)
+    """
+    classifier_cfg = cfg.data.classifier
+
+    # Priority 1: Use label_groups if explicitly provided
+    if "label_groups" in classifier_cfg and classifier_cfg.label_groups is not None:
+        label_groups_raw = classifier_cfg.label_groups
+        label_groups = []
+        label_map = {}
+        selected_labels_set = set()
+
+        for class_idx, group in enumerate(label_groups_raw):
+            name = group.get("name", f"Class-{class_idx}")
+            labels_raw = group.get("labels", [])
+            labels = sorted(_parse_selected_labels(labels_raw))
+            label_groups.append({"name": name, "labels": labels})
+            # Map each label in this group to the class index
+            for label in labels:
+                if label in label_map:
+                    raise ValueError(f"Label {label} appears in multiple groups")
+                label_map[label] = class_idx
+                selected_labels_set.add(label)
+
+        selected_labels = sorted(selected_labels_set)
+        return label_groups, label_map, selected_labels
+
+    # Priority 2: Convert signal_vs_background to binary label_groups
+    signal_vs_bg = classifier_cfg.get("signal_vs_background", None)
+    if signal_vs_bg is not None:
+        signal_label = int(signal_vs_bg.get("signal"))
+        bg_labels_raw = signal_vs_bg.get("background", [])
+        background_labels = sorted(_parse_selected_labels(bg_labels_raw))
+
+        # Ensure signal label is not in background labels
+        if signal_label in background_labels:
+            raise ValueError(f"Signal label {signal_label} cannot be in background labels {background_labels}")
+
+        # Create binary label_groups: background (class 0) → signal (class 1)
+        label_groups = [
+            {"name": "background", "labels": background_labels},
+            {"name": "signal", "labels": [signal_label]},
+        ]
+        label_map = {signal_label: 1}
+        for bg_label in background_labels:
+            label_map[bg_label] = 0
+        selected_labels = sorted([signal_label] + background_labels)
+        return label_groups, label_map, selected_labels
+
+    # Priority 3: Convert selected_labels to one group per label
+    selected_labels_raw = classifier_cfg.get("selected_labels", [1, 2])
+    selected_labels = sorted(_parse_selected_labels(selected_labels_raw))
+
+    # Default ProcessID to name mapping
+    process_id_names = {1: "4t", 2: "ttH", 3: "ttW", 4: "ttWW", 5: "ttZ"}
+
+    label_groups = []
+    label_map = {}
+    for class_idx, label in enumerate(selected_labels):
+        name = process_id_names.get(label, f"Class-{label}")
+        label_groups.append({"name": name, "labels": [label]})
+        label_map[label] = class_idx
+
+    return label_groups, label_map, selected_labels
+
+
 class H5ClassificationDataset(Dataset):
     """H5 dataset for classification with label filtering and masking."""
 
@@ -247,34 +328,12 @@ class H5ClassificationDataset(Dataset):
         self.cfg = cfg
         self.T = int(cfg.data.n_tokens)  # 18
 
-        # Check for signal vs background mode
-        signal_vs_bg = cfg.data.classifier.get("signal_vs_background", None)
-
-        if signal_vs_bg is not None:
-            # Signal vs background mode: signal → class 1, background → class 0
-            self.signal_vs_background_mode = True
-            self.signal_label = int(signal_vs_bg.get("signal"))
-            bg_labels_raw = signal_vs_bg.get("background", [])
-            # Parse background labels (could be list, ListConfig, or string)
-            self.background_labels = sorted(_parse_selected_labels(bg_labels_raw))
-            # Ensure signal label is not in background labels
-            if self.signal_label in self.background_labels:
-                raise ValueError(f"Signal label {self.signal_label} cannot be in background labels {self.background_labels}")
-            # All labels to include: signal + background
-            self.selected_labels = sorted([self.signal_label] + self.background_labels)
-            self.n_classes = 2  # Binary classification
-            # Create label mapping: signal → 1, any background → 0
-            self.label_map = {self.signal_label: 1}
-            for bg_label in self.background_labels:
-                self.label_map[bg_label] = 0
-        else:
-            # Standard mode: 1-to-1 label mapping
-            self.signal_vs_background_mode = False
-            selected_labels = cfg.data.classifier.get("selected_labels", [1, 2])
-            self.selected_labels = sorted(_parse_selected_labels(selected_labels))
-            self.n_classes = len(self.selected_labels)
-            # Create label mapping: {original_label: 0_indexed_label}
-            self.label_map = {orig: idx for idx, orig in enumerate(self.selected_labels)}
+        # Normalize label configuration to unified label_groups format
+        label_groups, label_map, selected_labels = _normalize_label_groups(cfg)
+        self.label_groups = label_groups
+        self.label_map = label_map
+        self.selected_labels = selected_labels
+        self.n_classes = len(label_groups)
 
         # Load data and labels
         with h5py.File(to_absolute_path(str(cfg.data.path)), "r") as f:
@@ -396,33 +455,12 @@ class H5BinnedClassificationDataset(Dataset):
         self.cfg = cfg
         self.T = int(cfg.data.n_tokens)  # 18
 
-        # Check for signal vs background mode
-        signal_vs_bg = cfg.data.classifier.get("signal_vs_background", None)
-
-        if signal_vs_bg is not None:
-            # Signal vs background mode: signal → class 1, background → class 0
-            self.signal_vs_background_mode = True
-            self.signal_label = int(signal_vs_bg.get("signal"))
-            bg_labels_raw = signal_vs_bg.get("background", [])
-            # Parse background labels (could be list, ListConfig, or string)
-            self.background_labels = sorted(_parse_selected_labels(bg_labels_raw))
-            # Ensure signal label is not in background labels
-            if self.signal_label in self.background_labels:
-                raise ValueError(f"Signal label {self.signal_label} cannot be in background labels {self.background_labels}")
-            # All labels to include: signal + background
-            self.selected_labels = sorted([self.signal_label] + self.background_labels)
-            self.n_classes = 2  # Binary classification
-            # Create label mapping: signal → 1, any background → 0
-            self.label_map = {self.signal_label: 1}
-            for bg_label in self.background_labels:
-                self.label_map[bg_label] = 0
-        else:
-            # Standard mode: 1-to-1 label mapping
-            self.signal_vs_background_mode = False
-            selected_labels = cfg.data.classifier.get("selected_labels", [1, 2])
-            self.selected_labels = sorted(_parse_selected_labels(selected_labels))
-            self.n_classes = len(self.selected_labels)
-            self.label_map = {orig: idx for idx, orig in enumerate(self.selected_labels)}
+        # Normalize label configuration to unified label_groups format
+        label_groups, label_map, selected_labels = _normalize_label_groups(cfg)
+        self.label_groups = label_groups
+        self.label_map = label_map
+        self.selected_labels = selected_labels
+        self.n_classes = len(label_groups)
 
         # Load binned token data
         with h5py.File(to_absolute_path(str(cfg.data.path)), "r") as f:

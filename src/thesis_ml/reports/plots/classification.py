@@ -51,43 +51,68 @@ def _sort_run_ids_numerically(run_ids: list[str]) -> list[str]:
     return sorted(run_ids, key=lambda rid: (_extract_job_number(rid), rid))
 
 
-def _get_class_names(signal_class_idx: int, background_class_idx: int | None = None) -> tuple[str, str]:
-    """Get class names for signal and background.
+def _get_class_names(n_classes: int, label_groups: list[dict] | None = None, signal_class_idx: int | None = None, background_class_idx: int | None = None) -> list[str]:
+    """Get class names for multi-class classification.
 
-    Default mapping based on ProcessIDs:
-    - ProcessID 1 → "4t" (signal)
-    - ProcessID 2 → "ttH" (background)
+    Supports both multi-class and binary classification. If label_groups is provided,
+    uses names from the groups. Otherwise, falls back to ProcessID-based names.
 
     Parameters
     ----------
-    signal_class_idx : int
-        Class index for signal (0-indexed)
+    n_classes : int
+        Number of classes
+    label_groups : list[dict] | None
+        Optional list of label groups with 'name' and 'labels' keys.
+        If provided, class names are taken from group names.
+    signal_class_idx : int | None
+        For backward compatibility: class index for signal (0-indexed).
+        Only used if n_classes=2 and label_groups is None.
     background_class_idx : int | None
-        Class index for background (0-indexed), if None uses the other class
+        For backward compatibility: class index for background (0-indexed).
+        Only used if n_classes=2 and label_groups is None.
 
     Returns
     -------
-    tuple[str, str]
-        (signal_name, background_name)
+    list[str]
+        List of class names (one per class, in order)
     """
-    # Default mapping: ProcessID 1 → "4t", ProcessID 2 → "ttH"
-    # Note: signal_class_idx is 0-indexed, but ProcessIDs are 1-indexed
-    # For binary classification with selected_labels=[1, 2]:
-    #   - signal_class_idx=1 maps to ProcessID 2 → "ttH"
-    #   - signal_class_idx=0 maps to ProcessID 1 → "4t"
+    # If label_groups provided, use names from groups
+    if label_groups is not None:
+        if len(label_groups) != n_classes:
+            logger.warning(f"label_groups length ({len(label_groups)}) != n_classes ({n_classes}), using fallback names")
+        else:
+            return [group.get("name", f"Class-{i}") for i, group in enumerate(label_groups)]
 
-    # Common mapping: 0 → "4t", 1 → "ttH"
-    class_name_map = {0: "4t", 1: "ttH"}
+    # Fallback: ProcessID-based names
+    # Default mapping: ProcessID 1 → "4t", 2 → "ttH", 3 → "ttW", 4 → "ttWW", 5 → "ttZ"
+    process_id_names = {1: "4t", 2: "ttH", 3: "ttW", 4: "ttWW", 5: "ttZ"}
 
-    signal_name = class_name_map.get(signal_class_idx, f"Signal-{signal_class_idx}")
+    # For binary classification with backward compatibility
+    if n_classes == 2:
+        if signal_class_idx is not None:
+            # Legacy binary mode: use signal/background names
+            class_name_map = {0: "4t", 1: "ttH"}
+            signal_name = class_name_map.get(signal_class_idx, f"Signal-{signal_class_idx}")
+            if background_class_idx is None:
+                background_class_idx = 1 - signal_class_idx if signal_class_idx < 2 else 0
+            background_name = class_name_map.get(background_class_idx, f"Background-{background_class_idx}")
+            # Return in class index order
+            if signal_class_idx == 0:
+                return [signal_name, background_name]
+            else:
+                return [background_name, signal_name]
+        else:
+            # Default binary names
+            return ["4t", "ttH"]
 
-    if background_class_idx is None:
-        # Use the other class
-        background_class_idx = 1 - signal_class_idx if signal_class_idx < 2 else 0
+    # Multi-class: use ProcessID-based names for first n_classes ProcessIDs
+    class_names = []
+    for i in range(n_classes):
+        process_id = i + 1  # ProcessIDs are 1-indexed
+        name = process_id_names.get(process_id, f"Class-{i}")
+        class_names.append(name)
 
-    background_name = class_name_map.get(background_class_idx, f"Background-{background_class_idx}")
-
-    return signal_name, background_name
+    return class_names
 
 
 def plot_roc_curves(
@@ -192,6 +217,10 @@ def plot_confusion_matrix(
         cm = np.array(cm_normalized)
         n_classes = cm.shape[0]
 
+        # Get class names from label_groups if available, otherwise use defaults
+        label_groups = metrics.get("label_groups", None)
+        class_names = _get_class_names(n_classes=n_classes, label_groups=label_groups)
+
         fig, ax = plt.subplots(figsize=(8, 6))
         # Set colorbar limits to [0, 1] for normalized confusion matrix
         im = ax.imshow(cm, interpolation="nearest", cmap=plt.cm.Blues, vmin=0, vmax=1)
@@ -201,6 +230,8 @@ def plot_confusion_matrix(
         ax.set(
             xticks=np.arange(n_classes),
             yticks=np.arange(n_classes),
+            xticklabels=class_names,
+            yticklabels=class_names,
             xlabel="Predicted",
             ylabel="True",
             title=f"Confusion Matrix: {run_id}",
@@ -208,6 +239,9 @@ def plot_confusion_matrix(
         ax.set_xlabel("Predicted", fontsize=14)
         ax.set_ylabel("True", fontsize=14)
         ax.set_title(f"Confusion Matrix: {run_id}", fontsize=16)
+
+        # Rotate x-axis labels if needed
+        plt.setp(ax.get_xticklabels(), rotation=45, ha="right")
 
         # Add text annotations
         thresh = cm.max() / 2.0
@@ -340,7 +374,11 @@ def plot_score_distributions(
         unique_labels = np.unique(labels)
         background_class_idx = unique_labels[unique_labels != signal_class_idx][0] if len(unique_labels) > 1 else None
 
-        signal_name, background_name = _get_class_names(signal_class_idx, background_class_idx)
+        # Get label_groups from metrics if available
+        label_groups = metrics.get("label_groups", None)
+        class_names = _get_class_names(n_classes=2, label_groups=label_groups, signal_class_idx=signal_class_idx, background_class_idx=background_class_idx)
+        signal_name = class_names[signal_class_idx]
+        background_name = class_names[background_class_idx] if background_class_idx is not None else class_names[1 - signal_class_idx]
 
         # Create figure matching anomaly detection style
         fig, ax = plt.subplots(figsize=(10, 6))
@@ -1323,7 +1361,9 @@ def plot_score_distributions_df(
             # Get class names
             unique_labels = np.unique(labels)
             background_class_idx = unique_labels[unique_labels != signal_class_idx][0] if len(unique_labels) > 1 else None
-            signal_name, background_name = _get_class_names(signal_class_idx, background_class_idx)
+            class_names = _get_class_names(n_classes=2, signal_class_idx=signal_class_idx, background_class_idx=background_class_idx)
+            signal_name = class_names[signal_class_idx]
+            background_name = class_names[background_class_idx] if background_class_idx is not None else class_names[1 - signal_class_idx]
 
             # Compute bins
             score_min = min(scores.min(), background_scores.min(), signal_scores.min())
@@ -1425,7 +1465,9 @@ def plot_score_distributions_df(
             # Get class names
             unique_labels = np.unique(labels)
             background_class_idx = unique_labels[unique_labels != signal_class_idx][0] if len(unique_labels) > 1 else None
-            signal_name, background_name = _get_class_names(signal_class_idx, background_class_idx)
+            class_names = _get_class_names(n_classes=2, signal_class_idx=signal_class_idx, background_class_idx=background_class_idx)
+            signal_name = class_names[signal_class_idx]
+            background_name = class_names[background_class_idx] if background_class_idx is not None else class_names[1 - signal_class_idx]
 
             # Compute bins
             score_min = min(scores.min(), background_scores.min(), signal_scores.min())
