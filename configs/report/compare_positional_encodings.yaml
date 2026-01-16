@@ -1,0 +1,55 @@
+# Hydra config for report: compare_positional_encodings
+#
+# Compares classifier performance across different positional encoding types:
+# - none (permutation invariant)
+# - sinusoidal (fixed sin/cos patterns)
+# - learned (trainable embeddings)
+# - rotary (RoPE - applied in attention)
+
+inputs:
+  sweep_dir: null           # Path to experiment directory
+  run_dirs: []              # Alternative: explicit list of run dirs
+  select:
+    positional: null        # e.g., [none, sinusoidal, learned, rotary]
+    seed: null              # e.g., [42, 43, 44]
+
+report_name: compare_positional_encodings
+
+outputs:
+  report_subdir: report
+  fig_format: png
+  dpi: 150
+  which_figures:
+    # Training comparison plots
+    - all_val_curves
+    - all_train_curves
+    - all_val_auroc_curves
+    - val_loss_by_positional
+    - val_auroc_by_positional
+    # Inference plots (requires inference.enabled=true)
+    - roc_curves
+    - roc_curves_by_positional
+    - metrics_comparison
+    - confusion_matrices
+    - score_distributions
+    - auroc_bar_by_positional
+
+thresholds:
+  val_acc: 0.8
+  comparison: ge
+  split: val
+
+summary_schema_version: 1
+
+inference:
+  enabled: true             # Enable to run inference during report generation
+  persist_raw_scores: false # If true, save per-event scores
+  dataset_split: test       # Which split to evaluate on
+  autocast: true
+  batch_size: 512
+  seed: 42
+  n_points_roc: 250
+  max_samples: null         # Limit number of samples for testing (null = use all data)
+
+env:
+  output_root: null         # Auto-inferred from sweep_dir path, or set explicitly

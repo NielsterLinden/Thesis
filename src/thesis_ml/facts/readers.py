@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import logging
@@ -530,3 +531,211 @@ def load_runs(sweep_dir: str | None = None, run_dirs: list[str] | None = None, *
 
     runs_df = pd.DataFrame(summaries)
     return runs_df, per_epoch, order
+
+
+# =============================================================================
+# Metadata Extraction Helpers
+# =============================================================================
+
+
+def extract_classifier_metadata(runs_df: pd.DataFrame) -> pd.DataFrame:
+    """Extract classifier model metadata from runs.
+
+    Extracts common classifier hyperparameters:
+    - norm_policy
+    - positional
+    - pooling
+    - dim, depth, heads (for model size)
+    - dropout, weight_decay, lr (for regularization)
+
+    Parameters
+    ----------
+    runs_df : pd.DataFrame
+        DataFrame with run information (from load_runs)
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with added metadata columns
+    """
+    df = runs_df.copy()
+
+    # Define all parameters to extract
+    params_config = {
+        # Model architecture
+        "norm_policy": "classifier.model.norm.policy",
+        "positional": "classifier.model.positional",
+        "pooling": "classifier.model.pooling",
+        "dim": "classifier.model.dim",
+        "depth": "classifier.model.depth",
+        "heads": "classifier.model.heads",
+        # Regularization
+        "dropout": "classifier.model.dropout",
+        "weight_decay": "classifier.trainer.weight_decay",
+        "lr": "classifier.trainer.lr",
+        "label_smoothing": "classifier.trainer.label_smoothing",
+    }
+
+    for param_name, config_path in params_config.items():
+        # Check if column already exists (from override extraction)
+        if param_name in df.columns and not df[param_name].isna().all():
+            continue
+
+        # Check for matching columns (override keys might be formatted differently)
+        matching_cols = [col for col in df.columns if param_name in col.lower()]
+        if matching_cols:
+            df[param_name] = df[matching_cols[0]]
+            continue
+
+        # Read from config files
+        param_values = []
+        for run_dir in df["run_dir"]:
+            try:
+                cfg, _ = _read_cfg(Path(run_dir))
+                # Determine type based on parameter
+                if param_name in ("dim", "depth", "heads"):
+                    value = _extract_value_from_composed_cfg(cfg, config_path, int)
+                elif param_name in ("dropout", "weight_decay", "lr", "label_smoothing"):
+                    value = _extract_value_from_composed_cfg(cfg, config_path, float)
+                else:
+                    value = _extract_value_from_composed_cfg(cfg, config_path)
+                param_values.append(value)
+            except Exception as e:
+                logger.warning(f"Failed to extract {param_name} from {run_dir}: {e}")
+                param_values.append(None)
+
+        df[param_name] = param_values
+
+    return df
+
+
+def extract_model_size(runs_df: pd.DataFrame) -> pd.DataFrame:
+    """Add model size estimate and size label to runs DataFrame.
+
+    Computes:
+    - model_size: estimated parameter count
+    - size_label: human-readable label (e.g., "256d6L")
+
+    Parameters
+    ----------
+    runs_df : pd.DataFrame
+        DataFrame with run information
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with added model_size and size_label columns
+    """
+    df = runs_df.copy()
+
+    # Ensure dim and depth are present
+    if "dim" not in df.columns or "depth" not in df.columns:
+        df = extract_classifier_metadata(df)
+
+    # Compute model size estimate
+    model_sizes = []
+    size_labels = []
+
+    for _, row in df.iterrows():
+        dim = row.get("dim")
+        depth = row.get("depth")
+
+        if pd.notna(dim) and pd.notna(depth):
+            # Rough parameter estimate
+            mlp_ratio = 4
+            block_params = 4 * dim * dim + 2 * dim * dim * mlp_ratio
+            transformer_params = depth * block_params
+            # Add embedding and head (rough estimate)
+            total_params = transformer_params + 10000  # Rough estimate for other params
+            model_sizes.append(int(total_params))
+            size_labels.append(f"{int(dim)}d{int(depth)}L")
+        else:
+            model_sizes.append(None)
+            size_labels.append(None)
+
+    df["model_size"] = model_sizes
+    df["size_label"] = size_labels
+
+    return df
+
+
+def extract_regularization_params(runs_df: pd.DataFrame) -> pd.DataFrame:
+    """Add regularization parameter columns to runs DataFrame.
+
+    Extracts:
+    - dropout
+    - weight_decay
+    - lr
+    - label_smoothing
+
+    Parameters
+    ----------
+    runs_df : pd.DataFrame
+        DataFrame with run information
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with added regularization columns
+    """
+    df = runs_df.copy()
+
+    params_to_extract = {
+        "dropout": "classifier.model.dropout",
+        "weight_decay": "classifier.trainer.weight_decay",
+        "lr": "classifier.trainer.lr",
+        "label_smoothing": "classifier.trainer.label_smoothing",
+    }
+
+    for param_name, config_path in params_to_extract.items():
+        if param_name in df.columns and not df[param_name].isna().all():
+            continue
+
+        param_values = []
+        for run_dir in df["run_dir"]:
+            try:
+                cfg, _ = _read_cfg(Path(run_dir))
+                value = _extract_value_from_composed_cfg(cfg, config_path, float)
+                param_values.append(value)
+            except Exception:
+                param_values.append(None)
+
+        df[param_name] = param_values
+
+        # Convert to numeric
+        with contextlib.suppress(Exception):
+            df[param_name] = pd.to_numeric(df[param_name], errors="coerce")
+
+    return df
+
+
+def extract_positional_encoding(runs_df: pd.DataFrame) -> pd.DataFrame:
+    """Add positional encoding column to runs DataFrame.
+
+    Parameters
+    ----------
+    runs_df : pd.DataFrame
+        DataFrame with run information
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with added 'positional' column
+    """
+    df = runs_df.copy()
+
+    if "positional" in df.columns and not df["positional"].isna().all():
+        return df
+
+    pos_values = []
+    for run_dir in df["run_dir"]:
+        try:
+            cfg, _ = _read_cfg(Path(run_dir))
+            value = _extract_value_from_composed_cfg(cfg, "classifier.model.positional")
+            pos_values.append(value)
+        except Exception:
+            pos_values.append(None)
+
+    df["positional"] = pos_values
+
+    return df

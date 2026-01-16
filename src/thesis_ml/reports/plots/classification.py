@@ -1517,3 +1517,269 @@ def plot_score_distributions_df(
 
         plt.tight_layout()
         return fig, axes
+
+
+def plot_roc_curves_grouped_by(
+    runs_df: pd.DataFrame,
+    inference_results: dict[str, dict[str, Any]],
+    group_col: str,
+    inference_figs_dir: Path,
+    fig_cfg: dict[str, Any],
+    fname: str = "figure-roc_curves_grouped",
+    title: str | None = None,
+    show_individual: bool = True,
+    figsize: tuple[float, float] = (10, 8),
+) -> None:
+    """Plot ROC curves grouped by a parameter (PE type, norm policy, etc.).
+
+    Shows mean ROC curve per group with optional individual curves behind.
+    Similar to notebook-style grouped ROC plots.
+
+    Parameters
+    ----------
+    runs_df : pd.DataFrame
+        DataFrame with run information, must contain group_col and run_dir
+    inference_results : dict[str, dict[str, Any]]
+        Inference results dict: {run_id: {metrics...}}
+    group_col : str
+        Column name to group by (e.g., 'positional', 'norm_policy')
+    inference_figs_dir : Path
+        Directory to save figures
+    fig_cfg : dict[str, Any]
+        Figure configuration (fig_format, dpi)
+    fname : str
+        Base filename for saved figure
+    title : str | None
+        Plot title (auto-generated if None)
+    show_individual : bool
+        If True, show individual curves behind mean (default: True)
+    figsize : tuple[float, float]
+        Figure size (default: (10, 8))
+    """
+    from thesis_ml.utils.paths import get_run_id
+
+    if group_col not in runs_df.columns:
+        logger.warning(f"Column '{group_col}' not found in runs_df, skipping ROC grouped plot")
+        return
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    # Get unique group values and assign colors
+    groups = sorted(runs_df[group_col].dropna().unique())
+    colors = plt.cm.tab10(np.linspace(0, 1, len(groups)))
+    color_map = {g: colors[i] for i, g in enumerate(groups)}
+
+    n_points = 500  # Number of points for interpolation
+
+    for group_val in groups:
+        group_runs = runs_df[runs_df[group_col] == group_val]
+        color = color_map[group_val]
+
+        all_fprs = []
+        all_tprs = []
+        all_aurocs = []
+
+        for _, row in group_runs.iterrows():
+            run_dir = row.get("run_dir")
+            if pd.isna(run_dir):
+                continue
+            run_id = get_run_id(Path(str(run_dir)))
+
+            if run_id not in inference_results:
+                continue
+
+            metrics = inference_results[run_id]
+            roc_curves = metrics.get("roc_curves", {})
+            auroc = metrics.get("auroc", 0.0)
+
+            if not roc_curves:
+                continue
+
+            # For binary classification, use single curve
+            if len(roc_curves) == 1:
+                class_idx = list(roc_curves.keys())[0]
+                curve = roc_curves[class_idx]
+            else:
+                # Use first class for multi-class
+                class_idx = list(roc_curves.keys())[0]
+                curve = roc_curves[class_idx]
+
+            fpr = np.array(curve.get("fpr", []))
+            tpr = np.array(curve.get("tpr", []))
+
+            if len(fpr) == 0 or len(tpr) == 0:
+                continue
+
+            all_fprs.append(fpr)
+            all_tprs.append(tpr)
+            all_aurocs.append(auroc)
+
+            # Plot individual curve if requested
+            if show_individual:
+                ax.plot(fpr, tpr, color=color, alpha=0.2, linewidth=1, zorder=1)
+
+        if len(all_fprs) == 0:
+            continue
+
+        # Compute mean curve by interpolating to common FPR points
+        fpr_common = np.linspace(0, 1, n_points)
+        tpr_interp = []
+
+        for fpr, tpr in zip(all_fprs, all_tprs, strict=False):
+            # Remove duplicates in FPR (keep last)
+            unique_idx = np.unique(fpr, return_index=True)[1]
+            fpr_unique = fpr[unique_idx]
+            tpr_unique = tpr[unique_idx]
+            # Interpolate
+            tpr_interp.append(np.interp(fpr_common, fpr_unique, tpr_unique))
+
+        tpr_mean = np.mean(tpr_interp, axis=0)
+        tpr_std = np.std(tpr_interp, axis=0) if len(tpr_interp) > 1 else np.zeros_like(tpr_mean)
+        auroc_mean = np.mean(all_aurocs) if all_aurocs else 0.0
+
+        # Plot mean curve
+        ax.plot(
+            fpr_common,
+            tpr_mean,
+            color=color,
+            linewidth=2.5,
+            label=f"{group_val} (n={len(all_fprs)}, AUROC={auroc_mean:.3f})",
+            zorder=2,
+        )
+
+        # Add error band
+        if show_individual and len(all_fprs) > 1:
+            ax.fill_between(
+                fpr_common,
+                tpr_mean - tpr_std,
+                tpr_mean + tpr_std,
+                color=color,
+                alpha=0.15,
+                zorder=1,
+            )
+
+    # Diagonal reference line (random classifier)
+    ax.plot([0, 1], [0, 1], "k--", linewidth=1, alpha=0.5, label="Random (0.5)", zorder=0)
+
+    ax.set_xlabel("False Positive Rate", fontsize=14)
+    ax.set_ylabel("True Positive Rate", fontsize=14)
+    ax.set_title(title or f"ROC Curves by {group_col.replace('_', ' ').title()}", fontsize=16)
+    ax.legend(fontsize=11, loc="lower right")
+    ax.grid(alpha=0.3)
+    ax.set_xlim([0, 1])
+    ax.set_ylim([0, 1])
+
+    plt.tight_layout()
+    save_figure(fig, inference_figs_dir, fname, fig_cfg)
+    plt.close(fig)
+
+
+def plot_auroc_bar_by_group(
+    runs_df: pd.DataFrame,
+    inference_results: dict[str, dict[str, Any]],
+    group_col: str,
+    inference_figs_dir: Path,
+    fig_cfg: dict[str, Any],
+    fname: str = "figure-auroc_by_group",
+    title: str | None = None,
+    figsize: tuple[float, float] = (10, 6),
+) -> None:
+    """Plot AUROC bar chart grouped by a parameter.
+
+    Shows mean AUROC per group with error bars and individual points.
+
+    Parameters
+    ----------
+    runs_df : pd.DataFrame
+        DataFrame with run information, must contain group_col and run_dir
+    inference_results : dict[str, dict[str, Any]]
+        Inference results dict: {run_id: {metrics...}}
+    group_col : str
+        Column name to group by (e.g., 'positional', 'norm_policy')
+    inference_figs_dir : Path
+        Directory to save figures
+    fig_cfg : dict[str, Any]
+        Figure configuration (fig_format, dpi)
+    fname : str
+        Base filename for saved figure
+    title : str | None
+        Plot title (auto-generated if None)
+    figsize : tuple[float, float]
+        Figure size (default: (10, 6))
+    """
+    from thesis_ml.utils.paths import get_run_id
+
+    if group_col not in runs_df.columns:
+        logger.warning(f"Column '{group_col}' not found in runs_df, skipping AUROC bar plot")
+        return
+
+    # Collect AUROC values by group
+    group_aurocs: dict[str, list[float]] = {}
+
+    for _, row in runs_df.iterrows():
+        run_dir = row.get("run_dir")
+        group_val = row.get(group_col)
+
+        if pd.isna(run_dir) or pd.isna(group_val):
+            continue
+
+        run_id = get_run_id(Path(str(run_dir)))
+        if run_id not in inference_results:
+            continue
+
+        auroc = inference_results[run_id].get("auroc")
+        if auroc is not None:
+            if group_val not in group_aurocs:
+                group_aurocs[group_val] = []
+            group_aurocs[group_val].append(auroc)
+
+    if not group_aurocs:
+        logger.warning("No AUROC data found for grouping, skipping plot")
+        return
+
+    # Compute statistics
+    groups = sorted(group_aurocs.keys())
+    means = [np.mean(group_aurocs[g]) for g in groups]
+    stds = [np.std(group_aurocs[g]) if len(group_aurocs[g]) > 1 else 0.0 for g in groups]
+    counts = [len(group_aurocs[g]) for g in groups]
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    x_pos = np.arange(len(groups))
+    width = 0.6
+
+    # Plot bars
+    ax.bar(
+        x_pos,
+        means,
+        width,
+        yerr=stds if any(s > 0 for s in stds) else None,
+        capsize=5,
+        alpha=0.7,
+        color="steelblue",
+        edgecolor="black",
+        zorder=2,
+    )
+
+    # Show individual points
+    for i, group_val in enumerate(groups):
+        group_data = group_aurocs[group_val]
+        x_jitter = np.random.normal(i, 0.05, len(group_data))
+        ax.scatter(x_jitter, group_data, color="black", alpha=0.3, s=20, zorder=3)
+
+    # Add value labels on bars
+    for i, (mean, std, count) in enumerate(zip(means, stds, counts, strict=False)):
+        label_y = mean + std + 0.01 if std > 0 else mean + 0.01
+        ax.text(i, label_y, f"{mean:.3f}\n(n={count})", ha="center", va="bottom", fontsize=10)
+
+    ax.set_xlabel(group_col.replace("_", " ").title(), fontsize=14)
+    ax.set_ylabel("AUROC", fontsize=14)
+    ax.set_title(title or f"AUROC by {group_col.replace('_', ' ').title()}", fontsize=16)
+    ax.set_xticks(x_pos)
+    ax.set_xticklabels([str(g) for g in groups], rotation=45, ha="right", fontsize=12)
+    ax.set_ylim([0, 1])
+    ax.grid(axis="y", alpha=0.3)
+
+    plt.tight_layout()
+    save_figure(fig, inference_figs_dir, fname, fig_cfg)
+    plt.close(fig)

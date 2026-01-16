@@ -1,1 +1,13 @@
-"""Experiment-specific report orchestration modules."""
+"""Experiment-specific report orchestration modules.
+
+Available reports:
+- analyze_representations: Deep analysis of transformer representations
+- compare_globals_heads: Compare globals reconstruction weights
+- compare_model_sizes: Compare model size and architecture effects
+- compare_norm_pos_pool: Compare normalization, positional encoding, and pooling
+- compare_overfitting_regularization_sweep: Overfitting/regularization analysis
+- compare_positional_encodings: Compare positional encoding strategies
+- compare_regularization: Compare regularization hyperparameters
+- compare_tokenizers: Compare VQ vs non-VQ tokenizers
+- evaluate_classifier: Basic classifier evaluation with inference
+"""

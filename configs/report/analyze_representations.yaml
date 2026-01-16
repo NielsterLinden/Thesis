@@ -1,0 +1,66 @@
+# Hydra config for report: analyze_representations
+#
+# Deep analysis of transformer representations showing how
+# positional encodings affect learned features.
+#
+# Generates:
+# - Token similarity matrices per PE type
+# - Layer evolution PCA/t-SNE plots
+# - L2 norms through layers
+# - PE pattern visualizations
+#
+# NOTE: This report is more computationally expensive as it requires
+# loading models and running forward passes with hooks.
+
+inputs:
+  sweep_dir: null           # Path to experiment directory
+  run_dirs: []              # Alternative: explicit list of run dirs
+  select:
+    positional: null        # e.g., [none, sinusoidal, learned, rotary]
+    seed: null              # e.g., [42] - typically use single seed per PE type
+
+report_name: analyze_representations
+
+outputs:
+  report_subdir: report
+  fig_format: png
+  dpi: 150
+  which_figures:
+    # Token similarity analysis
+    - similarity_matrices
+    # Representation magnitude analysis
+    - l2_norms
+    # Layer evolution (class separation through layers)
+    - layer_evolution_pca
+    - layer_evolution_tsne
+    # PE pattern visualizations
+    - pe_heatmaps
+    - pe_token_patterns
+
+# Analysis parameters
+analysis:
+  num_batches: 5            # Number of batches for representation extraction
+  pooling: mean             # Token pooling: 'mean' or 'cls'
+
+# Data configuration (if needed to override run configs)
+data:
+  path: null                # Override data path (null = use from run config)
+
+thresholds:
+  val_acc: 0.8
+  comparison: ge
+  split: val
+
+summary_schema_version: 1
+
+# Inference is implicit in this report (we load models for representation analysis)
+inference:
+  enabled: false            # Standard inference not needed - we do custom forward passes
+  persist_raw_scores: false
+  dataset_split: val        # Use val set for representation analysis
+  autocast: false           # Disable autocast for representation analysis
+  batch_size: 64            # Smaller batch size for memory efficiency
+  seed: 42
+
+env:
+  output_root: null         # Auto-inferred from sweep_dir path, or set explicitly
