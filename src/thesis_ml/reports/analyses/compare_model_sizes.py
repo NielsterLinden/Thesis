@@ -17,7 +17,7 @@ from pathlib import Path
 import pandas as pd
 from omegaconf import DictConfig
 
-from thesis_ml.facts.readers import _extract_value_from_composed_cfg, _read_cfg
+from thesis_ml.facts.readers import _extract_value_from_composed_cfg, _parse_hydra_overrides, _read_cfg
 from thesis_ml.reports.plots.classification import (
     plot_auroc_bar_by_group,
     plot_confusion_matrix,
@@ -102,7 +102,7 @@ def _extract_model_size_metadata(runs_df: pd.DataFrame) -> pd.DataFrame:
     Returns
     -------
     pd.DataFrame
-        DataFrame with added columns: dim, depth, heads, model_size, positional
+        DataFrame with added columns: dim, depth, heads, model_size, model_size_group, size_label, positional
     """
     df = runs_df.copy()
 
@@ -133,6 +133,23 @@ def _extract_model_size_metadata(runs_df: pd.DataFrame) -> pd.DataFrame:
                         param_values.append(None)
                 df[param_name] = param_values
 
+    # Extract model_size config group name from overrides (e.g., "s200k", "s600k")
+    model_size_groups = []
+    for run_dir in df["run_dir"]:
+        try:
+            cfg, _ = _read_cfg(Path(run_dir))
+            overrides = _parse_hydra_overrides(cfg)
+            # Look for classifier/model_size override (with or without + prefix)
+            model_size_override = overrides.get("classifier/model_size") or overrides.get("+classifier/model_size")
+            if model_size_override:
+                model_size_groups.append(model_size_override)
+            else:
+                model_size_groups.append(None)
+        except Exception as e:
+            logger.warning(f"Failed to extract model_size group from {run_dir}: {e}")
+            model_size_groups.append(None)
+    df["model_size_group"] = model_size_groups
+
     # Compute model size estimate
     model_sizes = []
     for run_dir in df["run_dir"]:
@@ -146,15 +163,22 @@ def _extract_model_size_metadata(runs_df: pd.DataFrame) -> pd.DataFrame:
 
     df["model_size"] = model_sizes
 
-    # Create a simplified size label for grouping (e.g., "256d6L" for dim=256, depth=6)
+    # Create a simplified size label for grouping
+    # Prefer model_size_group (e.g., "s200k") if available, otherwise use computed label (e.g., "64d6L")
     size_labels = []
     for _, row in df.iterrows():
-        dim = row.get("dim")
-        depth = row.get("depth")
-        if pd.notna(dim) and pd.notna(depth):
-            size_labels.append(f"{int(dim)}d{int(depth)}L")
+        model_size_group = row.get("model_size_group")
+        if pd.notna(model_size_group) and model_size_group:
+            # Use config group name directly (e.g., "s200k")
+            size_labels.append(str(model_size_group))
         else:
-            size_labels.append(None)
+            # Fall back to computed label from dim/depth
+            dim = row.get("dim")
+            depth = row.get("depth")
+            if pd.notna(dim) and pd.notna(depth):
+                size_labels.append(f"{int(dim)}d{int(depth)}L")
+            else:
+                size_labels.append(None)
     df["size_label"] = size_labels
 
     return df
@@ -196,7 +220,7 @@ def run_report(cfg: DictConfig) -> None:
     runs_df = _extract_model_size_metadata(runs_df)
 
     # Log unique values found
-    for param in ["dim", "depth", "heads", "size_label", "positional"]:
+    for param in ["dim", "depth", "heads", "model_size_group", "size_label", "positional"]:
         if param in runs_df.columns:
             unique_vals = runs_df[param].dropna().unique()
             if len(unique_vals) > 0:

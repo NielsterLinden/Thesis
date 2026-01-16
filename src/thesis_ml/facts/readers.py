@@ -308,13 +308,61 @@ def _discover_pointer_targets(runs_dir: Path) -> list[Path]:
     return targets
 
 
-def discover_runs(sweep_dir: Path | None, run_dirs: Iterable[Path] | None) -> list[Path]:
+def _process_sweep_dir(sweep_dir: Path, candidates: list[Path]) -> None:
+    """Process a single sweep directory and add discovered runs to candidates.
+
+    Parameters
+    ----------
+    sweep_dir : Path
+        Path to a multirun directory
+    candidates : list[Path]
+        List to append discovered run directories to
+    """
+    # Extract timestamp from multirun directory name (format: exp_TIMESTAMP_name)
+    # Match runs in outputs/runs/ with the same timestamp
+    multirun_name = sweep_dir.name
+    if multirun_name.startswith("exp_"):
+        # Extract timestamp: exp_YYYYMMDD-HHMMSS_name -> YYYYMMDD-HHMMSS
+        parts = multirun_name.replace("exp_", "").split("_", 1)
+        if parts:
+            timestamp = parts[0]  # e.g., "20251103-140953"
+            # Extract experiment name if present
+            exp_name = parts[1] if len(parts) > 1 else None
+
+            # Infer output_root from sweep_dir
+            parts = sweep_dir.parts
+            try:
+                multiruns_idx = parts.index("multiruns")
+                output_root = Path(*parts[:multiruns_idx])
+                runs_dir = output_root / "runs"
+
+                if runs_dir.exists():
+                    # Scan for runs matching the timestamp pattern
+                    # Pattern: run_TIMESTAMP_name_jobN or run_TIMESTAMP_name
+                    for run_path in runs_dir.iterdir():
+                        if not run_path.is_dir():
+                            continue
+                        run_name = run_path.name
+                        # Check if run matches timestamp and optionally experiment name
+                        if timestamp in run_name and (exp_name is None or exp_name in run_name) and ((run_path / ".hydra" / "config.yaml").exists() or (run_path / "cfg.yaml").exists()):
+                            candidates.append(run_path)
+            except ValueError:
+                pass
+
+    # Fallback: direct child dirs with .hydra/config.yaml or cfg.yaml (legacy nested structure)
+    for p in sweep_dir.iterdir():
+        if p.is_dir() and ((p / ".hydra" / "config.yaml").exists() or (p / "cfg.yaml").exists()):
+            candidates.append(p)
+
+
+def discover_runs(sweep_dir: Path | str | None, run_dirs: Iterable[Path] | None) -> list[Path]:
     """Discover run directories from a sweep directory or explicit run list.
 
     Parameters
     ----------
-    sweep_dir : Path | None
+    sweep_dir : Path | str | None
         Path to a multirun directory (e.g., outputs/multiruns/exp_...)
+        Can contain wildcards (e.g., exp_*_model_size) which will be expanded
     run_dirs : Iterable[Path] | None
         Explicit list of run directories
 
@@ -327,44 +375,54 @@ def discover_runs(sweep_dir: Path | None, run_dirs: Iterable[Path] | None) -> li
         raise ValueError("Provide exactly one of sweep_dir or run_dirs")
     candidates: list[Path] = []
     if sweep_dir is not None:
-        if not sweep_dir.exists() or not sweep_dir.is_dir():
-            raise FileNotFoundError(f"sweep_dir not found: {sweep_dir}")
+        # Convert to Path if it's a string
+        sweep_dir_path = Path(sweep_dir) if isinstance(sweep_dir, str) else sweep_dir
+        sweep_dir_str = str(sweep_dir_path)
 
-        # Extract timestamp from multirun directory name (format: exp_TIMESTAMP_name)
-        # Match runs in outputs/runs/ with the same timestamp
-        multirun_name = sweep_dir.name
-        if multirun_name.startswith("exp_"):
-            # Extract timestamp: exp_YYYYMMDD-HHMMSS_name -> YYYYMMDD-HHMMSS
-            parts = multirun_name.replace("exp_", "").split("_", 1)
-            if parts:
-                timestamp = parts[0]  # e.g., "20251103-140953"
-                # Extract experiment name if present
-                exp_name = parts[1] if len(parts) > 1 else None
+        # Check if path contains wildcards
+        if "*" in sweep_dir_str or "?" in sweep_dir_str:
+            # Use glob to find matching directories
+            # Find the longest path prefix without wildcards to use as base
+            path_parts = sweep_dir_path.parts
+            base_parts = []
+            pattern_parts = []
+            found_wildcard = False
 
-                # Infer output_root from sweep_dir
-                parts = sweep_dir.parts
-                try:
-                    multiruns_idx = parts.index("multiruns")
-                    output_root = Path(*parts[:multiruns_idx])
-                    runs_dir = output_root / "runs"
+            for part in path_parts:
+                if "*" in part or "?" in part:
+                    found_wildcard = True
+                    pattern_parts.append(part)
+                elif not found_wildcard:
+                    base_parts.append(part)
+                else:
+                    pattern_parts.append(part)
 
-                    if runs_dir.exists():
-                        # Scan for runs matching the timestamp pattern
-                        # Pattern: run_TIMESTAMP_name_jobN or run_TIMESTAMP_name
-                        for run_path in runs_dir.iterdir():
-                            if not run_path.is_dir():
-                                continue
-                            run_name = run_path.name
-                            # Check if run matches timestamp and optionally experiment name
-                            if timestamp in run_name and (exp_name is None or exp_name in run_name) and ((run_path / ".hydra" / "config.yaml").exists() or (run_path / "cfg.yaml").exists()):
-                                candidates.append(run_path)
-                except ValueError:
-                    pass
+            if base_parts:
+                base_dir = Path(*base_parts)
+                if not base_dir.exists():
+                    raise FileNotFoundError(f"Base directory not found: {base_dir}")
+                # Build pattern relative to base
+                if pattern_parts:
+                    pattern = str(Path(*pattern_parts))
+                    matching_dirs = [d for d in base_dir.glob(pattern) if d.is_dir()]
+                else:
+                    matching_dirs = [base_dir] if base_dir.is_dir() else []
+            else:
+                # Wildcard at the root, try to find base from current working directory
+                # This is a fallback for relative paths
+                matching_dirs = [d for d in Path(".").glob(sweep_dir_str) if d.is_dir()]
 
-        # Fallback: direct child dirs with .hydra/config.yaml or cfg.yaml (legacy nested structure)
-        for p in sweep_dir.iterdir():
-            if p.is_dir() and ((p / ".hydra" / "config.yaml").exists() or (p / "cfg.yaml").exists()):
-                candidates.append(p)
+            if not matching_dirs:
+                raise FileNotFoundError(f"No directories found matching pattern: {sweep_dir_str}")
+
+            # Process each matching directory
+            for matched_dir in matching_dirs:
+                _process_sweep_dir(matched_dir, candidates)
+        else:
+            # No wildcards, use existing logic
+            if not sweep_dir_path.exists() or not sweep_dir_path.is_dir():
+                raise FileNotFoundError(f"sweep_dir not found: {sweep_dir_path}")
+            _process_sweep_dir(sweep_dir_path, candidates)
     else:
         assert run_dirs is not None
         for p in run_dirs:
