@@ -85,6 +85,10 @@ def plot_all_val_curves(
         epochs = cur["epoch"].astype(int).values
         vals = cur["val_loss"].astype(float).values
 
+        # Skip if no valid values
+        if len(vals) == 0 or np.all(np.isnan(vals)):
+            continue
+
         # Find best (lowest) value and its epoch
         best_idx = np.argmin(vals)
         best_val = vals[best_idx]
@@ -165,6 +169,10 @@ def plot_all_train_curves(
             continue
         epochs = cur["epoch"].astype(int).values
         vals = cur["train_loss"].astype(float).values
+
+        # Skip if no valid values
+        if len(vals) == 0 or np.all(np.isnan(vals)):
+            continue
 
         # Find best (lowest) value and its epoch
         best_idx = np.argmin(vals)
@@ -401,6 +409,10 @@ def plot_val_auroc_curves(
 
         epochs = cur["epoch"].astype(int).values
         vals = cur[auroc_col].astype(float).values
+
+        # Skip if no valid values
+        if len(vals) == 0 or np.all(np.isnan(vals)):
+            continue
 
         # Find best (highest) value and its epoch
         best_idx = np.argmax(vals)

@@ -388,6 +388,11 @@ def plot_score_distributions(
         y_binary = (labels == signal_class_idx).astype(int)
         fpr, tpr, thresholds = roc_curve(y_binary, scores)
         youden_j = tpr - fpr
+
+        # Skip if no valid values
+        if len(youden_j) == 0 or np.all(np.isnan(youden_j)):
+            continue
+
         optimal_idx = np.argmax(youden_j)
         optimal_threshold = thresholds[optimal_idx]
 
