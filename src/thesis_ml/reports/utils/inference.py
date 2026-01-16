@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +14,8 @@ from thesis_ml.data.h5_loader import make_dataloaders
 from thesis_ml.utils.paths import resolve_run_dir
 
 from ..inference.forward_pass import create_model_adapter as _create_model_adapter
+
+logger = logging.getLogger(__name__)
 
 
 def _resolve_device(device: str | None = None) -> torch.device:
@@ -64,6 +67,10 @@ def load_model_from_run(run_id: str, output_root: Path | str, device: str | None
 
     dev = _resolve_device(device)
 
+    # Load checkpoint first to extract meta info if needed
+    checkpoint = torch.load(str(weights_path), map_location=dev, weights_only=False)
+    state_dict = checkpoint["model_state_dict"] if isinstance(checkpoint, dict) and "model_state_dict" in checkpoint else checkpoint
+
     # Detect model type and build accordingly
     if hasattr(cfg, "classifier"):
         # Classifier model
@@ -76,6 +83,31 @@ def load_model_from_run(run_id: str, output_root: Path | str, device: str | None
             # Create dataloaders temporarily to get meta
             train_dl, val_dl, test_dl, meta = make_classification_dataloaders(cfg)
             _gather_meta(cfg, meta)
+
+        # IMPORTANT: Extract n_tokens from checkpoint to handle training/inference data mismatch
+        # The positional encoding size depends on n_tokens at training time, not inference time.
+        # If checkpoint has pos_enc.pe, use its shape to infer the correct n_tokens.
+        data_n_tokens = cfg.meta.n_tokens
+
+        if "pos_enc.pe" in state_dict:
+            pe_shape = state_dict["pos_enc.pe"].shape  # [max_seq_len, dim]
+            checkpoint_max_seq_len = pe_shape[0]
+            # For model-space PE with CLS token, max_seq_len = n_tokens + 1
+            pooling = cfg.classifier.model.get("pooling", "cls")
+            positional_space = cfg.classifier.model.get("positional_space", "model")
+            checkpoint_n_tokens = checkpoint_max_seq_len - 1 if positional_space == "model" and pooling == "cls" else checkpoint_max_seq_len
+            # Override meta n_tokens to match checkpoint
+            if checkpoint_n_tokens != data_n_tokens:
+                logger.info(f"Adjusting n_tokens from {data_n_tokens} (data) to {checkpoint_n_tokens} (checkpoint PE shape)")
+            cfg.meta.n_tokens = checkpoint_n_tokens
+
+        # Also check for embedding pos_enc (token-space PE)
+        elif "embedding.pos_enc.pe" in state_dict:
+            pe_shape = state_dict["embedding.pos_enc.pe"].shape
+            checkpoint_n_tokens = pe_shape[0]
+            if checkpoint_n_tokens != data_n_tokens:
+                logger.info(f"Adjusting n_tokens from {data_n_tokens} (data) to {checkpoint_n_tokens} (checkpoint embedding PE shape)")
+            cfg.meta.n_tokens = checkpoint_n_tokens
 
         model = build_classifier(cfg, cfg.meta).to(dev)
     elif hasattr(cfg, "phase1"):
@@ -93,13 +125,7 @@ def load_model_from_run(run_id: str, output_root: Path | str, device: str | None
     else:
         raise ValueError("Cannot determine model type from config (missing 'classifier' or 'phase1' section)")
 
-    checkpoint = torch.load(str(weights_path), map_location=dev, weights_only=False)
-
-    # Handle different checkpoint formats:
-    # - Classifier: full checkpoint dict with 'model_state_dict' key
-    # - Autoencoder: direct state_dict
-    state_dict = checkpoint["model_state_dict"] if isinstance(checkpoint, dict) and "model_state_dict" in checkpoint else checkpoint
-
+    # Load state dict (already extracted above)
     model.load_state_dict(state_dict)
     model.eval()
     return cfg, model, dev
