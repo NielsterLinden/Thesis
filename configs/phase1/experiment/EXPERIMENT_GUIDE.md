@@ -137,12 +137,12 @@ hydra:
     chdir: true
     name: ${experiment.name}
   run:
-    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${hydra.job.num}
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
   sweep:
     dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
     # Set subdir to absolute path matching run.dir so runs go directly to outputs/runs/ instead of numbered subdirs
     # Using the same template ensures both resolve to the same path
-    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${hydra.job.num}
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
   sweeper:
     params:
       # List parameter sweeps here (comma-separated values)

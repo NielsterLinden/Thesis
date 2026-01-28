@@ -108,8 +108,8 @@ def migrate_experiment(old_exp_dir: Path, output_root: Path) -> dict:
             skipped.append((job_num, old_run_dir, "Missing config files"))
             continue
 
-        # Create new run directory name
-        new_run_id = f"run_{timestamp}_{exp_name}_job{job_num}"
+        # Create new run directory name (zero-padded for proper sorting)
+        new_run_id = f"run_{timestamp}_{exp_name}_job{job_num:02d}"
         new_run_dir = runs_dir / new_run_id
 
         if new_run_dir.exists():

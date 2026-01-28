@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import time
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -17,6 +18,7 @@ from thesis_ml.data.h5_loader import make_classification_dataloaders
 from thesis_ml.facts import append_jsonl_event, append_scalars_csv, build_event_payload
 from thesis_ml.monitoring.orchestrator import handle_event
 from thesis_ml.utils.seed import set_all_seeds
+from thesis_ml.utils.wandb_utils import finish_wandb, init_wandb, log_artifact, log_metrics
 
 SUPPORTED_PLOT_FAMILIES = {"losses", "metrics"}
 
@@ -202,6 +204,10 @@ def train(cfg: DictConfig) -> dict:
     # Build model
     model = build_from_config(cfg, meta)
 
+    # Initialize W&B (returns None if disabled or on error - training continues normally)
+    # Note: BDT is not a torch.nn.Module so we don't pass model for watching
+    wandb_run = init_wandb(cfg, model=None)
+
     # Log complexity estimate
     complexity = model.get_complexity_estimate()
     print(f"BDT complexity: {complexity['n_estimators']} trees, depth {complexity['max_depth']}")
@@ -307,6 +313,19 @@ def train(cfg: DictConfig) -> dict:
                     max_memory_mib=None,
                 )
 
+        # W&B logging for per-round metrics
+        for i in range(len(val_loss_curve)):
+            log_metrics(
+                wandb_run,
+                {
+                    "epoch": i,  # Use "epoch" for consistency (boosting round)
+                    "train/loss": float(train_loss_curve[i]) if i < len(train_loss_curve) else None,
+                    "val/loss": float(val_loss_curve[i]),
+                    "val/auroc": float(val_auc_curve[i]) if i < len(val_auc_curve) else None,
+                },
+                step=i,
+            )
+
     # Evaluate on validation set
     y_val_pred = model.predict(X_val)
     y_val_proba = model.predict_proba(X_val)
@@ -389,6 +408,26 @@ def train(cfg: DictConfig) -> dict:
         )
         append_jsonl_event(str(outdir), payload_end)
         handle_event(cfg.logging, SUPPORTED_PLOT_FAMILIES, "on_train_end", payload_end)
+
+        # Upload model artifact to W&B
+        model_path = Path(outdir) / "model.json"
+        log_artifact(wandb_run, model_path, "model", cfg)
+
+    # Log final test metrics to W&B
+    final_epoch = len(histories["val_loss"]) - 1 if histories["val_loss"] else 0
+    log_metrics(
+        wandb_run,
+        {
+            "test/loss": float(test_loss),
+            "test/acc": float(test_metrics["acc"]),
+            "test/f1": float(test_metrics["f1"]),
+            "test/auroc": float(test_metrics["auroc"]) if test_metrics["auroc"] is not None else None,
+        },
+        step=final_epoch + 1,
+    )
+
+    # Finish W&B run
+    finish_wandb(wandb_run)
 
     return {
         "best_val_loss": val_loss,

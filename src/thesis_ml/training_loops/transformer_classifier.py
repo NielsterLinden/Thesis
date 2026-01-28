@@ -4,6 +4,7 @@ import os
 import time
 from collections.abc import Mapping
 from contextlib import nullcontext
+from pathlib import Path
 from typing import Any
 
 import torch
@@ -16,6 +17,7 @@ from thesis_ml.facts import append_jsonl_event, append_scalars_csv, build_event_
 from thesis_ml.monitoring.orchestrator import handle_event
 from thesis_ml.utils import TrainingProgressShower
 from thesis_ml.utils.seed import set_all_seeds
+from thesis_ml.utils.wandb_utils import finish_wandb, init_wandb, log_artifact, log_metrics
 
 SUPPORTED_PLOT_FAMILIES = {"losses", "metrics"}
 
@@ -416,6 +418,9 @@ def train(cfg: DictConfig) -> dict:
     # Model assembly
     model = build_from_config(cfg, meta).to(device)
 
+    # Initialize W&B (returns None if disabled or on error - training continues normally)
+    wandb_run = init_wandb(cfg, model=model)
+
     # AdamW optimizer
     opt = torch.optim.AdamW(
         model.parameters(),
@@ -618,14 +623,32 @@ def train(cfg: DictConfig) -> dict:
             )
             handle_event(cfg.logging, SUPPORTED_PLOT_FAMILIES, "on_epoch_end", payload)
 
-            # Log AUROC warning if single class detected
-            if val_metrics["auroc"] is None:
-                import warnings
+        # W&B logging (alongside Facts, not replacing)
+        val_auroc_for_wandb = last_valid_auroc if val_metrics["auroc"] is None else val_metrics["auroc"]
+        log_metrics(
+            wandb_run,
+            {
+                "epoch": epoch,
+                "train/loss": float(train_metrics["loss"]),
+                "train/acc": float(train_metrics["acc"]),
+                "train/f1": float(train_metrics["f1"]),
+                "val/loss": float(val_metrics["loss"]),
+                "val/acc": float(val_metrics["acc"]),
+                "val/f1": float(val_metrics["f1"]),
+                "val/auroc": float(val_auroc_for_wandb) if val_auroc_for_wandb is not None else None,
+                "perf/epoch_time_s": float(epoch_time),
+            },
+            step=epoch,
+        )
 
-                warnings.warn(
-                    f"Epoch {epoch}: Single class detected in validation set, skipping AUROC computation.",
-                    stacklevel=2,
-                )
+        # Log AUROC warning if single class detected
+        if outdir and val_metrics["auroc"] is None:
+            import warnings
+
+            warnings.warn(
+                f"Epoch {epoch}: Single class detected in validation set, skipping AUROC computation.",
+                stacklevel=2,
+            )
 
         progress.update(epoch, epoch_time, train_loss=train_metrics["loss"], val_loss=val_metrics["loss"])
 
@@ -686,6 +709,25 @@ def train(cfg: DictConfig) -> dict:
             "config": OmegaConf.to_container(cfg, resolve=True),
         }
         torch.save(checkpoint, os.path.join(outdir, "last.pt"))
+
+        # Upload model artifact to W&B
+        best_val_artifact_path = Path(outdir) / "best_val.pt"
+        log_artifact(wandb_run, best_val_artifact_path, "model", cfg)
+
+    # Log test metrics to W&B
+    log_metrics(
+        wandb_run,
+        {
+            "test/loss": float(test_metrics["loss"]),
+            "test/acc": float(test_metrics["acc"]),
+            "test/f1": float(test_metrics["f1"]),
+            "test/auroc": float(test_metrics["auroc"]) if test_metrics["auroc"] is not None else None,
+        },
+        step=int(cfg.classifier.trainer.epochs),
+    )
+
+    # Finish W&B run
+    finish_wandb(wandb_run)
 
     return {
         "best_val_loss": best_val_loss,

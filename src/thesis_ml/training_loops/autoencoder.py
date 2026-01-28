@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import time
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any
 
 import torch
@@ -15,6 +16,7 @@ from thesis_ml.facts import append_jsonl_event, append_scalars_csv, build_event_
 from thesis_ml.monitoring.orchestrator import handle_event
 from thesis_ml.utils import TrainingProgressShower
 from thesis_ml.utils.seed import set_all_seeds
+from thesis_ml.utils.wandb_utils import finish_wandb, init_wandb, log_artifact, log_metrics
 
 SUPPORTED_PLOT_FAMILIES = {"losses", "metrics", "recon", "codebook", "latency"}
 
@@ -47,6 +49,9 @@ def train(cfg: DictConfig):
     # model assembly
     model = build_from_config(cfg).to(device)
     opt = torch.optim.Adam(model.parameters(), lr=cfg.phase1.trainer.lr, weight_decay=cfg.phase1.trainer.weight_decay)
+
+    # Initialize W&B (returns None if disabled or on error - training continues normally)
+    wandb_run = init_wandb(cfg, model=model)
 
     # logging dir from Hydra (chdir=true means Hydra sets cwd to run.dir)
     outdir = None
@@ -163,6 +168,25 @@ def train(cfg: DictConfig):
             append_scalars_csv(str(outdir), epoch=ep, split="val", train_loss=None, val_loss=va["loss"], metrics={"perplex": float(va.get("perplex", 0.0))}, epoch_time_s=dt, throughput=thr, max_memory_mib=None)
         handle_event(cfg.logging, SUPPORTED_PLOT_FAMILIES, "on_epoch_end", payload)
 
+        # W&B logging (alongside Facts, not replacing)
+        log_metrics(
+            wandb_run,
+            {
+                "epoch": ep,
+                "train/loss": float(tr["loss"]),
+                "train/rec_tokens": float(tr["rec_tokens"]),
+                "train/perplex": float(tr.get("perplex", 0.0)),
+                "val/loss": float(va["loss"]),
+                "val/rec_tokens": float(va["rec_tokens"]),
+                "val/rec_globals": float(va.get("rec_globals", 0.0)),
+                "val/codebook": float(va.get("codebook", 0.0)),
+                "val/perplex": float(va.get("perplex", 0.0)),
+                "perf/epoch_time_s": float(dt),
+                "perf/throughput": float(thr),
+            },
+            step=ep,
+        )
+
         # progress bar with ETA and losses
         progress.update(
             ep,
@@ -231,5 +255,23 @@ def train(cfg: DictConfig):
         )
         append_jsonl_event(str(outdir), payload_test)
         handle_event(cfg.logging, SUPPORTED_PLOT_FAMILIES, "on_test_end", payload_test)
+
+        # Upload model artifact to W&B
+        best_val_artifact_path = Path(outdir) / "best_val.pt"
+        log_artifact(wandb_run, best_val_artifact_path, "model", cfg)
+
+    # Log test metrics to W&B
+    log_metrics(
+        wandb_run,
+        {
+            "test/loss": float(te["loss"]),
+            "test/rec_tokens": float(te["rec_tokens"]),
+            "test/perplex": float(te.get("perplex", 0.0)),
+        },
+        step=int(cfg.phase1.trainer.epochs),
+    )
+
+    # Finish W&B run
+    finish_wandb(wandb_run)
 
     return {"best_val_loss": best_val, "test_loss": te["loss"]}

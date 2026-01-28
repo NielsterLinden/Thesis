@@ -8,6 +8,9 @@ requires-python = ">=3.11"
 thesis-train = "thesis_ml.cli.train.__main__:main"
 thesis-report = "thesis_ml.cli.reports.__main__:main"
 
+[project.optional-dependencies]
+wandb = ["wandb>=0.22.0"]
+
 [tool.black]
 line-length = 1000
 target-version = ["py311"]

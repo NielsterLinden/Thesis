@@ -1,0 +1,8 @@
+# W&B preset for online mode (real-time logging)
+# Usage: thesis-train logging=wandb_online ...
+defaults:
+  - default
+
+use_wandb: true
+wandb:
+  mode: "online"

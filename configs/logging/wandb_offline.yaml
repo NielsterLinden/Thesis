@@ -1,0 +1,9 @@
+# W&B preset for offline mode (local logging, sync later)
+# Usage: thesis-train logging=wandb_offline ...
+# After training, sync with: wandb sync <wandb_dir>
+defaults:
+  - default
+
+use_wandb: true
+wandb:
+  mode: "offline"

@@ -38,14 +38,17 @@ tags:
 # Optionally enable tags en masse
 enable_tags: []  # e.g., ["core"]
 
-# Weights & Biases (W&B) integration (unchanged; optional)
+# Weights & Biases (W&B) integration
+# Enable via logging=wandb_online or logging=wandb_offline presets
 use_wandb: false
 wandb:
   project: "thesis-ml"
-  entity: ""
-  run_name: ""
-  mode: "online"      # "online" | "offline" | "disabled"
-  watch_model: false   # watch gradients/parameters
+  entity: ""  # Set to your W&B username/team, or leave empty for default
+  run_name: ""  # Leave empty to auto-generate from run directory (e.g., run_20260128-111834_myexp_job00)
+  group: ""  # Leave empty to auto-extract from run_name (e.g., exp_20260128-111834_myexp), or set explicitly
+  tags: []   # For filtering runs in W&B UI (e.g., ["classifier", "ablation"])
+  mode: "online"      # "online" | "offline" (use offline for HPC)
+  watch_model: false   # watch gradients/parameters (can slow training)
   log_freq: 100        # steps between watch logs
-  log_artifacts: true  # upload model and loss plot
+  log_artifacts: true  # upload model checkpoint
   dir: "${logging.output_root}/wandb"
