@@ -2,6 +2,7 @@
 """Migrate existing Facts runs to W&B retroactively.
 
 Facts system remains the source of truth - W&B is a mirror for visualization.
+Extracts comprehensive config metadata for maximum divisibility in WandB dashboards.
 
 Usage:
     # Dry run first (recommended)
@@ -9,6 +10,11 @@ Usage:
 
     # Migrate all runs
     python scripts/migrate_runs_to_wandb.py --runs-dir /data/atlas/users/nterlind/outputs/runs
+
+    # Migrate from both HPC and local
+    python scripts/migrate_runs_to_wandb.py \
+        --hpc-runs-dir /data/atlas/users/nterlind/outputs/runs \
+        --local-runs-dir ~/Projects/Thesis-Code/outputs/runs
 
     # Migrate specific sweep
     python scripts/migrate_runs_to_wandb.py --sweep-dir /data/atlas/users/nterlind/outputs/multiruns/exp_*
@@ -26,6 +32,7 @@ import argparse
 import logging
 import sys
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 
@@ -33,6 +40,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from thesis_ml.facts.readers import _read_cfg, _read_events, _read_scalars, discover_runs
+from thesis_ml.utils.wandb_utils import _safe_get, extract_wandb_config
 
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -85,8 +93,11 @@ def _extract_group_from_run(run_dir: Path, cfg: dict) -> str | None:
     return None
 
 
-def _extract_tags_from_cfg(cfg: dict) -> list[str]:
-    """Extract meaningful tags from config.
+def _extract_tags_from_cfg(cfg: dict[str, Any]) -> list[str]:
+    """Extract meaningful tags from config for quick filtering.
+
+    Tags are for quick categorical filtering in WandB.
+    Detailed config values go into the config dict (via extract_wandb_config).
 
     Parameters
     ----------
@@ -96,32 +107,57 @@ def _extract_tags_from_cfg(cfg: dict) -> list[str]:
     Returns
     -------
     list[str]
-        List of tags (e.g., ["autoencoder", "vq", "mlp"])
+        List of tags (e.g., ["transformer", "rotary", "pre-norm"])
     """
     tags = []
 
-    # Detect loop type
-    loop = cfg.get("loop", "")
+    # Model type tag
+    loop = _safe_get(cfg, "loop", "")
     if loop:
-        tags.append(loop)
+        if "transformer" in loop:
+            tags.append("transformer")
+        elif "mlp" in loop:
+            tags.append("mlp")
+        elif "bdt" in loop:
+            tags.append("bdt")
+        elif "ae" in loop:
+            tags.append("autoencoder")
+        else:
+            tags.append(loop)
+    elif _safe_get(cfg, "phase1"):
+        tags.append("autoencoder")
 
-    # Phase 1 configs
-    phase1 = cfg.get("phase1", {})
+    # Positional encoding tag
+    pos = _safe_get(cfg, "classifier.model.positional")
+    if pos:
+        tags.append(f"pe:{pos}")
+
+    # Normalization policy tag
+    norm = _safe_get(cfg, "classifier.model.norm.policy")
+    if norm:
+        tags.append(f"norm:{norm}")
+
+    # Tokenizer tag
+    tok = _safe_get(cfg, "classifier.tokenizer") or _safe_get(cfg, "tokenizer")
+    if isinstance(tok, dict) and tok.get("name"):
+        tags.append(f"tok:{tok['name']}")
+    elif tok:
+        tags.append(f"tok:{tok}")
+
+    # Pooling tag
+    pool = _safe_get(cfg, "classifier.model.pooling")
+    if pool:
+        tags.append(f"pool:{pool}")
+
+    # Autoencoder-specific tags
+    phase1 = _safe_get(cfg, "phase1")
     if phase1:
-        encoder = phase1.get("encoder", {})
-        if isinstance(encoder, dict) and encoder.get("name"):
-            tags.append(f"enc:{encoder['name']}")
-
-        latent = phase1.get("latent_space", {})
-        if isinstance(latent, dict) and latent.get("name"):
-            tags.append(f"lat:{latent['name']}")
-
-    # Classifier configs
-    classifier = cfg.get("classifier", {})
-    if classifier:
-        model = classifier.get("model", {})
-        if isinstance(model, dict) and model.get("name"):
-            tags.append(f"model:{model['name']}")
+        enc = _safe_get(cfg, "phase1.encoder")
+        if isinstance(enc, dict) and enc.get("name"):
+            tags.append(f"enc:{enc['name']}")
+        lat = _safe_get(cfg, "phase1.latent_space")
+        if isinstance(lat, dict) and lat.get("name"):
+            tags.append(f"lat:{lat['name']}")
 
     return tags
 
@@ -133,8 +169,9 @@ def migrate_run(
     dry_run: bool,
     upload_artifacts: bool = True,
     group_override: str | None = None,
+    source_location: str = "unknown",
 ) -> bool:
-    """Migrate a single run to W&B.
+    """Migrate a single run to W&B with comprehensive metadata.
 
     Parameters
     ----------
@@ -150,6 +187,8 @@ def migrate_run(
         If True, upload model artifacts
     group_override : str | None
         Override group name (useful for sweep migrations)
+    source_location : str
+        Source of the run ("hpc", "local", or other identifier)
 
     Returns
     -------
@@ -158,16 +197,37 @@ def migrate_run(
     """
     run_name = run_dir.name
 
+    # === Validation: Check for valid config ===
+    hydra_cfg_path = run_dir / ".hydra" / "config.yaml"
+    legacy_cfg_path = run_dir / "cfg.yaml"
+
+    if not hydra_cfg_path.exists() and not legacy_cfg_path.exists():
+        logger.warning("Skipping %s: no config file found", run_name)
+        return False
+
+    # === Read config ===
     try:
-        # Read facts
         cfg, _ = _read_cfg(run_dir)
-        scalars = _read_scalars(run_dir)
-        _events = _read_events(run_dir)  # Read to verify file exists, not used in migration
     except FileNotFoundError as e:
-        logger.warning("Skipping %s: %s", run_name, e)
+        logger.warning("Skipping %s: config not found: %s", run_name, e)
         return False
     except Exception as e:
-        logger.warning("Skipping %s due to error: %s", run_name, e)
+        logger.warning("Skipping %s: config read error: %s", run_name, e)
+        return False
+
+    # === Read scalars ===
+    try:
+        scalars = _read_scalars(run_dir)
+    except FileNotFoundError:
+        logger.warning("Skipping %s: no scalars.csv found", run_name)
+        return False
+    except Exception as e:
+        logger.warning("Skipping %s: scalars read error: %s", run_name, e)
+        return False
+
+    # === Validate scalars ===
+    if scalars.empty:
+        logger.warning("Skipping %s: empty scalars.csv", run_name)
         return False
 
     # Get validation metrics
@@ -178,23 +238,46 @@ def migrate_run(
         logger.warning("Skipping %s: no validation data", run_name)
         return False
 
-    # Extract group and tags
+    # === Read events (optional, for completeness check) ===
+    try:
+        _events = _read_events(run_dir)
+    except Exception:
+        _events = None  # Events are optional
+
+    # === Extract metadata ===
     group = group_override or _extract_group_from_run(run_dir, cfg)
     tags = _extract_tags_from_cfg(cfg)
+    wandb_config = extract_wandb_config(cfg, source_location=source_location)
 
+    # Add run directory to config for traceability
+    wandb_config["source/run_dir"] = str(run_dir)
+
+    # === Dry run logging ===
     if dry_run:
         group_str = f" [group: {group}]" if group else ""
         tags_str = f" [tags: {', '.join(tags)}]" if tags else ""
-        logger.info("[DRY RUN] Would migrate: %s (%d epochs)%s%s", run_name, n_epochs, group_str, tags_str)
+        model_type = wandb_config.get("model/type", "unknown")
+        size_label = wandb_config.get("model/size_label", "")
+        size_str = f" [{size_label}]" if size_label else ""
+        logger.info(
+            "[DRY RUN] Would migrate: %s (%d epochs, %s%s)%s%s",
+            run_name,
+            n_epochs,
+            model_type,
+            size_str,
+            group_str,
+            tags_str,
+        )
         return True
 
-    # Import wandb here to avoid import errors if not installed
+    # === Import wandb ===
     try:
         import wandb
     except ImportError:
         logger.error("wandb not installed. Install with: pip install wandb")
         return False
 
+    # === Migrate to WandB ===
     try:
         # Always use resume="allow" to prevent duplicates on re-run
         run = wandb.init(
@@ -203,13 +286,15 @@ def migrate_run(
             name=run_name,
             group=group,
             tags=tags if tags else None,
-            config=cfg,
+            config=wandb_config,  # Use extracted config for max divisibility
             resume="allow",
         )
 
         # Define metrics for proper axes
         wandb.define_metric("epoch")
-        wandb.define_metric("*", step_metric="epoch")
+        wandb.define_metric("train/*", step_metric="epoch")
+        wandb.define_metric("val/*", step_metric="epoch")
+        wandb.define_metric("perf/*", step_metric="epoch")
 
         # Log all epochs from scalars.csv
         for _, row in val_df.iterrows():
@@ -234,6 +319,8 @@ def migrate_run(
                 metrics["perf/epoch_time_s"] = float(row["epoch_time_s"])
             if "throughput" in row and pd.notna(row["throughput"]):
                 metrics["perf/throughput"] = float(row["throughput"])
+            if "max_memory_mib" in row and pd.notna(row["max_memory_mib"]):
+                metrics["perf/max_memory_mib"] = float(row["max_memory_mib"])
 
             # Remove None values
             metrics = {k: v for k, v in metrics.items() if v is not None}
@@ -242,9 +329,18 @@ def migrate_run(
 
         # Upload model artifact if exists
         if upload_artifacts:
+            # Extract key metadata for artifact
+            artifact_metadata = {
+                "model_type": wandb_config.get("model/type"),
+                "size_label": wandb_config.get("model/size_label"),
+                "params_est": wandb_config.get("model/params_est"),
+                "source": source_location,
+            }
+            artifact_metadata = {k: v for k, v in artifact_metadata.items() if v is not None}
+
             model_path = run_dir / "best_val.pt"
             if model_path.exists():
-                art = wandb.Artifact(f"model-{run_name}", type="model")
+                art = wandb.Artifact(f"model-{run_name}", type="model", metadata=artifact_metadata)
                 art.add_file(str(model_path))
                 wandb.log_artifact(art)
                 logger.info("Uploaded artifact: model-%s", run_name)
@@ -252,13 +348,14 @@ def migrate_run(
             # Also try model.json for BDT
             json_model_path = run_dir / "model.json"
             if json_model_path.exists() and not model_path.exists():
-                art = wandb.Artifact(f"model-{run_name}", type="model")
+                art = wandb.Artifact(f"model-{run_name}", type="model", metadata=artifact_metadata)
                 art.add_file(str(json_model_path))
                 wandb.log_artifact(art)
                 logger.info("Uploaded artifact: model-%s (json)", run_name)
 
         run.finish()
-        logger.info("Migrated: %s (%d epochs)", run_name, n_epochs)
+        model_type = wandb_config.get("model/type", "unknown")
+        logger.info("Migrated: %s (%d epochs, %s)", run_name, n_epochs, model_type)
         return True
 
     except Exception as e:
@@ -266,19 +363,57 @@ def migrate_run(
         return False
 
 
+def _discover_runs_in_dir(runs_dir: Path) -> list[Path]:
+    """Discover run directories in a given directory.
+
+    Parameters
+    ----------
+    runs_dir : Path
+        Directory containing run_* folders
+
+    Returns
+    -------
+    list[Path]
+        Sorted list of run directories
+    """
+    if not runs_dir.exists():
+        return []
+
+    run_dirs = []
+    for d in runs_dir.iterdir():
+        if d.is_dir() and d.name.startswith("run_"):
+            # Validate that it has a config file
+            has_hydra = (d / ".hydra" / "config.yaml").exists()
+            has_legacy = (d / "cfg.yaml").exists()
+            if has_hydra or has_legacy:
+                run_dirs.append(d)
+
+    return sorted(run_dirs)
+
+
 def main():
     parser = argparse.ArgumentParser(
-        description="Migrate existing Facts runs to W&B retroactively.",
+        description="Migrate existing Facts runs to W&B retroactively with comprehensive metadata.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
 
-    # Input options (mutually exclusive)
-    input_group = parser.add_mutually_exclusive_group(required=True)
+    # Input options - now supports multiple sources
+    input_group = parser.add_argument_group("Input sources (at least one required)")
     input_group.add_argument(
         "--runs-dir",
         type=Path,
         help="Path to runs directory containing run_* folders",
+    )
+    input_group.add_argument(
+        "--hpc-runs-dir",
+        type=Path,
+        help="HPC runs directory (e.g., /data/atlas/users/nterlind/outputs/runs)",
+    )
+    input_group.add_argument(
+        "--local-runs-dir",
+        type=Path,
+        help="Local runs directory",
     )
     input_group.add_argument(
         "--sweep-dir",
@@ -332,39 +467,78 @@ def main():
 
     args = parser.parse_args()
 
-    # Discover runs
+    # Collect all runs from all sources with their source location
+    all_runs: list[tuple[Path, str]] = []
+
+    # HPC runs
+    if args.hpc_runs_dir:
+        if args.hpc_runs_dir.exists():
+            hpc_runs = _discover_runs_in_dir(args.hpc_runs_dir)
+            logger.info("Found %d runs in HPC directory: %s", len(hpc_runs), args.hpc_runs_dir)
+            for r in hpc_runs:
+                all_runs.append((r, "hpc"))
+        else:
+            logger.warning("HPC directory not found: %s", args.hpc_runs_dir)
+
+    # Local runs
+    if args.local_runs_dir:
+        if args.local_runs_dir.exists():
+            local_runs = _discover_runs_in_dir(args.local_runs_dir)
+            logger.info("Found %d runs in local directory: %s", len(local_runs), args.local_runs_dir)
+            for r in local_runs:
+                all_runs.append((r, "local"))
+        else:
+            logger.warning("Local directory not found: %s", args.local_runs_dir)
+
+    # Generic runs-dir (backward compatibility)
     if args.runs_dir:
-        # Scan directory for run_* folders
-        if not args.runs_dir.exists():
+        if args.runs_dir.exists():
+            generic_runs = _discover_runs_in_dir(args.runs_dir)
+            logger.info("Found %d runs in directory: %s", len(generic_runs), args.runs_dir)
+            for r in generic_runs:
+                all_runs.append((r, "unknown"))
+        else:
             logger.error("Directory not found: %s", args.runs_dir)
             sys.exit(1)
 
-        run_dirs = sorted([d for d in args.runs_dir.iterdir() if d.is_dir() and d.name.startswith("run_")])
-    elif args.sweep_dir:
-        # Use discover_runs for sweep directory
+    # Sweep directory
+    if args.sweep_dir:
         try:
-            run_dirs = discover_runs(sweep_dir=args.sweep_dir, run_dirs=None)
+            sweep_runs = discover_runs(sweep_dir=args.sweep_dir, run_dirs=None)
+            logger.info("Found %d runs in sweep: %s", len(sweep_runs), args.sweep_dir)
+            for r in sweep_runs:
+                all_runs.append((r, "sweep"))
         except Exception as e:
-            logger.error("Failed to discover runs: %s", e)
+            logger.error("Failed to discover runs in sweep: %s", e)
             sys.exit(1)
-    else:
-        run_dirs = args.run_dirs
 
-    if not run_dirs:
-        logger.error("No runs found to migrate")
+    # Explicit run directories
+    if args.run_dirs:
+        for r in args.run_dirs:
+            if r.exists():
+                all_runs.append((r, "explicit"))
+            else:
+                logger.warning("Run directory not found: %s", r)
+
+    # Validate we have runs to migrate
+    if not all_runs:
+        logger.error("No runs found to migrate. Provide at least one of: --runs-dir, --hpc-runs-dir, --local-runs-dir, --sweep-dir, --run-dirs")
         sys.exit(1)
 
     # Apply limit
     if args.limit:
-        run_dirs = run_dirs[: args.limit]
+        all_runs = all_runs[: args.limit]
 
-    logger.info("Found %d runs to migrate", len(run_dirs))
+    logger.info("")
+    logger.info("=" * 60)
+    logger.info("Total runs to migrate: %d", len(all_runs))
+    logger.info("=" * 60)
 
     if args.dry_run:
         logger.info("DRY RUN MODE - no actual uploads will be made")
+        logger.info("")
 
     # Determine group override
-    # If migrating from a sweep dir, use the sweep name as group
     group_override = args.group
     if not group_override and args.sweep_dir:
         # Extract group from sweep directory name
@@ -377,26 +551,29 @@ def main():
     success_count = 0
     fail_count = 0
 
-    for run_dir in run_dirs:
-        run_path = Path(run_dir) if not isinstance(run_dir, Path) else run_dir
-        if migrate_run(
+    for run_path, source_location in all_runs:
+        result = migrate_run(
             run_path,
             project=args.project,
             entity=args.entity,
             dry_run=args.dry_run,
             upload_artifacts=not args.no_artifacts,
             group_override=group_override,
-        ):
+            source_location=source_location,
+        )
+        if result:
             success_count += 1
         else:
             fail_count += 1
 
     # Summary
     logger.info("")
+    logger.info("=" * 60)
     logger.info("Migration complete:")
     logger.info("  Succeeded: %d", success_count)
-    logger.info("  Failed: %d", fail_count)
-    logger.info("  Total: %d", success_count + fail_count)
+    logger.info("  Skipped/Failed: %d", fail_count)
+    logger.info("  Total processed: %d", success_count + fail_count)
+    logger.info("=" * 60)
 
     if args.dry_run:
         logger.info("")

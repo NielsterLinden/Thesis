@@ -5,6 +5,7 @@ This module provides a thin wrapper around W&B that:
 - Uses resume="allow" to prevent duplicates if re-run
 - Defines consistent metric axes for proper epoch-based plotting
 - Guards artifact uploads with config settings
+- Extracts comprehensive config metadata for maximum WandB divisibility
 
 The Facts system remains the canonical source of truth. W&B is a parallel
 logging layer for visualization and collaboration.
@@ -20,6 +21,189 @@ if TYPE_CHECKING:
     from omegaconf import DictConfig
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# Config Extraction for Maximum WandB Divisibility
+# =============================================================================
+
+
+def _safe_get(cfg: dict[str, Any], path: str, default: Any = None) -> Any:
+    """Safely get nested value from config using dot notation.
+
+    Parameters
+    ----------
+    cfg : dict
+        Config dictionary
+    path : str
+        Dot-separated path (e.g., "classifier.model.dim")
+    default : Any
+        Default value if path not found
+
+    Returns
+    -------
+    Any
+        Value at path or default
+    """
+    try:
+        val = cfg
+        for key in path.split("."):
+            if not isinstance(val, dict):
+                return default
+            val = val.get(key, {})
+        return val if val != {} else default
+    except Exception:
+        return default
+
+
+def extract_wandb_config(cfg: dict[str, Any], source_location: str = "live") -> dict[str, Any]:
+    """Extract ALL config fields into flat WandB-friendly dict.
+
+    Uses '/' as namespace separator for clean WandB UI organization.
+    Every extracted value becomes filterable in WandB dashboards.
+
+    This function is used both for:
+    - Live training runs (via init_wandb)
+    - Retroactive migration (via migrate_runs_to_wandb.py)
+
+    Parameters
+    ----------
+    cfg : dict
+        Full Hydra config dict (as plain dict, not DictConfig)
+    source_location : str
+        Source of the run ("hpc", "local", "live", etc.)
+
+    Returns
+    -------
+    dict
+        Flat dictionary with all relevant parameters for WandB config
+    """
+    wc: dict[str, Any] = {}
+
+    # === Model Type (Primary Classification) ===
+    loop = _safe_get(cfg, "loop", "")
+    wc["model/loop"] = loop if loop else None
+
+    # Determine model type from loop or classifier config
+    if loop:
+        if "transformer" in loop:
+            wc["model/type"] = "transformer"
+        elif "mlp" in loop:
+            wc["model/type"] = "mlp"
+        elif "bdt" in loop:
+            wc["model/type"] = "bdt"
+        elif "ae" in loop or "autoencoder" in loop:
+            wc["model/type"] = "autoencoder"
+        else:
+            wc["model/type"] = loop
+    else:
+        # Try to infer from config structure
+        if _safe_get(cfg, "phase1"):
+            wc["model/type"] = "autoencoder"
+        elif _safe_get(cfg, "classifier.model.name"):
+            wc["model/type"] = _safe_get(cfg, "classifier.model.name")
+        else:
+            wc["model/type"] = None
+
+    # === Transformer Architecture ===
+    wc["model/dim"] = _safe_get(cfg, "classifier.model.dim")
+    wc["model/depth"] = _safe_get(cfg, "classifier.model.depth")
+    wc["model/heads"] = _safe_get(cfg, "classifier.model.heads")
+    wc["model/mlp_dim"] = _safe_get(cfg, "classifier.model.mlp_dim")
+    wc["model/dropout"] = _safe_get(cfg, "classifier.model.dropout")
+
+    # Model size estimate for transformers
+    dim = _safe_get(cfg, "classifier.model.dim")
+    depth = _safe_get(cfg, "classifier.model.depth")
+    if dim is not None and depth is not None:
+        try:
+            dim = int(dim)
+            depth = int(depth)
+            mlp_ratio = 4
+            block_params = 4 * dim * dim + 2 * dim * dim * mlp_ratio
+            wc["model/params_est"] = int(depth * block_params + 10000)
+            wc["model/size_label"] = f"{dim}d{depth}L"
+        except (ValueError, TypeError):
+            pass
+
+    # === MLP Architecture ===
+    hidden = _safe_get(cfg, "classifier.model.hidden_sizes")
+    if hidden is not None:
+        wc["model/hidden_sizes"] = str(hidden) if isinstance(hidden, list) else hidden
+        wc["model/n_layers"] = len(hidden) if isinstance(hidden, list) else None
+    wc["model/use_batch_norm"] = _safe_get(cfg, "classifier.model.use_batch_norm")
+    wc["model/activation"] = _safe_get(cfg, "classifier.model.activation")
+
+    # === BDT Architecture ===
+    wc["model/n_estimators"] = _safe_get(cfg, "classifier.model.n_estimators")
+    wc["model/max_depth"] = _safe_get(cfg, "classifier.model.max_depth")
+    wc["model/bdt_lr"] = _safe_get(cfg, "classifier.model.learning_rate")
+    wc["model/subsample"] = _safe_get(cfg, "classifier.model.subsample")
+    wc["model/colsample_bytree"] = _safe_get(cfg, "classifier.model.colsample_bytree")
+
+    # === Positional Encoding ===
+    wc["pos_enc/type"] = _safe_get(cfg, "classifier.model.positional")
+    wc["pos_enc/space"] = _safe_get(cfg, "classifier.model.positional_space")
+    dim_mask = _safe_get(cfg, "classifier.model.positional_dim_mask")
+    if dim_mask is not None:
+        wc["pos_enc/dim_mask"] = str(dim_mask) if isinstance(dim_mask, list) else dim_mask
+    wc["pos_enc/rotary_base"] = _safe_get(cfg, "classifier.model.rotary.base")
+
+    # === Normalization ===
+    wc["norm/policy"] = _safe_get(cfg, "classifier.model.norm.policy")
+
+    # === Tokenizer ===
+    tok = _safe_get(cfg, "classifier.tokenizer") or _safe_get(cfg, "tokenizer")
+    if isinstance(tok, dict):
+        wc["tokenizer/type"] = tok.get("name")
+        wc["tokenizer/id_embed_dim"] = tok.get("id_embed_dim")
+    elif tok:
+        wc["tokenizer/type"] = tok
+
+    # === Pooling ===
+    wc["pooling/type"] = _safe_get(cfg, "classifier.model.pooling")
+
+    # === Training Hyperparameters ===
+    wc["training/lr"] = _safe_get(cfg, "classifier.trainer.lr") or _safe_get(cfg, "trainer.lr")
+    wc["training/weight_decay"] = _safe_get(cfg, "classifier.trainer.weight_decay") or _safe_get(cfg, "trainer.weight_decay")
+    wc["training/batch_size"] = _safe_get(cfg, "classifier.trainer.batch_size") or _safe_get(cfg, "trainer.batch_size")
+    wc["training/epochs"] = _safe_get(cfg, "classifier.trainer.epochs") or _safe_get(cfg, "trainer.epochs")
+    wc["training/label_smoothing"] = _safe_get(cfg, "classifier.trainer.label_smoothing")
+    wc["training/warmup_steps"] = _safe_get(cfg, "classifier.trainer.warmup_steps")
+    wc["training/lr_schedule"] = _safe_get(cfg, "classifier.trainer.lr_schedule")
+    wc["training/grad_clip"] = _safe_get(cfg, "classifier.trainer.grad_clip")
+    wc["training/seed"] = _safe_get(cfg, "trainer.seed") or _safe_get(cfg, "seed")
+
+    # === Early Stopping ===
+    wc["early_stop/enabled"] = _safe_get(cfg, "classifier.trainer.early_stopping.enabled")
+    wc["early_stop/patience"] = _safe_get(cfg, "classifier.trainer.early_stopping.patience")
+
+    # === Autoencoder (Phase 1) ===
+    if _safe_get(cfg, "phase1"):
+        enc = _safe_get(cfg, "phase1.encoder")
+        wc["ae/encoder"] = enc.get("name") if isinstance(enc, dict) else enc
+        dec = _safe_get(cfg, "phase1.decoder")
+        wc["ae/decoder"] = dec.get("name") if isinstance(dec, dict) else dec
+        lat = _safe_get(cfg, "phase1.latent_space")
+        wc["ae/latent"] = lat.get("name") if isinstance(lat, dict) else lat
+        wc["ae/latent_dim"] = _safe_get(cfg, "phase1.model.latent_dim")
+        wc["ae/codebook_size"] = _safe_get(cfg, "phase1.model.codebook_size")
+        wc["ae/globals_beta"] = _safe_get(cfg, "phase1.decoder.globals_beta")
+        wc["ae/beta"] = _safe_get(cfg, "phase1.model.beta")
+
+    # === Dataset ===
+    wc["data/name"] = _safe_get(cfg, "data.name") or _safe_get(cfg, "data.path")
+
+    # === Metrics ===
+    metrics = _safe_get(cfg, "metrics")
+    if metrics:
+        wc["metrics/list"] = str(metrics) if isinstance(metrics, list) else metrics
+
+    # === Source Info ===
+    wc["source/location"] = source_location
+
+    # Remove None values for cleaner WandB display
+    return {k: v for k, v in wc.items() if v is not None}
 
 
 def _get_run_name_from_cwd() -> str | None:
@@ -90,7 +274,7 @@ def _get_group_from_run_name(run_name: str | None) -> str | None:
 
 
 def init_wandb(cfg: DictConfig, model: Any = None) -> Any:
-    """Initialize W&B run with safe defaults.
+    """Initialize W&B run with safe defaults and comprehensive metadata.
 
     Parameters
     ----------
@@ -110,13 +294,15 @@ def init_wandb(cfg: DictConfig, model: Any = None) -> Any:
     - Never raises exceptions - logs warnings instead
     - Uses resume="allow" to prevent duplicates on re-run
     - Defines metric axes for consistent epoch-based plotting
+    - Extracts comprehensive config metadata for maximum WandB divisibility
     """
     if not cfg.logging.use_wandb:
         return None
 
     try:
-        import wandb
         from omegaconf import OmegaConf
+
+        import wandb
 
         wandb_cfg = cfg.logging.wandb
         wandb_dir = Path(str(wandb_cfg.dir)).resolve()
@@ -131,6 +317,11 @@ def init_wandb(cfg: DictConfig, model: Any = None) -> Any:
         group = str(wandb_cfg.group) if wandb_cfg.get("group") else _get_group_from_run_name(run_name)
         tags = list(wandb_cfg.tags) if wandb_cfg.get("tags") else None
 
+        # Extract comprehensive config for maximum WandB divisibility
+        # This allows filtering by any config parameter in dashboards
+        cfg_dict = OmegaConf.to_container(cfg, resolve=True)
+        wandb_config = extract_wandb_config(cfg_dict, source_location="live")
+
         run = wandb.init(
             project=str(wandb_cfg.project),
             entity=entity,
@@ -139,7 +330,7 @@ def init_wandb(cfg: DictConfig, model: Any = None) -> Any:
             tags=tags,
             mode=str(wandb_cfg.mode),
             dir=str(wandb_dir),
-            config=OmegaConf.to_container(cfg, resolve=True),
+            config=wandb_config,  # Use extracted config for consistent metadata
             resume="allow",  # Prevents duplicates on re-run
         )
 
@@ -148,6 +339,7 @@ def init_wandb(cfg: DictConfig, model: Any = None) -> Any:
         wandb.define_metric("train/*", step_metric="epoch")
         wandb.define_metric("val/*", step_metric="epoch")
         wandb.define_metric("test/*", step_metric="epoch")
+        wandb.define_metric("perf/*", step_metric="epoch")
 
         # Optional model watching (gradients/parameters)
         if model is not None and wandb_cfg.get("watch_model", False):
