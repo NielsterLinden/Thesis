@@ -246,7 +246,8 @@ def _infer_from_overrides(run_dir: Path) -> tuple[list[list[str]] | None, str]:
     """Try to infer process_groups from Hydra overrides file."""
     overrides = load_hydra_overrides(run_dir)
     if not overrides:
-        return None, "low"
+        # Try legacy fallback rules based on run name/date
+        return _infer_from_legacy_rules(run_dir)
 
     # Check for selected_labels in overrides
     selected_str = overrides.get("data.classifier.selected_labels")
@@ -259,6 +260,53 @@ def _infer_from_overrides(run_dir: Path) -> tuple[list[list[str]] | None, str]:
                 name = PROCESS_ID_NAMES.get(label, f"unknown_{label}")
                 label_groups.append({"name": name, "labels": [label]})
             return canonicalize_process_groups(label_groups, preserve_signal_first=False), "medium"
+
+    # Try legacy fallback rules
+    return _infer_from_legacy_rules(run_dir)
+
+
+def _infer_from_legacy_rules(run_dir: Path) -> tuple[list[list[str]] | None, str]:
+    """Infer process_groups from legacy run naming patterns.
+
+    These are hardcoded rules for old experiments that didn't have proper config.
+    All early experiments (Oct-Nov 2025) were "4t vs background" binary classification.
+    """
+    run_name = run_dir.name
+
+    # Known patterns for "4t vs background" (signal vs all others)
+    # These experiments all used signal_vs_background with signal=1, background=[2,3,4,5]
+    legacy_4t_vs_bg_patterns = [
+        "compare_globals_heads",  # Oct-Nov 2025 experiments
+        "experiment_job",  # Early experiment runs
+    ]
+
+    # Check if run matches any legacy pattern
+    for pattern in legacy_4t_vs_bg_patterns:
+        if pattern in run_name:
+            # 4t vs background: background class first (alphabetical), then signal
+            label_groups = [
+                {"name": "background", "labels": [2, 3, 4, 5]},
+                {"name": "signal", "labels": [1]},
+            ]
+            return canonicalize_process_groups(label_groups, preserve_signal_first=True), "medium"
+
+    # Check date-based rules: runs before 2025-11-12 were all 4t vs background
+    # Run format: run_YYYYMMDD-HHMMSS_...
+    try:
+        date_str = run_name.split("_")[1].split("-")[0]  # Extract YYYYMMDD
+        if len(date_str) == 8:
+            year = int(date_str[:4])
+            month = int(date_str[4:6])
+            day = int(date_str[6:8])
+            # Before Nov 12, 2025 = all 4t vs background experiments
+            if year == 2025 and (month < 11 or (month == 11 and day < 12)):
+                label_groups = [
+                    {"name": "background", "labels": [2, 3, 4, 5]},
+                    {"name": "signal", "labels": [1]},
+                ]
+                return canonicalize_process_groups(label_groups, preserve_signal_first=True), "medium"
+    except (IndexError, ValueError):
+        pass
 
     # CANNOT DETERMINE - return None, NOT a guess
     return None, "low"
