@@ -46,6 +46,31 @@ logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
 
 
+def get_existing_wandb_runs(project: str, entity: str | None = None) -> set[str]:
+    """Fetch all existing run names from WandB project.
+
+    Returns:
+        Set of run names that already exist in WandB
+    """
+    try:
+        import wandb
+    except ImportError:
+        logger.warning("wandb not installed, cannot check for existing runs")
+        return set()
+
+    api = wandb.Api()
+
+    try:
+        entity_project = f"{entity}/{project}" if entity else project
+        runs = api.runs(entity_project)
+        existing = {run.name for run in runs}
+        logger.info(f"Found {len(existing)} existing runs in WandB")
+        return existing
+    except Exception as e:
+        logger.warning(f"Could not fetch existing runs from WandB: {e}")
+        return set()
+
+
 def _extract_group_from_run(run_dir: Path, cfg: dict) -> str | None:
     """Extract experiment/sweep group name from run directory or config.
 
@@ -170,7 +195,8 @@ def migrate_run(
     upload_artifacts: bool = True,
     group_override: str | None = None,
     source_location: str = "unknown",
-) -> bool:
+    existing_runs: set[str] | None = None,
+) -> bool | str:
     """Migrate a single run to W&B with comprehensive metadata.
 
     Parameters
@@ -187,15 +213,21 @@ def migrate_run(
         If True, upload model artifacts
     group_override : str | None
         Override group name (useful for sweep migrations)
+    existing_runs : set[str] | None
+        Set of run names that already exist in WandB (skip these)
     source_location : str
         Source of the run ("hpc", "local", or other identifier)
 
     Returns
     -------
-    bool
-        True if migration succeeded (or dry run), False otherwise
+    bool | str
+        True if migration succeeded, False if failed/skipped, "exists" if already in WandB
     """
     run_name = run_dir.name
+
+    # === Check if already exists in WandB ===
+    if existing_runs is not None and run_name in existing_runs:
+        return "exists"
 
     # === Validation: Check for valid config ===
     hydra_cfg_path = run_dir / ".hydra" / "config.yaml"
@@ -538,6 +570,10 @@ def main():
         logger.info("DRY RUN MODE - no actual uploads will be made")
         logger.info("")
 
+    # Fetch existing runs from WandB to avoid duplicates
+    logger.info("Checking for existing runs in WandB...")
+    existing_runs = get_existing_wandb_runs(args.project, args.entity)
+
     # Determine group override
     group_override = args.group
     if not group_override and args.sweep_dir:
@@ -550,6 +586,7 @@ def main():
     # Migrate runs
     success_count = 0
     fail_count = 0
+    exists_count = 0
 
     for run_path, source_location in all_runs:
         result = migrate_run(
@@ -560,8 +597,11 @@ def main():
             upload_artifacts=not args.no_artifacts,
             group_override=group_override,
             source_location=source_location,
+            existing_runs=existing_runs,
         )
-        if result:
+        if result == "exists":
+            exists_count += 1
+        elif result:
             success_count += 1
         else:
             fail_count += 1
@@ -571,8 +611,9 @@ def main():
     logger.info("=" * 60)
     logger.info("Migration complete:")
     logger.info("  Succeeded: %d", success_count)
+    logger.info("  Already in WandB: %d", exists_count)
     logger.info("  Skipped/Failed: %d", fail_count)
-    logger.info("  Total processed: %d", success_count + fail_count)
+    logger.info("  Total processed: %d", success_count + exists_count + fail_count)
     logger.info("=" * 60)
 
     if args.dry_run:
