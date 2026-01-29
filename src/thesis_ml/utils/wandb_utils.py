@@ -6,6 +6,7 @@ This module provides a thin wrapper around W&B that:
 - Defines consistent metric axes for proper epoch-based plotting
 - Guards artifact uploads with config settings
 - Extracts comprehensive config metadata for maximum WandB divisibility
+- Integrates with the metadata schema (facts/meta.json) for semantic slicing
 
 The Facts system remains the canonical source of truth. W&B is a parallel
 logging layer for visualization and collaboration.
@@ -13,6 +14,7 @@ logging layer for visualization and collaboration.
 
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -202,8 +204,122 @@ def extract_wandb_config(cfg: dict[str, Any], source_location: str = "live") -> 
     # === Source Info ===
     wc["source/location"] = source_location
 
+    # === Metadata Schema Fields (meta.*) ===
+    # These enable reliable slicing and filtering in W&B dashboards
+    meta_fields = extract_meta_fields(cfg)
+    wc.update(meta_fields)
+
     # Remove None values for cleaner WandB display
     return {k: v for k, v in wc.items() if v is not None}
+
+
+def extract_meta_fields(cfg: dict[str, Any]) -> dict[str, Any]:
+    """Extract metadata schema fields for W&B config.
+
+    Uses the facts.meta module to build canonical metadata, then
+    formats it for W&B with meta.* prefix.
+
+    Parameters
+    ----------
+    cfg : dict
+        Full Hydra config dict
+
+    Returns
+    -------
+    dict
+        Dict with meta.* keys for W&B config
+    """
+    try:
+        from thesis_ml.facts.meta import build_meta
+    except ImportError:
+        logger.warning("[wandb] Could not import facts.meta, skipping meta fields")
+        return {}
+
+    try:
+        meta = build_meta(cfg)
+    except Exception as e:
+        logger.warning("[wandb] Could not build meta: %s", e)
+        return {}
+
+    wc: dict[str, Any] = {}
+
+    # Canonical fields
+    wc["meta.schema_version"] = meta.get("schema_version")
+    wc["meta.level"] = meta.get("level")
+    wc["meta.goal"] = meta.get("goal")
+    wc["meta.model_family"] = meta.get("model_family")
+    wc["meta.dataset_name"] = meta.get("dataset_name")
+
+    # Process groups: three representations for different uses
+    process_groups = meta.get("process_groups")
+    wc["meta.process_groups"] = json.dumps(process_groups) if process_groups else None
+    wc["meta.process_groups_key"] = meta.get("process_groups_key")  # Best for W&B grouping
+    wc["meta.class_def_str"] = meta.get("class_def_str")  # For display
+    wc["meta.row_key"] = meta.get("row_key")
+    wc["meta.n_classes"] = meta.get("n_classes")
+
+    # Datatreatment and confidence
+    datatreatment = meta.get("datatreatment")
+    wc["meta.datatreatment"] = json.dumps(datatreatment) if datatreatment else None
+    wc["meta.meta_hash"] = meta.get("meta_hash")
+    wc["meta.meta_confidence"] = meta.get("meta_confidence")
+    wc["meta.needs_review"] = meta.get("needs_review", False)
+
+    return wc
+
+
+def extract_meta_tags(cfg: dict[str, Any]) -> list[str]:
+    """Extract minimal tags from metadata for W&B.
+
+    Keep tags few and stable - don't explode with numeric values.
+
+    Parameters
+    ----------
+    cfg : dict
+        Full Hydra config dict
+
+    Returns
+    -------
+    list[str]
+        List of tags (e.g., ["level:sim_event", "goal:classification", "family:transformer"])
+    """
+    try:
+        from thesis_ml.facts.meta import build_meta
+    except ImportError:
+        return []
+
+    try:
+        meta = build_meta(cfg)
+    except Exception:
+        return []
+
+    tags = []
+
+    # Level
+    level = meta.get("level")
+    if level:
+        tags.append(f"level:{level}")
+
+    # Goal
+    goal = meta.get("goal")
+    if goal:
+        tags.append(f"goal:{goal}")
+
+    # Model family
+    family = meta.get("model_family")
+    if family:
+        tags.append(f"family:{family}")
+
+    # Dataset
+    dataset = meta.get("dataset_name")
+    if dataset:
+        tags.append(f"dataset:{dataset}")
+
+    # Needs review flag
+    if meta.get("needs_review"):
+        tags.append("needs_review")
+
+    return tags
 
 
 def _get_run_name_from_cwd() -> str | None:
@@ -315,11 +431,13 @@ def init_wandb(cfg: DictConfig, model: Any = None) -> Any:
         # Auto-extract group from run name if not explicitly set
         # This groups runs from the same experiment (multirun) together
         group = str(wandb_cfg.group) if wandb_cfg.get("group") else _get_group_from_run_name(run_name)
-        tags = list(wandb_cfg.tags) if wandb_cfg.get("tags") else None
+
+        # Tags: use explicit tags if provided, otherwise extract from meta
+        cfg_dict = OmegaConf.to_container(cfg, resolve=True)
+        tags = list(wandb_cfg.tags) if wandb_cfg.get("tags") else extract_meta_tags(cfg_dict)
 
         # Extract comprehensive config for maximum WandB divisibility
         # This allows filtering by any config parameter in dashboards
-        cfg_dict = OmegaConf.to_container(cfg, resolve=True)
         wandb_config = extract_wandb_config(cfg_dict, source_location="live")
 
         run = wandb.init(

@@ -13,7 +13,7 @@ from sklearn.metrics import f1_score, roc_auc_score
 
 from thesis_ml.architectures.transformer_classifier.base import build_from_config
 from thesis_ml.data.h5_loader import make_classification_dataloaders
-from thesis_ml.facts import append_jsonl_event, append_scalars_csv, build_event_payload
+from thesis_ml.facts import append_jsonl_event, append_scalars_csv, build_event_payload, build_meta, write_meta
 from thesis_ml.monitoring.orchestrator import handle_event
 from thesis_ml.utils import TrainingProgressShower
 from thesis_ml.utils.seed import set_all_seeds
@@ -461,6 +461,16 @@ def train(cfg: DictConfig) -> dict:
         )
         append_jsonl_event(str(outdir), start_payload)
         handle_event(cfg.logging, SUPPORTED_PLOT_FAMILIES, "on_start", start_payload)
+
+        # Emit facts/meta.json for semantic slicing in W&B
+        # Must happen after Hydra resolution, before training starts
+        try:
+            meta = build_meta(cfg)
+            write_meta(meta, Path(outdir) / "facts" / "meta.json")
+        except Exception as e:
+            import logging
+
+            logging.getLogger(__name__).warning("[meta] Could not write meta.json: %s", e)
 
     # Training loop
     histories = {

@@ -1,0 +1,15 @@
+# Metadata schema configuration
+# See METADATA_SCHEMA.md for full documentation
+
+schema_version: 1
+level: "sim_event"
+
+# IMPORTANT: goal should be set EXPLICITLY in experiment configs
+# Set to null here so it must be overridden or will be inferred from loop
+goal: null
+
+# These are derived at runtime from other config values:
+# - dataset_name: from data.path
+# - model_family: from loop
+# - process_groups: from data.classifier.*
+# - datatreatment: from various config keys

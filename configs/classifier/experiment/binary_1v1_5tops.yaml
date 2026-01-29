@@ -1,5 +1,9 @@
 # @package _global_
 
+# Metadata schema - explicit goal for reliable W&B slicing
+meta:
+  goal: "classification"
+
 experiment:
   name: "binary_1v1_5tops"
 

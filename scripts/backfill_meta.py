@@ -1,0 +1,520 @@
+#!/usr/bin/env python
+"""Backfill facts/meta.json for existing runs.
+
+This script infers metadata from existing .hydra/config.yaml files and writes
+facts/meta.json for each run. It never guesses process_groups - uncertain runs
+get null + needs_review=True.
+
+Usage:
+    # Dry run (recommended first)
+    python scripts/backfill_meta.py --runs-dir /path/to/runs --dry-run
+
+    # Backfill all runs
+    python scripts/backfill_meta.py --runs-dir /path/to/runs
+
+    # Apply manual overrides from facts/meta_override.json
+    python scripts/backfill_meta.py --runs-dir /path/to/runs --apply-overrides
+
+    # Generate report only (no writes)
+    python scripts/backfill_meta.py --runs-dir /path/to/runs --report-only
+"""
+
+from __future__ import annotations
+
+import argparse
+import logging
+import sys
+from collections import Counter
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+# Add src to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+
+from thesis_ml.facts.meta import (
+    PROCESS_ID_NAMES,
+    SCHEMA_VERSION,
+    build_class_def_str,
+    build_process_groups_key,
+    canonicalize_datatreatment,
+    canonicalize_process_groups,
+    compute_meta_hash,
+    load_meta_override,
+    merge_meta_with_override,
+    read_meta,
+    write_meta,
+)
+
+logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
+logger = logging.getLogger(__name__)
+
+
+def _safe_get(cfg: dict[str, Any], path: str, default: Any = None) -> Any:
+    """Safely get nested value from config using dot notation."""
+    try:
+        val = cfg
+        for key in path.split("."):
+            if not isinstance(val, dict):
+                return default
+            val = val.get(key, {})
+        return val if val != {} else default
+    except Exception:
+        return default
+
+
+def load_hydra_config(run_dir: Path) -> dict[str, Any] | None:
+    """Load Hydra config from run directory."""
+    hydra_cfg_path = run_dir / ".hydra" / "config.yaml"
+    legacy_cfg_path = run_dir / "cfg.yaml"
+    resolved_cfg_path = run_dir / "resolved_config.yaml"
+
+    # Try paths in order of preference
+    for cfg_path in [hydra_cfg_path, resolved_cfg_path, legacy_cfg_path]:
+        if cfg_path.exists():
+            try:
+                with open(cfg_path, encoding="utf-8") as f:
+                    return yaml.safe_load(f)
+            except Exception as e:
+                logger.warning("Could not load %s: %s", cfg_path, e)
+
+    return None
+
+
+def load_hydra_overrides(run_dir: Path) -> dict[str, str] | None:
+    """Load Hydra overrides from run directory."""
+    overrides_path = run_dir / ".hydra" / "overrides.yaml"
+    if not overrides_path.exists():
+        return None
+
+    try:
+        with open(overrides_path, encoding="utf-8") as f:
+            overrides_list = yaml.safe_load(f)
+
+        if not overrides_list:
+            return None
+
+        # Parse overrides into dict
+        result = {}
+        for override in overrides_list:
+            if "=" in override:
+                key, value = override.split("=", 1)
+                result[key] = value
+        return result
+    except Exception as e:
+        logger.warning("Could not load overrides from %s: %s", overrides_path, e)
+        return None
+
+
+def _infer_goal_from_loop(loop: str) -> tuple[str | None, str]:
+    """Infer goal from training loop name. Returns (goal, confidence)."""
+    if not loop:
+        return None, "low"
+
+    loop_lower = loop.lower()
+    if "classifier" in loop_lower:
+        return "classification", "high"
+    if any(x in loop_lower for x in ["ae", "autoencoder", "gan", "diffusion"]):
+        return "anomaly_detection", "high"
+
+    return None, "low"
+
+
+def _infer_model_family(loop: str) -> tuple[str | None, str]:
+    """Infer model family from loop name. Returns (family, confidence)."""
+    if not loop:
+        return None, "low"
+
+    loop_lower = loop.lower()
+    if "transformer" in loop_lower:
+        return "transformer", "high"
+    if "mlp" in loop_lower:
+        return "mlp", "high"
+    if "bdt" in loop_lower:
+        return "bdt", "high"
+    if any(x in loop_lower for x in ["ae", "autoencoder", "gan", "diffusion"]):
+        return "ae", "high"
+
+    return None, "low"
+
+
+def _extract_dataset_name(cfg: dict[str, Any]) -> tuple[str | None, str]:
+    """Extract dataset name. Returns (name, confidence)."""
+    data_path = _safe_get(cfg, "data.path")
+    if data_path:
+        name = Path(str(data_path)).stem.replace("_", "").replace("-", "")
+        return name, "high"
+
+    data_name = _safe_get(cfg, "data.name")
+    if data_name:
+        return str(data_name), "high"
+
+    return None, "low"
+
+
+def _infer_process_groups_safe(cfg: dict[str, Any], run_dir: Path) -> tuple[list[list[str]] | None, str]:
+    """Safely infer process_groups. Returns (groups, confidence).
+
+    CRITICAL: Never guess. If uncertain, return (None, "low").
+    """
+    # Try to import h5_loader for _normalize_label_groups
+    try:
+        from thesis_ml.data.h5_loader import _normalize_label_groups
+
+        has_h5_loader = True
+    except ImportError:
+        has_h5_loader = False
+
+    # Check if signal_vs_background was used
+    is_signal_vs_bg = _safe_get(cfg, "data.classifier.signal_vs_background") is not None
+
+    # Try explicit config first
+    if has_h5_loader:
+        try:
+            # Check if any label config exists
+            classifier_cfg = _safe_get(cfg, "data.classifier")
+            if classifier_cfg:
+                has_label_groups = "label_groups" in classifier_cfg and classifier_cfg.get("label_groups") is not None
+                has_signal_vs_bg = "signal_vs_background" in classifier_cfg and classifier_cfg.get("signal_vs_background") is not None
+                has_selected_labels = "selected_labels" in classifier_cfg and classifier_cfg.get("selected_labels") is not None
+
+                if has_label_groups or has_signal_vs_bg or has_selected_labels:
+                    label_groups, _, _ = _normalize_label_groups(cfg)
+                    if label_groups:
+                        return canonicalize_process_groups(label_groups, preserve_signal_first=is_signal_vs_bg), "high"
+        except Exception as e:
+            logger.debug("Could not normalize label groups for %s: %s", run_dir.name, e)
+
+    # Try parsing Hydra overrides for sweep experiments
+    overrides = load_hydra_overrides(run_dir)
+    if overrides:
+        # Check for selected_labels in overrides
+        selected_str = overrides.get("data.classifier.selected_labels")
+        if selected_str:
+            try:
+                # Parse colon-separated or list format
+                if ":" in selected_str:
+                    labels = [int(x) for x in selected_str.split(":")]
+                elif "," in selected_str:
+                    labels = [int(x.strip()) for x in selected_str.split(",")]
+                else:
+                    labels = [int(selected_str)]
+
+                # One class per label (multiclass)
+                groups = [[PROCESS_ID_NAMES.get(lid, f"unknown_{lid}")] for lid in sorted(labels)]
+                return groups, "medium"
+            except Exception:
+                pass
+
+    # CANNOT DETERMINE - return None, NOT a guess
+    return None, "low"
+
+
+def backfill_run(run_dir: Path, apply_overrides: bool = False) -> tuple[dict[str, Any] | None, list[str]]:
+    """Backfill meta.json for a single run.
+
+    Parameters
+    ----------
+    run_dir : Path
+        Path to the run directory
+    apply_overrides : bool
+        If True, apply facts/meta_override.json if present
+
+    Returns
+    -------
+    tuple[dict | None, list[str]]
+        (meta_dict, issues_list) or (None, issues) if failed
+    """
+    cfg = load_hydra_config(run_dir)
+    if cfg is None:
+        return None, ["no_config_found"]
+
+    issues: list[str] = []
+    confidences: dict[str, str] = {}
+
+    # --- Level: always sim_event for current dataset ---
+    level = "sim_event"
+    confidences["level"] = "high"
+
+    # --- Goal ---
+    goal, goal_conf = _infer_goal_from_loop(_safe_get(cfg, "loop", ""))
+    confidences["goal"] = goal_conf
+    if not goal:
+        issues.append("missing_goal")
+
+    # --- Model family ---
+    model_family, family_conf = _infer_model_family(_safe_get(cfg, "loop", ""))
+    confidences["model_family"] = family_conf
+    if not model_family:
+        issues.append("missing_model_family")
+
+    # --- Dataset name ---
+    dataset_name, ds_conf = _extract_dataset_name(cfg)
+    confidences["dataset_name"] = ds_conf
+    if not dataset_name:
+        issues.append("missing_dataset_name")
+
+    # --- Process groups (CRITICAL - never guess) ---
+    process_groups, pg_conf = _infer_process_groups_safe(cfg, run_dir)
+    confidences["process_groups"] = pg_conf
+    if process_groups is None:
+        issues.append("missing_process_groups")
+
+    # --- Datatreatment ---
+    datatreatment, dt_conf = canonicalize_datatreatment(cfg)
+    confidences["datatreatment"] = dt_conf
+    if dt_conf == "low":
+        issues.append("ambiguous_datatreatment")
+
+    # --- Overall confidence ---
+    conf_order = {"high": 0, "medium": 1, "low": 2}
+    overall_conf = min(confidences.values(), key=lambda c: conf_order.get(c, 2))
+
+    # --- Build meta dict ---
+    meta: dict[str, Any] = {
+        "schema_version": SCHEMA_VERSION,
+        "level": level,
+        "goal": goal,
+        "dataset_name": dataset_name,
+        "model_family": model_family,
+        "process_groups": process_groups,
+        "datatreatment": datatreatment,
+        "meta_hash": None,
+        "meta_source": "backfill",
+        "meta_confidence": overall_conf,
+        "meta_confidence_fields": confidences,
+        "needs_review": len(issues) > 0,
+        "needs_review_reason": issues,
+        # Derived fields
+        "n_classes": len(process_groups) if process_groups else None,
+        "processes_all": (sorted(set(p for cls in process_groups for p in cls)) if process_groups else None),
+        "class_def_str": build_class_def_str(process_groups),
+        "process_groups_key": build_process_groups_key(process_groups),
+        "row_key": None,
+    }
+
+    # Compute hash and row_key
+    meta["meta_hash"] = compute_meta_hash(meta)
+    if meta["process_groups_key"] and dataset_name:
+        meta["row_key"] = f"{dataset_name}::{meta['process_groups_key']}"
+
+    # Apply manual overrides if requested
+    if apply_overrides:
+        override = load_meta_override(run_dir)
+        if override:
+            meta = merge_meta_with_override(meta, override)
+            logger.info("Applied override for %s", run_dir.name)
+
+    return meta, issues
+
+
+def discover_runs(runs_dir: Path) -> list[Path]:
+    """Discover run directories in a given directory."""
+    if not runs_dir.exists():
+        return []
+
+    run_dirs = []
+    for d in runs_dir.iterdir():
+        if d.is_dir() and d.name.startswith("run_"):
+            # Validate that it has a config file
+            has_hydra = (d / ".hydra" / "config.yaml").exists()
+            has_legacy = (d / "cfg.yaml").exists()
+            has_resolved = (d / "resolved_config.yaml").exists()
+            if has_hydra or has_legacy or has_resolved:
+                run_dirs.append(d)
+
+    return sorted(run_dirs)
+
+
+def generate_report(results: list[tuple[Path, dict[str, Any] | None, list[str]]]) -> str:
+    """Generate a markdown report of backfill results."""
+    total = len(results)
+    success = sum(1 for _, meta, _ in results if meta is not None)
+    failed = total - success
+
+    # Count by confidence
+    confidence_counts = Counter()
+    needs_review_runs = []
+    low_confidence_runs = []
+
+    for run_dir, meta, issues in results:
+        if meta is None:
+            continue
+        conf = meta.get("meta_confidence", "unknown")
+        confidence_counts[conf] += 1
+
+        if meta.get("needs_review"):
+            needs_review_runs.append((run_dir, meta.get("needs_review_reason", [])))
+        if conf == "low":
+            low_confidence_runs.append((run_dir, issues))
+
+    report = f"""# Metadata Backfill Report
+
+## Summary
+
+- Total runs processed: {total}
+- Successfully processed: {success}
+- Failed to process: {failed}
+
+### Confidence Distribution
+
+- High confidence: {confidence_counts.get('high', 0)} ({100 * confidence_counts.get('high', 0) / max(success, 1):.1f}%)
+- Medium confidence: {confidence_counts.get('medium', 0)} ({100 * confidence_counts.get('medium', 0) / max(success, 1):.1f}%)
+- Low confidence: {confidence_counts.get('low', 0)} ({100 * confidence_counts.get('low', 0) / max(success, 1):.1f}%)
+
+## Runs Needing Review (needs_review=True)
+
+"""
+
+    if needs_review_runs:
+        report += "| Run | Reasons |\n|-----|--------|\n"
+        for run_dir, reasons in needs_review_runs[:50]:  # Limit to 50
+            reasons_str = ", ".join(reasons) if reasons else "unknown"
+            report += f"| `{run_dir.name}` | {reasons_str} |\n"
+        if len(needs_review_runs) > 50:
+            report += f"\n*... and {len(needs_review_runs) - 50} more*\n"
+    else:
+        report += "*No runs need review.*\n"
+
+    report += """
+## Runs with Low Confidence
+
+"""
+
+    if low_confidence_runs:
+        report += "| Run | Issues |\n|-----|--------|\n"
+        for run_dir, issues in low_confidence_runs[:50]:
+            issues_str = ", ".join(issues) if issues else "none"
+            report += f"| `{run_dir.name}` | {issues_str} |\n"
+        if len(low_confidence_runs) > 50:
+            report += f"\n*... and {len(low_confidence_runs) - 50} more*\n"
+    else:
+        report += "*No runs with low confidence.*\n"
+
+    return report
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Backfill facts/meta.json for existing runs.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=__doc__,
+    )
+
+    parser.add_argument(
+        "--runs-dir",
+        type=Path,
+        required=True,
+        help="Path to runs directory containing run_* folders",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would be done without writing files",
+    )
+    parser.add_argument(
+        "--apply-overrides",
+        action="store_true",
+        help="Apply facts/meta_override.json if present",
+    )
+    parser.add_argument(
+        "--report-only",
+        action="store_true",
+        help="Generate report without writing any files",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Limit number of runs to process",
+    )
+    parser.add_argument(
+        "--skip-existing",
+        action="store_true",
+        help="Skip runs that already have meta.json",
+    )
+    parser.add_argument(
+        "--output-report",
+        type=Path,
+        default=None,
+        help="Path to write the report (default: stdout)",
+    )
+
+    args = parser.parse_args()
+
+    # Discover runs
+    if not args.runs_dir.exists():
+        logger.error("Runs directory not found: %s", args.runs_dir)
+        sys.exit(1)
+
+    run_dirs = discover_runs(args.runs_dir)
+    logger.info("Found %d runs in %s", len(run_dirs), args.runs_dir)
+
+    if args.limit:
+        run_dirs = run_dirs[: args.limit]
+        logger.info("Limited to %d runs", len(run_dirs))
+
+    # Process runs
+    results: list[tuple[Path, dict[str, Any] | None, list[str]]] = []
+
+    for run_dir in run_dirs:
+        # Check if meta.json already exists
+        meta_path = run_dir / "facts" / "meta.json"
+        if args.skip_existing and meta_path.exists():
+            existing = read_meta(meta_path)
+            results.append((run_dir, existing, []))
+            continue
+
+        # Backfill
+        meta, issues = backfill_run(run_dir, apply_overrides=args.apply_overrides)
+
+        if meta is None:
+            logger.warning("Skipping %s: %s", run_dir.name, issues)
+            results.append((run_dir, None, issues))
+            continue
+
+        # Log result
+        conf = meta.get("meta_confidence", "unknown")
+        pg_key = meta.get("process_groups_key", "null")
+        needs_review = "REVIEW" if meta.get("needs_review") else "ok"
+
+        if args.dry_run or args.report_only:
+            logger.info("[DRY RUN] %s: conf=%s, pg=%s, %s", run_dir.name, conf, pg_key, needs_review)
+        else:
+            # Write meta.json
+            write_meta(meta, meta_path)
+            logger.info("Wrote %s: conf=%s, pg=%s, %s", run_dir.name, conf, pg_key, needs_review)
+
+        results.append((run_dir, meta, issues))
+
+    # Generate report
+    report = generate_report(results)
+
+    if args.output_report:
+        with open(args.output_report, "w", encoding="utf-8") as f:
+            f.write(report)
+        logger.info("Report written to %s", args.output_report)
+    else:
+        print("\n" + "=" * 60)
+        print(report)
+
+    # Summary
+    success_count = sum(1 for _, meta, _ in results if meta is not None)
+    review_count = sum(1 for _, meta, _ in results if meta and meta.get("needs_review"))
+
+    logger.info("")
+    logger.info("=" * 60)
+    logger.info("Backfill complete:")
+    logger.info("  Processed: %d", success_count)
+    logger.info("  Need review: %d", review_count)
+    logger.info("  Failed: %d", len(results) - success_count)
+    logger.info("=" * 60)
+
+    if args.dry_run:
+        logger.info("")
+        logger.info("This was a dry run. Run without --dry-run to write files.")
+
+
+if __name__ == "__main__":
+    main()

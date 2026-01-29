@@ -1,6 +1,10 @@
 # @package _global_
 # Example experiment config for comparing positional encodings and normalization
 
+# Metadata schema - explicit goal for reliable W&B slicing
+meta:
+  goal: "classification"
+
 defaults:
   - /classifier/model/transformer
   - /classifier/trainer/default

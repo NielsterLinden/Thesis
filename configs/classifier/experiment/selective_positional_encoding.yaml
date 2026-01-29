@@ -18,6 +18,10 @@
 # allowing selective PE on semantic dimensions (E, Pt, eta, phi, ID).
 # Note: Rotary PE (RoPE) is applied in attention and may not support selective dim_mask.
 
+# Metadata schema - explicit goal for reliable W&B slicing
+meta:
+  goal: "classification"
+
 experiment:
   name: "selective_positional_encoding"
 

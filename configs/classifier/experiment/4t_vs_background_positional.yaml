@@ -30,6 +30,10 @@ hydra:
       # Training settings
       classifier.trainer.epochs: 100
 
+# Metadata schema - explicit goal for reliable W&B slicing
+meta:
+  goal: "classification"
+
 # Signal vs background configuration
 # Signal: label 1 (4t/tttt) → class 1
 # Background: labels 2,3,4,5 (ttH, ttW, ttWW, ttZ) → class 0

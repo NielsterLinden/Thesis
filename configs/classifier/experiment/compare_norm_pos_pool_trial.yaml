@@ -1,5 +1,9 @@
 # @package _global_
 
+# Metadata schema - explicit goal for reliable W&B slicing
+meta:
+  goal: "classification"
+
 experiment:
   name: "compare_norm_pos_pool_trial"
 

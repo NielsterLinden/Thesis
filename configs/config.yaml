@@ -1,10 +1,13 @@
-﻿defaults:
+defaults:
   # --- Environment paths (local vs HPC) ---
   - env: stoomboot  # Default to stoomboot; run locally with `env: local`
 
   # --- Hydra & logging ---
   - hydra: run_single
   - logging: default
+
+  # --- Metadata schema ---
+  - meta: default
 
   # --- Data source ---
   - data: h5_tokens

@@ -7,6 +7,10 @@
 # - Include baseline no-PE runs (positional=none); masks are ignored in that case.
 # - Token-space PE applied before projection (no CLS yet), then CLS token is added.
 
+# Metadata schema - explicit goal for reliable W&B slicing
+meta:
+  goal: "classification"
+
 experiment:
   name: "phd_exp2_4t_vs_bg_selective_masks"
 

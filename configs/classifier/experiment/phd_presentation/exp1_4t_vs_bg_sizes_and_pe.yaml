@@ -8,6 +8,10 @@
 # - Model-space additive PEs require CLS-aware length; handled automatically by model when pooling=cls.
 # - Rotary is applied in attention (ignores positional_dim_mask).
 
+# Metadata schema - explicit goal for reliable W&B slicing
+meta:
+  goal: "classification"
+
 experiment:
   name: "phd_exp1_4t_vs_bg_sizes_and_pe"
 

@@ -7,6 +7,10 @@
 # Usage:
 #   condor_submit hpc/stoomboot/train.sub -append "arguments = --multirun classifier/experiment=phd_presentation/exp_baseline_mlp loop=mlp_classifier"
 
+# Metadata schema - explicit goal for reliable W&B slicing
+meta:
+  goal: "classification"
+
 experiment:
   name: "phd_baseline_mlp"
 

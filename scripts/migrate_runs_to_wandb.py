@@ -39,8 +39,9 @@ import pandas as pd
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
+from thesis_ml.facts.meta import read_meta
 from thesis_ml.facts.readers import _read_cfg, _read_events, _read_scalars, discover_runs
-from thesis_ml.utils.wandb_utils import _safe_get, extract_wandb_config
+from thesis_ml.utils.wandb_utils import _safe_get, extract_meta_tags, extract_wandb_config
 
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -278,8 +279,37 @@ def migrate_run(
 
     # === Extract metadata ===
     group = group_override or _extract_group_from_run(run_dir, cfg)
-    tags = _extract_tags_from_cfg(cfg)
+
+    # Try to read facts/meta.json (preferred source for meta.* fields)
+    meta_path = run_dir / "facts" / "meta.json"
+    meta = read_meta(meta_path)
+
+    # Extract wandb config (includes meta fields via extract_meta_fields)
     wandb_config = extract_wandb_config(cfg, source_location=source_location)
+
+    # If meta.json exists, override with its values (more reliable)
+    if meta:
+        import json
+
+        wandb_config["meta.schema_version"] = meta.get("schema_version")
+        wandb_config["meta.level"] = meta.get("level")
+        wandb_config["meta.goal"] = meta.get("goal")
+        wandb_config["meta.model_family"] = meta.get("model_family")
+        wandb_config["meta.dataset_name"] = meta.get("dataset_name")
+        process_groups = meta.get("process_groups")
+        wandb_config["meta.process_groups"] = json.dumps(process_groups) if process_groups else None
+        wandb_config["meta.process_groups_key"] = meta.get("process_groups_key")
+        wandb_config["meta.class_def_str"] = meta.get("class_def_str")
+        wandb_config["meta.row_key"] = meta.get("row_key")
+        wandb_config["meta.n_classes"] = meta.get("n_classes")
+        datatreatment = meta.get("datatreatment")
+        wandb_config["meta.datatreatment"] = json.dumps(datatreatment) if datatreatment else None
+        wandb_config["meta.meta_hash"] = meta.get("meta_hash")
+        wandb_config["meta.meta_confidence"] = meta.get("meta_confidence")
+        wandb_config["meta.needs_review"] = meta.get("needs_review", False)
+
+    # Extract tags (use meta-based tags if available)
+    tags = extract_meta_tags(cfg) if meta else _extract_tags_from_cfg(cfg)
 
     # Add run directory to config for traceability
     wandb_config["source/run_dir"] = str(run_dir)
@@ -496,6 +526,11 @@ def main():
         default=None,
         help="Override group name for all runs (useful for manual grouping)",
     )
+    parser.add_argument(
+        "--rebuild",
+        action="store_true",
+        help="Delete all existing runs in W&B project before migrating (use with caution)",
+    )
 
     args = parser.parse_args()
 
@@ -570,9 +605,45 @@ def main():
         logger.info("DRY RUN MODE - no actual uploads will be made")
         logger.info("")
 
-    # Fetch existing runs from WandB to avoid duplicates
-    logger.info("Checking for existing runs in WandB...")
-    existing_runs = get_existing_wandb_runs(args.project, args.entity)
+    # Handle --rebuild: delete all existing runs first
+    if args.rebuild and not args.dry_run:
+        logger.info("")
+        logger.warning("=" * 60)
+        logger.warning("REBUILD MODE: Deleting all existing runs in W&B project")
+        logger.warning("=" * 60)
+
+        try:
+            import wandb
+
+            api = wandb.Api()
+            entity_project = f"{args.entity}/{args.project}" if args.entity else args.project
+            runs = api.runs(entity_project)
+            run_count = len(list(runs))
+
+            if run_count > 0:
+                logger.warning("About to delete %d runs from %s", run_count, entity_project)
+                confirm = input("Type 'yes' to confirm deletion: ")
+                if confirm.lower() == "yes":
+                    runs = api.runs(entity_project)  # Refresh iterator
+                    for run in runs:
+                        logger.info("Deleting run: %s", run.name)
+                        run.delete()
+                    logger.info("Deleted %d runs", run_count)
+                else:
+                    logger.info("Rebuild cancelled by user")
+                    sys.exit(0)
+            else:
+                logger.info("No existing runs to delete")
+        except Exception as e:
+            logger.error("Failed to delete existing runs: %s", e)
+            sys.exit(1)
+
+        # After rebuild, there are no existing runs
+        existing_runs = set()
+    else:
+        # Fetch existing runs from WandB to avoid duplicates
+        logger.info("Checking for existing runs in WandB...")
+        existing_runs = get_existing_wandb_runs(args.project, args.entity)
 
     # Determine group override
     group_override = args.group

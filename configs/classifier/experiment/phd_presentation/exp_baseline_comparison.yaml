@@ -18,6 +18,10 @@
 #   For BDT models:
 #     python -m thesis_ml.cli.train loop=bdt_classifier \
 #       classifier/model=bdt_classifier \
+
+# Metadata schema - explicit goal for reliable W&B slicing
+meta:
+  goal: "classification"
 #       +classifier/bdt_size=small \
 #       classifier/experiment=phd_presentation/exp_baseline_comparison
 #

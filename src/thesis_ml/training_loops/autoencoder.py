@@ -12,7 +12,7 @@ from omegaconf import DictConfig, OmegaConf
 from thesis_ml.architectures.autoencoder.base import build_from_config
 from thesis_ml.architectures.autoencoder.losses.recon import reconstruction_loss
 from thesis_ml.data.h5_loader import make_dataloaders
-from thesis_ml.facts import append_jsonl_event, append_scalars_csv, build_event_payload
+from thesis_ml.facts import append_jsonl_event, append_scalars_csv, build_event_payload, build_meta, write_meta
 from thesis_ml.monitoring.orchestrator import handle_event
 from thesis_ml.utils import TrainingProgressShower
 from thesis_ml.utils.seed import set_all_seeds
@@ -71,6 +71,15 @@ def train(cfg: DictConfig):
         )
         append_jsonl_event(str(outdir), start_payload)
         handle_event(cfg.logging, SUPPORTED_PLOT_FAMILIES, "on_start", start_payload)
+
+        # Emit facts/meta.json for semantic slicing in W&B
+        try:
+            meta = build_meta(cfg)
+            write_meta(meta, Path(outdir) / "facts" / "meta.json")
+        except Exception as e:
+            import logging
+
+            logging.getLogger(__name__).warning("[meta] Could not write meta.json: %s", e)
 
     def run_epoch(loader, do_train: bool):
         model.train(mode=do_train)
