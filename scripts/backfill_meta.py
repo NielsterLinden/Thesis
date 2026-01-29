@@ -153,59 +153,112 @@ def _extract_dataset_name(cfg: dict[str, Any]) -> tuple[str | None, str]:
     return None, "low"
 
 
+def _parse_selected_labels_from_config(selected_labels: Any) -> list[int] | None:
+    """Parse selected_labels from various config formats into a list of ints.
+
+    Handles:
+    - List of ints: [1, 2]
+    - Colon-separated string: "1:2" (from Hydra sweep)
+    - Comma-separated string: "1,2"
+    - Single int: 1
+    """
+    if selected_labels is None:
+        return None
+
+    try:
+        if isinstance(selected_labels, list):
+            return sorted([int(x) for x in selected_labels])
+        if isinstance(selected_labels, int | float):
+            return [int(selected_labels)]
+        if isinstance(selected_labels, str):
+            s = selected_labels.strip()
+            if ":" in s:
+                return sorted([int(x) for x in s.split(":")])
+            if "," in s:
+                return sorted([int(x.strip()) for x in s.split(",")])
+            return [int(s)]
+    except (ValueError, TypeError):
+        return None
+    return None
+
+
 def _infer_process_groups_safe(cfg: dict[str, Any], run_dir: Path) -> tuple[list[list[str]] | None, str]:
-    """Safely infer process_groups. Returns (groups, confidence).
+    """Safely infer process_groups from config. Returns (groups, confidence).
 
     CRITICAL: Never guess. If uncertain, return (None, "low").
+
+    Supports three config formats (in priority order):
+    1. label_groups: Explicit list of {name, labels} dicts
+    2. signal_vs_background: Binary with signal/background labels
+    3. selected_labels: Simple per-label classes (most common)
     """
-    # Try to import h5_loader for _normalize_label_groups
-    try:
-        from thesis_ml.data.h5_loader import _normalize_label_groups
+    classifier_cfg = _safe_get(cfg, "data.classifier")
+    if not classifier_cfg or not isinstance(classifier_cfg, dict):
+        # No classifier config found, try overrides
+        return _infer_from_overrides(run_dir)
 
-        has_h5_loader = True
-    except ImportError:
-        has_h5_loader = False
-
-    # Check if signal_vs_background was used
-    is_signal_vs_bg = _safe_get(cfg, "data.classifier.signal_vs_background") is not None
-
-    # Try explicit config first
-    if has_h5_loader:
+    # Priority 1: Explicit label_groups
+    label_groups_raw = classifier_cfg.get("label_groups")
+    if label_groups_raw is not None and isinstance(label_groups_raw, list):
         try:
-            # Check if any label config exists
-            classifier_cfg = _safe_get(cfg, "data.classifier")
-            if classifier_cfg:
-                has_label_groups = "label_groups" in classifier_cfg and classifier_cfg.get("label_groups") is not None
-                has_signal_vs_bg = "signal_vs_background" in classifier_cfg and classifier_cfg.get("signal_vs_background") is not None
-                has_selected_labels = "selected_labels" in classifier_cfg and classifier_cfg.get("selected_labels") is not None
-
-                if has_label_groups or has_signal_vs_bg or has_selected_labels:
-                    label_groups, _, _ = _normalize_label_groups(cfg)
-                    if label_groups:
-                        return canonicalize_process_groups(label_groups, preserve_signal_first=is_signal_vs_bg), "high"
+            label_groups = []
+            for group in label_groups_raw:
+                name = group.get("name", "unknown")
+                labels = _parse_selected_labels_from_config(group.get("labels", []))
+                if labels:
+                    label_groups.append({"name": name, "labels": labels})
+            if label_groups:
+                return canonicalize_process_groups(label_groups, preserve_signal_first=False), "high"
         except Exception as e:
-            logger.debug("Could not normalize label groups for %s: %s", run_dir.name, e)
+            logger.debug("Could not parse label_groups for %s: %s", run_dir.name, e)
 
-    # Try parsing Hydra overrides for sweep experiments
+    # Priority 2: signal_vs_background (binary classification)
+    signal_vs_bg = classifier_cfg.get("signal_vs_background")
+    if signal_vs_bg is not None and isinstance(signal_vs_bg, dict):
+        try:
+            signal_label = int(signal_vs_bg.get("signal"))
+            bg_labels = _parse_selected_labels_from_config(signal_vs_bg.get("background", []))
+            if bg_labels:
+                # Binary: background (class 0) → signal (class 1)
+                label_groups = [
+                    {"name": "background", "labels": bg_labels},
+                    {"name": "signal", "labels": [signal_label]},
+                ]
+                return canonicalize_process_groups(label_groups, preserve_signal_first=True), "high"
+        except Exception as e:
+            logger.debug("Could not parse signal_vs_background for %s: %s", run_dir.name, e)
+
+    # Priority 3: selected_labels (one class per label)
+    selected_labels = _parse_selected_labels_from_config(classifier_cfg.get("selected_labels"))
+    if selected_labels:
+        # Create one class per label using process name mapping
+        label_groups = []
+        for label in selected_labels:
+            name = PROCESS_ID_NAMES.get(label, f"unknown_{label}")
+            label_groups.append({"name": name, "labels": [label]})
+        return canonicalize_process_groups(label_groups, preserve_signal_first=False), "high"
+
+    # Try overrides as fallback
+    return _infer_from_overrides(run_dir)
+
+
+def _infer_from_overrides(run_dir: Path) -> tuple[list[list[str]] | None, str]:
+    """Try to infer process_groups from Hydra overrides file."""
     overrides = load_hydra_overrides(run_dir)
-    if overrides:
-        # Check for selected_labels in overrides
-        selected_str = overrides.get("data.classifier.selected_labels")
-        if selected_str:
-            try:
-                # Parse colon-separated or list format
-                if ":" in selected_str:
-                    labels = [int(x) for x in selected_str.split(":")]
-                elif "," in selected_str:
-                    labels = [int(x.strip()) for x in selected_str.split(",")]
-                else:
-                    labels = [int(selected_str)]
+    if not overrides:
+        return None, "low"
 
-                # One class per label (multiclass)
-                groups = [[PROCESS_ID_NAMES.get(lid, f"unknown_{lid}")] for lid in sorted(labels)]
-                return groups, "medium"
-            except Exception:
-                pass
+    # Check for selected_labels in overrides
+    selected_str = overrides.get("data.classifier.selected_labels")
+    if selected_str:
+        labels = _parse_selected_labels_from_config(selected_str)
+        if labels:
+            # One class per label
+            label_groups = []
+            for label in labels:
+                name = PROCESS_ID_NAMES.get(label, f"unknown_{label}")
+                label_groups.append({"name": name, "labels": [label]})
+            return canonicalize_process_groups(label_groups, preserve_signal_first=False), "medium"
 
     # CANNOT DETERMINE - return None, NOT a guess
     return None, "low"
