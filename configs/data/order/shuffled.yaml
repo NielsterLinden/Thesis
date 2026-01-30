@@ -1,0 +1,3 @@
+# @package data
+# Token order: Random permutation per sample. Used for experiment sweeps (order × PE).
+shuffle_tokens: true

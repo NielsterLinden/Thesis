@@ -1,0 +1,38 @@
+# @package _global_
+# Experiment: model size sweep for 4t vs full background.
+#
+# Task: Classify 4t (label 1) vs background (labels 2,3,4,5 combined)
+# Sweep: Many model sizes (granular below 500k, then 600k–4M) with early stopping
+# to find where the model is not complex enough.
+#
+# Total: 14 jobs (s50k through s4m)
+
+experiment:
+  name: "model_size_sweep_4t_vs_bg"
+
+hydra:
+  mode: MULTIRUN
+  job:
+    chdir: true
+    name: ${experiment.name}
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweeper:
+    params:
+      +classifier/model_size: s50k,s100k,s150k,s200k,s250k,s300k,s400k,s500k,s600k,s1m,s1500k,s2m,s3000k,s4m
+      classifier.model.positional: sinusoidal
+      classifier.trainer.early_stopping.enabled: true
+      classifier.trainer.early_stopping.patience: 15
+      classifier.trainer.epochs: 100
+
+meta:
+  goal: "classification"
+
+data:
+  classifier:
+    signal_vs_background:
+      signal: 1
+      background: [2, 3, 4, 5]

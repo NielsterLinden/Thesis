@@ -31,6 +31,9 @@ classifier:
     rotary:
       base: 10000.0       # Base for computing inverse frequencies
 
+    # Causal attention (encoder: position i cannot attend to j > i)
+    causal_attention: false
+
     # Pooling strategy
     pooling: cls          # "cls" (first token) or "mean" (average pooling)
 

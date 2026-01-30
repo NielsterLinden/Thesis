@@ -1,0 +1,9 @@
+# @package _global_
+# Approx. 500k parameters. Transformer: dim=80, depth=9, heads=8, mlp_dim=160
+
+classifier:
+  model:
+    dim: 80
+    depth: 9
+    heads: 8
+    mlp_dim: 160

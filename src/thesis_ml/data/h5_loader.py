@@ -7,6 +7,45 @@ from omegaconf import ListConfig
 from torch.utils.data import DataLoader, Dataset, TensorDataset
 
 
+def _token_order_permutation(
+    T: int,
+    shuffle_tokens: bool,
+    sort_tokens_by: str | None,
+    seed: int,
+    idx: int,
+    pt_values: torch.Tensor | None = None,
+) -> torch.Tensor:
+    """Compute permutation of token indices for ordering (Pt sort or shuffle).
+
+    Parameters
+    ----------
+    T : int
+        Sequence length (number of tokens).
+    shuffle_tokens : bool
+        If True, random permutation (reproducible per sample via seed + idx).
+    sort_tokens_by : str | None
+        If "pt", sort by Pt (column index 1); requires pt_values. Ignored if shuffle_tokens is True.
+    seed : int
+        Global seed for reproducibility.
+    idx : int
+        Sample index (for per-sample shuffle seed).
+    pt_values : torch.Tensor | None
+        [T] Pt values per token (continuous feature index 1). Required when sort_tokens_by == "pt".
+
+    Returns
+    -------
+    torch.Tensor
+        Indices of shape [T] to apply to token dimension: tokens[perm].
+    """
+    if shuffle_tokens:
+        gen = torch.Generator().manual_seed(seed + idx)
+        return torch.randperm(T, generator=gen)
+    if sort_tokens_by == "pt" and pt_values is not None:
+        # Pt descending = high Pt first (position 0 = leading).
+        return torch.argsort(pt_values, descending=True)
+    return torch.arange(T, dtype=torch.long)
+
+
 class H5TokenDataset(Dataset):
     def __init__(self, cfg):
         self.cfg = cfg
@@ -100,14 +139,28 @@ def make_dataloaders(cfg):
 class ClassificationSplitDataset(Dataset):
     """Dataset for classification splits (raw format)."""
 
-    def __init__(self, X, Y, T, mu, sd, pad_id: int = 0):
+    def __init__(
+        self,
+        X,
+        Y,
+        T,
+        mu,
+        sd,
+        pad_id: int = 0,
+        *,
+        shuffle_tokens: bool = False,
+        sort_tokens_by: str | None = None,
+        seed: int = 42,
+    ):
         self.X = X
         self.Y = Y
         self.T = T
-        # Precompute normalization values to avoid repeated indexing
         self.mu_norm = mu[0, 0] if isinstance(mu, torch.Tensor) else mu
         self.sd_norm = sd[0, 0] if isinstance(sd, torch.Tensor) else sd
         self.pad_id = pad_id
+        self.shuffle_tokens = shuffle_tokens
+        self.sort_tokens_by = sort_tokens_by
+        self.seed = seed
 
     def _create_mask(self, ids: torch.Tensor) -> torch.Tensor:
         """Create attention mask from token IDs (nonzero = valid token)."""
@@ -125,19 +178,34 @@ class ClassificationSplitDataset(Dataset):
         cont = row[self.T + 2 :].view(self.T, 4)
 
         tokens_cont = (cont - self.mu_norm) / self.sd_norm
-        mask = self._create_mask(ids)
 
+        if self.shuffle_tokens or self.sort_tokens_by == "pt":
+            pt_vals = tokens_cont[:, 1] if self.sort_tokens_by == "pt" else None
+            perm = _token_order_permutation(
+                self.T,
+                self.shuffle_tokens,
+                self.sort_tokens_by,
+                self.seed,
+                idx,
+                pt_values=pt_vals,
+            )
+            tokens_cont = tokens_cont[perm]
+            ids = ids[perm]
+
+        mask = self._create_mask(ids)
         return tokens_cont, ids, globals_, mask, label
 
 
 class BinnedClassificationSplitDataset(Dataset):
     """Dataset for classification splits (binned format)."""
 
-    def __init__(self, X, Y, T, pad_id: int = 0):
+    def __init__(self, X, Y, T, pad_id: int = 0, *, shuffle_tokens: bool = False, seed: int = 42):
         self.X = X  # [N, 20] integer tokens
         self.Y = Y
         self.T = T
         self.pad_id = pad_id
+        self.shuffle_tokens = shuffle_tokens
+        self.seed = seed
 
     def _create_mask(self, tokens: torch.Tensor) -> torch.Tensor:
         """Create attention mask from tokens (nonzero = valid token)."""
@@ -150,14 +218,14 @@ class BinnedClassificationSplitDataset(Dataset):
         row = self.X[idx]  # [20] integers
         label = self.Y[idx]
 
-        # Split: [18 tokens, 2 globals]
         integer_tokens = row[: self.T].to(torch.long)  # [18]
         globals_ints = row[self.T : self.T + 2].to(torch.long)  # [2]
 
-        # Create attention mask
-        mask = self._create_mask(integer_tokens)
+        if self.shuffle_tokens:
+            perm = _token_order_permutation(self.T, True, None, self.seed, idx, pt_values=None)
+            integer_tokens = integer_tokens[perm]
 
-        # Return: (integer_tokens, globals_ints, mask, label)
+        mask = self._create_mask(integer_tokens)
         return integer_tokens, globals_ints, mask, label
 
 
@@ -441,7 +509,26 @@ class H5ClassificationDataset(Dataset):
 
     def get_split(self, name):
         X, Y = self.splits[name]
-        return ClassificationSplitDataset(X, Y, self.T, self.mu, self.sd, pad_id=0)
+        shuffle_tokens = bool(getattr(self.cfg.data, "shuffle_tokens", False))
+        sort_tokens_by = getattr(self.cfg.data, "sort_tokens_by", None)
+        try:
+            seed = int(self.cfg.classifier.trainer.seed)
+        except (AttributeError, TypeError):
+            try:
+                seed = int(self.cfg.trainer.seed)
+            except (AttributeError, TypeError):
+                seed = int(getattr(self.cfg, "seed", 42))
+        return ClassificationSplitDataset(
+            X,
+            Y,
+            self.T,
+            self.mu,
+            self.sd,
+            pad_id=0,
+            shuffle_tokens=shuffle_tokens,
+            sort_tokens_by=sort_tokens_by,
+            seed=seed,
+        )
 
 
 class H5BinnedClassificationDataset(Dataset):
@@ -532,7 +619,15 @@ class H5BinnedClassificationDataset(Dataset):
 
     def get_split(self, name):
         X, Y = self.splits[name]
-        return BinnedClassificationSplitDataset(X, Y, self.T, pad_id=0)
+        shuffle_tokens = bool(getattr(self.cfg.data, "shuffle_tokens", False))
+        try:
+            seed = int(self.cfg.classifier.trainer.seed)
+        except (AttributeError, TypeError):
+            try:
+                seed = int(self.cfg.trainer.seed)
+            except (AttributeError, TypeError):
+                seed = int(getattr(self.cfg, "seed", 42))
+        return BinnedClassificationSplitDataset(X, Y, self.T, pad_id=0, shuffle_tokens=shuffle_tokens, seed=seed)
 
 
 def make_classification_dataloaders(cfg):

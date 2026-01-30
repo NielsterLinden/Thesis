@@ -165,6 +165,9 @@ def extract_wandb_config(cfg: dict[str, Any], source_location: str = "live") -> 
     # === Pooling ===
     wc["pooling/type"] = _safe_get(cfg, "classifier.model.pooling")
 
+    # === Causal attention ===
+    wc["model/causal_attention"] = _safe_get(cfg, "classifier.model.causal_attention")
+
     # === Training Hyperparameters ===
     wc["training/lr"] = _safe_get(cfg, "classifier.trainer.lr") or _safe_get(cfg, "trainer.lr")
     wc["training/weight_decay"] = _safe_get(cfg, "classifier.trainer.weight_decay") or _safe_get(cfg, "trainer.weight_decay")
@@ -264,6 +267,9 @@ def extract_meta_fields(cfg: dict[str, Any]) -> dict[str, Any]:
     wc["meta.meta_hash"] = meta.get("meta_hash")
     wc["meta.meta_confidence"] = meta.get("meta_confidence")
     wc["meta.needs_review"] = meta.get("needs_review", False)
+
+    # Flat key for easy W&B filtering by token order
+    wc["data/token_order"] = datatreatment.get("token_order") if datatreatment else None
 
     return wc
 

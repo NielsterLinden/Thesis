@@ -18,6 +18,7 @@ class TransformerEncoderBlock(nn.Module):
         dropout: float = 0.1,
         norm_policy: str = "post",
         rotary_emb: nn.Module | None = None,
+        causal_attention: bool = False,
     ):
         """Initialize encoder block.
 
@@ -36,9 +37,13 @@ class TransformerEncoderBlock(nn.Module):
         rotary_emb : nn.Module | None
             Optional RotaryEmbedding module for rotary positional encoding.
             Shared across all encoder blocks.
+        causal_attention : bool
+            If True, apply causal (lower-triangular) attention mask so position i
+            cannot attend to positions j > i.
         """
         super().__init__()
         self.norm_policy = norm_policy
+        self.causal_attention = causal_attention
 
         # Head-wise scaling for NormFormer (only used when norm_policy == "normformer")
         head_scales = None
@@ -116,20 +121,26 @@ class TransformerEncoderBlock(nn.Module):
         if mask is not None:
             key_padding_mask = ~mask  # [B, T] (True=pad, False=valid)
 
+        # Causal mask: [T, T], True = mask out (position i cannot attend to j when j > i)
+        attn_mask = None
+        if self.causal_attention:
+            T = x.size(1)
+            attn_mask = torch.triu(torch.ones(T, T, device=x.device, dtype=torch.bool), diagonal=1)
+
         # Attention block
         if self.norm_policy == "pre":
             # Pre-norm: LayerNorm before attention
             x_norm = self.norm1(x)
-            attn_out, _ = self.attention(x_norm, x_norm, x_norm, key_padding_mask=key_padding_mask)
+            attn_out, _ = self.attention(x_norm, x_norm, x_norm, key_padding_mask=key_padding_mask, attn_mask=attn_mask)
             x = x + self.dropout(attn_out)
         elif self.norm_policy == "post":
             # Post-norm: LayerNorm after attention
-            attn_out, _ = self.attention(x, x, x, key_padding_mask=key_padding_mask)
+            attn_out, _ = self.attention(x, x, x, key_padding_mask=key_padding_mask, attn_mask=attn_mask)
             x = self.norm1(x + self.dropout(attn_out))
         elif self.norm_policy == "normformer":
             # NormFormer: Pre-norm before attention, then norm after attention
             x_norm = self.norm1(x)
-            attn_out, _ = self.attention(x_norm, x_norm, x_norm, key_padding_mask=key_padding_mask)
+            attn_out, _ = self.attention(x_norm, x_norm, x_norm, key_padding_mask=key_padding_mask, attn_mask=attn_mask)
             attn_out = self.norm_attn_out(attn_out)  # LayerNorm after attention
             x = x + self.dropout(attn_out)
         else:
@@ -173,6 +184,7 @@ class TransformerEncoder(nn.Module):
         dropout: float = 0.1,
         norm_policy: str = "post",
         rotary_emb: nn.Module | None = None,
+        causal_attention: bool = False,
     ):
         """Initialize encoder stack.
 
@@ -193,6 +205,8 @@ class TransformerEncoder(nn.Module):
         rotary_emb : nn.Module | None
             Optional RotaryEmbedding module for rotary positional encoding.
             Shared across all encoder blocks.
+        causal_attention : bool
+            If True, apply causal attention mask in each block.
         """
         super().__init__()
 
@@ -209,6 +223,7 @@ class TransformerEncoder(nn.Module):
                     dropout=dropout,
                     norm_policy=norm_policy,
                     rotary_emb=rotary_emb,
+                    causal_attention=causal_attention,
                 )
                 for _ in range(depth)
             ]
@@ -260,6 +275,7 @@ def build_transformer_encoder(
     mlp_dim = cfg.classifier.model.mlp_dim
     dropout = cfg.classifier.model.get("dropout", 0.1)
     norm_policy = cfg.classifier.model.norm.get("policy", "post")
+    causal_attention = cfg.classifier.model.get("causal_attention", False)
 
     return TransformerEncoder(
         dim=dim,
@@ -269,4 +285,5 @@ def build_transformer_encoder(
         dropout=dropout,
         norm_policy=norm_policy,
         rotary_emb=rotary_emb,
+        causal_attention=causal_attention,
     )

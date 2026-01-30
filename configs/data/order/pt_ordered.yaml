@@ -1,0 +1,4 @@
+# @package data
+# Token order: Pt-sorted (high Pt first). Used for experiment sweeps (order × PE).
+sort_tokens_by: pt
+shuffle_tokens: false

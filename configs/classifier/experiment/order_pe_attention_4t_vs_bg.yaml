@@ -1,0 +1,41 @@
+# @package _global_
+# Experiment: token order × positional encoding × (optional) causal attention
+# 4t vs full background; small model (s200k).
+#
+# Task: Classify 4t (label 1) vs background (labels 2,3,4,5 combined)
+# Sweep dimensions:
+#   - Token order: pt_ordered, shuffled (via data/order config group)
+#   - Positional encoding: none, sinusoidal, learned, rotary
+#   - (Optional) Causal attention: false, true → 16 runs; omit for 8 runs
+#
+# Total: 2 × 4 = 8 runs (or 2 × 4 × 2 = 16 with causal sweep)
+
+experiment:
+  name: "order_pe_attention_4t_vs_bg"
+
+hydra:
+  mode: MULTIRUN
+  job:
+    chdir: true
+    name: ${experiment.name}
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweeper:
+    params:
+      +data/order: pt_ordered,shuffled
+      classifier.model.positional: none,sinusoidal,learned,rotary
+      classifier.model.causal_attention: false,true
+      +classifier/model_size: s200k
+      classifier.trainer.epochs: 50
+
+meta:
+  goal: "classification"
+
+data:
+  classifier:
+    signal_vs_background:
+      signal: 1
+      background: [2, 3, 4, 5]
