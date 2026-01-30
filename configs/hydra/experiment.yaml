@@ -2,7 +2,7 @@ job:
   chdir: true  # Must be true for Hydra to create .hydra/ directory
   name: experiment
 # Override run.dir so each job writes directly to outputs/runs/ (not nested under multirun)
-# Using ${zpad:${hydra.job.num}} for zero-padded job numbers (job00, job01, etc.)
+# Using ${zpad:${hydra.job.num}} for zero-padded job numbers (job001, job002, etc.)
 run:
   dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${hydra.job.name}_job${zpad:${hydra.job.num}}
 sweep:

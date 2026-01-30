@@ -464,9 +464,10 @@ def train(cfg: DictConfig) -> dict:
 
         # Emit facts/meta.json for semantic slicing in W&B
         # Must happen after Hydra resolution, before training starts
+        # Use facts_meta so we do not overwrite dataloader meta (n_tokens, n_classes, etc.)
         try:
-            meta = build_meta(cfg)
-            write_meta(meta, Path(outdir) / "facts" / "meta.json")
+            facts_meta = build_meta(cfg)
+            write_meta(facts_meta, Path(outdir) / "facts" / "meta.json")
         except Exception as e:
             import logging
 

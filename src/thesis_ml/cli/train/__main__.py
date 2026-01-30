@@ -9,9 +9,9 @@ from . import DISPATCH
 # Load environment variables from a local .env file (if present)
 load_dotenv()
 
-# Register custom resolver for zero-padded job numbers (e.g., job00, job01)
+# Register custom resolver for zero-padded job numbers (e.g., job001, job002)
 # This avoids sorting issues when training more than 10 models
-OmegaConf.register_new_resolver("zpad", lambda x, width=2: str(x).zfill(width), replace=True)
+OmegaConf.register_new_resolver("zpad", lambda x, width=3: str(x).zfill(width), replace=True)
 
 # Calculate absolute path to configs directory (repo root is 5 levels up from this file)
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent

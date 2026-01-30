@@ -237,9 +237,10 @@ def train(cfg: DictConfig) -> dict:
         handle_event(cfg.logging, SUPPORTED_PLOT_FAMILIES, "on_start", start_payload)
 
         # Emit facts/meta.json for semantic slicing in W&B
+        # Use facts_meta so we do not overwrite dataloader meta (n_tokens, n_classes, etc.)
         try:
-            meta = build_meta(cfg)
-            write_meta(meta, Path(outdir) / "facts" / "meta.json")
+            facts_meta = build_meta(cfg)
+            write_meta(facts_meta, Path(outdir) / "facts" / "meta.json")
         except Exception as e:
             import logging
 
