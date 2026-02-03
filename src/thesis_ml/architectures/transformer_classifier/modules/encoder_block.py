@@ -98,7 +98,12 @@ class TransformerEncoderBlock(nn.Module):
         # Dropout for residual connections
         self.dropout = nn.Dropout(dropout)
 
-    def forward(self, x: torch.Tensor, mask: torch.Tensor | None = None) -> torch.Tensor:
+    def forward(
+        self,
+        x: torch.Tensor,
+        mask: torch.Tensor | None = None,
+        attention_bias: torch.Tensor | None = None,
+    ) -> torch.Tensor:
         """Forward pass.
 
         Parameters
@@ -108,6 +113,8 @@ class TransformerEncoderBlock(nn.Module):
         mask : torch.Tensor, optional
             Attention mask [B, T] (True=valid, False=padding)
             Will be converted to key_padding_mask format
+        attention_bias : torch.Tensor, optional
+            Additive bias for attention logits [B, T, T] or [B, num_heads, T, T].
 
         Returns
         -------
@@ -131,16 +138,37 @@ class TransformerEncoderBlock(nn.Module):
         if self.norm_policy == "pre":
             # Pre-norm: LayerNorm before attention
             x_norm = self.norm1(x)
-            attn_out, _ = self.attention(x_norm, x_norm, x_norm, key_padding_mask=key_padding_mask, attn_mask=attn_mask)
+            attn_out, _ = self.attention(
+                x_norm,
+                x_norm,
+                x_norm,
+                key_padding_mask=key_padding_mask,
+                attn_mask=attn_mask,
+                attention_bias=attention_bias,
+            )
             x = x + self.dropout(attn_out)
         elif self.norm_policy == "post":
             # Post-norm: LayerNorm after attention
-            attn_out, _ = self.attention(x, x, x, key_padding_mask=key_padding_mask, attn_mask=attn_mask)
+            attn_out, _ = self.attention(
+                x,
+                x,
+                x,
+                key_padding_mask=key_padding_mask,
+                attn_mask=attn_mask,
+                attention_bias=attention_bias,
+            )
             x = self.norm1(x + self.dropout(attn_out))
         elif self.norm_policy == "normformer":
             # NormFormer: Pre-norm before attention, then norm after attention
             x_norm = self.norm1(x)
-            attn_out, _ = self.attention(x_norm, x_norm, x_norm, key_padding_mask=key_padding_mask, attn_mask=attn_mask)
+            attn_out, _ = self.attention(
+                x_norm,
+                x_norm,
+                x_norm,
+                key_padding_mask=key_padding_mask,
+                attn_mask=attn_mask,
+                attention_bias=attention_bias,
+            )
             attn_out = self.norm_attn_out(attn_out)  # LayerNorm after attention
             x = x + self.dropout(attn_out)
         else:
@@ -229,7 +257,12 @@ class TransformerEncoder(nn.Module):
             ]
         )
 
-    def forward(self, x: torch.Tensor, mask: torch.Tensor | None = None) -> torch.Tensor:
+    def forward(
+        self,
+        x: torch.Tensor,
+        mask: torch.Tensor | None = None,
+        attention_bias: torch.Tensor | None = None,
+    ) -> torch.Tensor:
         """Forward pass through all encoder blocks.
 
         Parameters
@@ -238,6 +271,8 @@ class TransformerEncoder(nn.Module):
             Input tensor [B, T, D]
         mask : torch.Tensor, optional
             Attention mask [B, T] (True=valid, False=padding)
+        attention_bias : torch.Tensor, optional
+            Additive bias for attention logits; shared across all blocks.
 
         Returns
         -------
@@ -245,7 +280,7 @@ class TransformerEncoder(nn.Module):
             Output tensor [B, T, D]
         """
         for block in self.blocks:
-            x = block(x, mask=mask)
+            x = block(x, mask=mask, attention_bias=attention_bias)
         return x
 
 

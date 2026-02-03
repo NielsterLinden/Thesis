@@ -10,6 +10,10 @@ from omegaconf import DictConfig
 from thesis_ml.architectures.transformer_classifier.modules.embedding import build_input_embedding
 from thesis_ml.architectures.transformer_classifier.modules.encoder_block import build_transformer_encoder
 from thesis_ml.architectures.transformer_classifier.modules.head import build_classifier_head
+from thesis_ml.architectures.transformer_classifier.modules.pairwise_bias import (
+    PairwiseBiasNet,
+    compute_pairwise_kinematics,
+)
 from thesis_ml.architectures.transformer_classifier.modules.positional import (
     RotaryEmbedding,
     get_positional_encoding,
@@ -28,6 +32,7 @@ class TransformerClassifier(nn.Module):
         encoder: nn.Module,
         head: nn.Module,
         positional_space: str = "model",
+        pairwise_bias_net: nn.Module | None = None,
     ):
         """Initialize transformer classifier.
 
@@ -43,6 +48,8 @@ class TransformerClassifier(nn.Module):
             Classifier head (pooling + linear)
         positional_space : str
             Where PE is applied: "model" (after projection, old behavior) or "token" (before projection)
+        pairwise_bias_net : nn.Module | None
+            Optional module mapping pairwise features [B,T,T,F] to attention bias. Used only with raw input.
         """
         super().__init__()
         self.embedding = embedding
@@ -50,6 +57,7 @@ class TransformerClassifier(nn.Module):
         self.encoder = encoder
         self.head = head
         self.positional_space = positional_space
+        self.pairwise_bias_net = pairwise_bias_net
 
     def forward(self, *args, mask: torch.Tensor | None = None) -> torch.Tensor:
         """Forward pass.
@@ -84,8 +92,29 @@ class TransformerClassifier(nn.Module):
         if self.positional_space == "model" and self.pos_enc is not None:
             x = self.pos_enc(x, mask=mask)
 
+        # Optional physics-informed attention bias from pairwise kinematics (raw format only)
+        attention_bias = None
+        if self.pairwise_bias_net is not None and len(args) == 2:
+            tokens_cont = args[0]
+            # Mask for physical tokens only (embedding may have prepended CLS so mask is [B, T+1])
+            mask_phys = mask[:, 1:] if getattr(self.embedding, "use_cls_token", False) and mask is not None else mask
+            pairwise_features = compute_pairwise_kinematics(tokens_cont, mask=mask_phys)
+            if pairwise_features is not None:
+                attention_bias = self.pairwise_bias_net(pairwise_features)
+                # If encoder uses CLS token, bias is [B, T, T]; encoder expects [B, T+1, T+1]
+                if getattr(self.embedding, "use_cls_token", False):
+                    B, T, _ = attention_bias.shape
+                    if attention_bias.dim() == 4:
+                        # [B, H, T, T] -> [B, H, T+1, T+1]
+                        padded = attention_bias.new_zeros(B, attention_bias.size(1), T + 1, T + 1)
+                        padded[:, :, 1:, 1:] = attention_bias
+                    else:
+                        padded = attention_bias.new_zeros(B, T + 1, T + 1)
+                        padded[:, 1:, 1:] = attention_bias
+                    attention_bias = padded
+
         # Encode
-        x = self.encoder(x, mask=mask)
+        x = self.encoder(x, mask=mask, attention_bias=attention_bias)
 
         # Classify
         logits = self.head(x, mask=mask)
@@ -206,6 +235,20 @@ def build_from_config(cfg: DictConfig, meta: Mapping[str, Any]) -> nn.Module:
     encoder = build_transformer_encoder(cfg, dim, rotary_emb=rotary_emb)
     head = build_classifier_head(cfg, dim, n_classes)
 
+    # Optional pairwise attention bias (physics-informed: m2, deltaR from tokens_cont)
+    pairwise_bias_net = None
+    attn_pairwise = cfg.classifier.model.get("attn_pairwise", {})
+    if attn_pairwise.get("enabled", False):
+        num_features = 2  # m2, deltaR
+        hidden_dim = attn_pairwise.get("hidden_dim", 8)
+        per_head = attn_pairwise.get("per_head", False)
+        pairwise_bias_net = PairwiseBiasNet(
+            num_features=num_features,
+            hidden_dim=hidden_dim,
+            num_heads=num_heads,
+            per_head=per_head,
+        )
+
     # Assemble model
     model = TransformerClassifier(
         embedding=embedding,
@@ -213,6 +256,7 @@ def build_from_config(cfg: DictConfig, meta: Mapping[str, Any]) -> nn.Module:
         encoder=encoder,
         head=head,
         positional_space=positional_space,
+        pairwise_bias_net=pairwise_bias_net,
     )
 
     return model

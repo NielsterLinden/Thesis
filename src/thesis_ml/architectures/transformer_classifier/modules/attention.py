@@ -79,6 +79,7 @@ class MultiHeadAttention(nn.Module):
         key_padding_mask: torch.Tensor | None = None,
         need_weights: bool = False,
         attn_mask: torch.Tensor | None = None,
+        attention_bias: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor | None]:
         """Forward pass.
 
@@ -96,6 +97,11 @@ class MultiHeadAttention(nn.Module):
             If True, return attention weights
         attn_mask : torch.Tensor, optional
             Attention mask (not commonly used, kept for API compatibility)
+        attention_bias : torch.Tensor, optional
+            Additive bias added to attention logits before softmax. Expected shapes:
+            - [B, T_q, T_k]: broadcast to [B, 1, T_q, T_k] (shared across heads).
+            - [B, num_heads, T_q, T_k]: used directly. Applied after (QK^T)/sqrt(d)
+            and before key_padding_mask and attn_mask so padding remains suppressed.
 
         Returns
         -------
@@ -138,6 +144,18 @@ class MultiHeadAttention(nn.Module):
 
         # Compute attention scores: [B, num_heads, T_q, T_k]
         attn_scores = torch.matmul(q, k.transpose(-2, -1)) * self.scaling
+
+        # Add optional attention bias (e.g. physics-informed pairwise bias)
+        if attention_bias is not None:
+            if attention_bias.ndim == 3:
+                # [B, T_q, T_k] -> [B, 1, T_q, T_k]
+                attention_bias = attention_bias.unsqueeze(1)
+            elif attention_bias.ndim == 4:
+                if attention_bias.size(1) != self.num_heads:
+                    raise ValueError(f"attention_bias has shape {attention_bias.shape}; when 4D, " f"size(1) must be num_heads={self.num_heads}")
+            else:
+                raise ValueError(f"attention_bias must be 3D [B, T_q, T_k] or 4D [B, num_heads, T_q, T_k], got ndim={attention_bias.ndim}")
+            attn_scores = attn_scores + attention_bias
 
         # Apply key_padding_mask (True=pad, False=valid)
         if key_padding_mask is not None:

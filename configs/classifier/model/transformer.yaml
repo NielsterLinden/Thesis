@@ -37,6 +37,18 @@ classifier:
     # Pooling strategy
     pooling: cls          # "cls" (first token) or "mean" (average pooling)
 
+    # Physics-informed pairwise attention bias (m2, deltaR from tokens_cont; raw format only)
+    attn_pairwise:
+      enabled: false
+      features: [m2, deltaR]
+      hidden_dim: 8
+      per_head: false
+      per_layer: false    # Placeholder for future per-layer bias
+
+    # Standard Model interaction prior (placeholder; implementation in separate PR)
+    interaction_prior:
+      enabled: false
+
     # Tokenizer (optional pre-embedding transformation)
     tokenizer:
       name: raw           # "identity", "raw", "binned", or "pretrained"

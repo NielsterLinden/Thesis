@@ -1,0 +1,39 @@
+# @package _global_
+# PhD Presentation - Experiment 4
+# 4t vs ttH: 5 model sizes × with/without physics-informed pairwise attention bias (10 models)
+#
+# Same high-level setup as exp3 (identity tokenizer, sinusoidal PE, cls pooling) but
+# fix norm to "pre" and sweep additive bias (m2, deltaR) on/off for small-to-large sizes.
+
+experiment:
+  name: "phd_exp4_4t_vs_ttH_pairwise_bias"
+
+hydra:
+  mode: MULTIRUN
+  job:
+    chdir: true
+    name: ${experiment.name}
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweeper:
+    params:
+      # 5 model sizes (small to large, aligned with exp3-style top performers)
+      +classifier/model_size: s150k,s200k,s600k,s1500k,s3000k
+      # With or without pairwise attention bias (m2, deltaR from tokens_cont)
+      classifier.model.attn_pairwise.enabled: false,true
+      # Fixed config (match exp3 for fairness)
+      classifier.model.norm.policy: pre
+      classifier.model.positional: sinusoidal
+      classifier.model.positional_space: model
+      classifier.model.tokenizer.name: identity
+      classifier.model.tokenizer.id_embed_dim: 8
+      classifier.model.pooling: cls
+      classifier.trainer.epochs: 50
+
+# 4t vs ttH (binary)
+data:
+  classifier:
+    selected_labels: [1, 2]
