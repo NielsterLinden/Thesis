@@ -50,5 +50,5 @@ wandb:
   mode: "offline"      # "online" | "offline" (use offline for HPC)
   watch_model: false   # watch gradients/parameters (can slow training)
   log_freq: 100        # steps between watch logs
-  log_artifacts: true  # upload model checkpoint
+  log_artifacts: false  # do not upload .pt to WandB; model files stay in Facts run dirs
   dir: "${logging.output_root}/wandb"

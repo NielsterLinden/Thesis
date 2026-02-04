@@ -10,6 +10,10 @@ echo "Job ID: ${CONDOR_JOB_ID:-N/A}"
 # Navigate to code directory
 cd /project/atlas/users/nterlind/Thesis-Code
 
+# WandB: write local files to large filesystem (not project dir, avoids quota)
+export WANDB_DIR=/data/atlas/users/nterlind/outputs/wandb
+export WANDB_MODE=online
+
 # Activate conda environment
 set +u
 eval "$(conda shell.bash hook)"

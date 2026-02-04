@@ -4,6 +4,11 @@
 Facts system remains the source of truth - W&B is a mirror for visualization.
 Extracts comprehensive config metadata for maximum divisibility in WandB dashboards.
 
+Environment:
+    On HPC, set WANDB_DIR to a large-filesystem path (e.g. /data/atlas/users/nterlind/outputs/wandb)
+    so WandB local files are not written under the project directory (avoids disk quota).
+    Example: export WANDB_DIR=/data/atlas/users/nterlind/outputs/wandb
+
 Usage:
     # Dry run first (recommended)
     python scripts/migrate_runs_to_wandb.py --runs-dir /data/atlas/users/nterlind/outputs/runs --dry-run
@@ -24,6 +29,9 @@ Usage:
 
     # Limit number of runs to migrate
     python scripts/migrate_runs_to_wandb.py --runs-dir ... --limit 10
+
+    # Upload model artifacts to WandB (opt-in; default is no artifacts)
+    python scripts/migrate_runs_to_wandb.py --sweep-dir ... --artifacts
 """
 
 from __future__ import annotations
@@ -193,7 +201,7 @@ def migrate_run(
     project: str,
     entity: str | None,
     dry_run: bool,
-    upload_artifacts: bool = True,
+    upload_artifacts: bool = False,
     group_override: str | None = None,
     source_location: str = "unknown",
     existing_runs: set[str] | None = None,
@@ -211,7 +219,7 @@ def migrate_run(
     dry_run : bool
         If True, only log what would be done
     upload_artifacts : bool
-        If True, upload model artifacts
+        If True, upload model artifacts (.pt) to WandB; default False (metrics/config only).
     group_override : str | None
         Override group name (useful for sweep migrations)
     existing_runs : set[str] | None
@@ -510,9 +518,9 @@ def main():
         help="Show what would be migrated without actually uploading",
     )
     parser.add_argument(
-        "--no-artifacts",
+        "--artifacts",
         action="store_true",
-        help="Skip uploading model artifacts",
+        help="Upload model artifacts (.pt) to WandB; default is no artifacts (metrics/config only)",
     )
     parser.add_argument(
         "--limit",
@@ -665,7 +673,7 @@ def main():
             project=args.project,
             entity=args.entity,
             dry_run=args.dry_run,
-            upload_artifacts=not args.no_artifacts,
+            upload_artifacts=args.artifacts,
             group_override=group_override,
             source_location=source_location,
             existing_runs=existing_runs,

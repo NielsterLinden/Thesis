@@ -72,6 +72,11 @@ But actual experiment names are:
 
 All commands above use the correct patterns matching your actual experiment names.
 
+## WandB on HPC
+
+- **WANDB_DIR**: Training and report jobs set `WANDB_DIR=/data/atlas/users/nterlind/outputs/wandb` so WandB local files are written on the large filesystem, not under the project directory (avoids disk quota). When running the migration script or any WandB-using tool manually on the login node, set the same: `export WANDB_DIR=/data/atlas/users/nterlind/outputs/wandb`.
+- **Cleanup**: Local WandB run dirs under `/data/atlas/users/nterlind/outputs/wandb` can be deleted after successful upload. Canonical data lives in Facts run dirs and in WandB cloud. After a large migration, you can remove the whole directory or old subdirs to free space.
+
 ## Notes
 
 - The `compare_model_sizes` report now properly handles experiments using `+classifier/model_size: s200k,s600k,s1500k,s3000k` config groups
