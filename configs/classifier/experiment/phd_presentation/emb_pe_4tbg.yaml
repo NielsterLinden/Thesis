@@ -15,9 +15,8 @@ experiment:
   name: "emb_pe_4tbg"
 
 defaults:
-  # Base classifier/model is already defined in the main config; avoid duplicating it here.
+  # Base classifier/model and data are already defined in the main config; avoid duplicating them here.
   - /classifier/model_size: s100k
-  - /data: h5_tokens
 
 hydra:
   mode: MULTIRUN
