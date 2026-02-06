@@ -1,11 +1,14 @@
 # @package _global_
-# Embedding & positional study - 4t vs background (48 configs)
+# Embedding & Positional Encoding Study - 4t vs Background
+#
+# Grid: 2 tokenizers × 2 MET settings × 6 PE variants × 2 model sizes = 48 runs
 #
 # Axes:
-#   - Tokenizer: raw vs identity  (2)
-#   - MET tokens: include_met true vs false (2)
-#   - Positional encodings: 6 variants via /classifier/pos_variant (2×3 learned/sinusoidal + rotary + none) (6)
-#   - Model size: s100k vs s500k (2)
+#   1. Tokenizer: raw (4 continuous) vs identity (4 continuous + ID embedding)
+#   2. MET tokens: include_met true vs false
+#   3. Positional encoding: 6 variants via +classifier/pos_variant
+#   4. Model size: s100k vs s500k
+#
 # Task: 4t (label 1) vs all background (labels 2,3,4,5)
 
 meta:
@@ -13,10 +16,6 @@ meta:
 
 experiment:
   name: "emb_pe_4tbg"
-
-defaults:
-  # Base classifier/model and data are already defined in the main config; avoid duplicating them here.
-  - /classifier/model_size: s100k
 
 hydra:
   mode: MULTIRUN
@@ -33,24 +32,27 @@ hydra:
       # Model sizes (2)
       +classifier/model_size: s100k,s500k
 
-      # Embedding axis (2 × 2)
-      # - Tokenizer: raw (no ID embedding) vs identity (with ID embedding)
+      # Tokenizer (2): raw vs identity
       classifier.model.tokenizer.name: raw,identity
       classifier.model.tokenizer.id_embed_dim: 8
-      # - MET tokens on/off, read in embedding via cfg.classifier.globals.include_met
+
+      # MET tokens (2): on vs off
       classifier.globals.include_met: true,false
 
-      # Positional encoding axis (6 variants) via dedicated config group
+      # Positional encoding (6 variants via config group)
       +classifier/pos_variant: none,sinusoidal_full,sinusoidal_cont,learned_full,learned_cont,rotary
 
-      # Training basics (can be overridden on CLI for dry runs)
+      # Pooling and normalization (fixed)
+      classifier.model.pooling: cls
+      classifier.model.norm.policy: post
+
+      # Training (default 50 epochs, override on CLI for dry runs)
       classifier.trainer.epochs: 50
 
-# Task: 4t vs all background via signal_vs_background
+# Task: signal vs background
 data:
   classifier:
     signal_vs_background:
       signal: 1
       background: [2, 3, 4, 5]
-    # Override default selected_labels from h5_tokens
     selected_labels: null
