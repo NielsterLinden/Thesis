@@ -15,7 +15,7 @@ experiment:
   name: "emb_pe_4tbg"
 
 defaults:
-  - /classifier/model: transformer
+  # Base classifier/model is already defined in the main config; avoid duplicating it here.
   - /classifier/model_size: s100k
   - /data: h5_tokens
 
