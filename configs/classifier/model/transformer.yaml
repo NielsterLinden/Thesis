@@ -2,6 +2,10 @@
 # Transformer classifier model configuration
 
 classifier:
+  # Globals-related settings for classifier (e.g. MET/METφ integration)
+  globals:
+    include_met: false  # default; experiments can override to true/false
+
   model:
     # Architecture dimensions
     dim: 256              # Model dimension (hidden size)
