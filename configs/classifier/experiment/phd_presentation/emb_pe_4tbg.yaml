@@ -1,0 +1,58 @@
+# @package _global_
+# Embedding & positional study - 4t vs background (48 configs)
+#
+# Axes:
+#   - Tokenizer: raw vs identity  (2)
+#   - MET tokens: include_met true vs false (2)
+#   - Positional encodings: 6 variants via positional / space / mask (6)
+#   - Model size: s100k vs s500k (2)
+# Task: 4t (label 1) vs all background (labels 2,3,4,5)
+
+meta:
+  goal: "classification"
+
+experiment:
+  name: "emb_pe_4tbg"
+
+hydra:
+  mode: MULTIRUN
+  job:
+    chdir: true
+    name: ${experiment.name}
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweeper:
+    params:
+      # Model sizes (2)
+      +classifier/model_size: s100k,s500k
+
+      # Embedding axis (2 × 2)
+      # - Tokenizer: raw (no ID embedding) vs identity (with ID embedding)
+      classifier.model.tokenizer.name: raw,identity
+      classifier.model.tokenizer.id_embed_dim: 8
+      # - MET tokens on/off, read in embedding via cfg.classifier.globals.include_met
+      classifier.globals.include_met: true,false
+
+      # Positional encoding axis (6 variants)
+      # 1) none
+      # 2) sinusoidal_full        : sinusoidal, model-space, no mask
+      # 3) sinusoidal_cont_only   : sinusoidal, token-space, mask on continuous dims only
+      # 4) learned_full           : learned, model-space, no mask
+      # 5) learned_cont_only      : learned, token-space, mask on continuous dims only
+      # 6) rotary                 : rotary (model-space, no mask)
+      classifier.model.positional: none,sinusoidal,sinusoidal,sinusoidal,learned,learned,rotary
+      classifier.model.positional_space: model,model,token,token,model,token,model
+      classifier.model.positional_dim_mask: null,null,["continuous"],["continuous"],null,["continuous"],null
+
+      # Training basics (can be overridden on CLI for dry runs)
+      classifier.trainer.epochs: 50
+
+# Task: 4t vs all background via signal_vs_background
+data:
+  classifier:
+    signal_vs_background:
+      signal: 1
+      background: [2, 3, 4, 5]

@@ -11,7 +11,7 @@ log            = /data/atlas/users/nterlind/logs/stdlog/train_$(ClusterId).log
 request_cpus   = 2
 request_memory = 16GB
 request_disk   = 32GB
-request_gpus   = 1
+request_gpus   = 3
 
 +UseOS = "el9"
 +JobCategory = "long"

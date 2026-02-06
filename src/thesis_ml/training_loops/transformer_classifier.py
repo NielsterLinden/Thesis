@@ -56,12 +56,13 @@ def _save_split_scores_and_embeddings(
         for batch in loader:
             # Unpack batch (raw vs binned)
             if len(batch) == 5:  # raw format
-                tokens_cont, tokens_id, _globals, mask, label = batch
+                tokens_cont, tokens_id, globals, mask, label = batch
                 tokens_cont = tokens_cont.to(device)
                 tokens_id = tokens_id.to(device)
+                globals = globals.to(device)
                 mask = mask.to(device)
                 label = label.to(device)
-                logits = model(tokens_cont, tokens_id, mask=mask)
+                logits = model(tokens_cont, tokens_id, globals, mask=mask)
             else:  # binned format
                 integer_tokens, _globals_ints, mask, label = batch
                 integer_tokens = integer_tokens.to(device)
@@ -260,11 +261,12 @@ def _train_one_epoch(
             tokens_cont, tokens_id, globals, mask, label = batch
             tokens_cont = tokens_cont.to(device)
             tokens_id = tokens_id.to(device)
+            globals = globals.to(device)
             mask = mask.to(device)
             label = label.to(device)
 
             with autocast_ctx:
-                logits = model(tokens_cont, tokens_id, mask=mask)
+                logits = model(tokens_cont, tokens_id, globals, mask=mask)
         else:  # binned format (4 items)
             integer_tokens, globals_ints, mask, label = batch
             integer_tokens = integer_tokens.to(device)
@@ -361,11 +363,12 @@ def _validate_one_epoch(
                 tokens_cont, tokens_id, globals, mask, label = batch
                 tokens_cont = tokens_cont.to(device)
                 tokens_id = tokens_id.to(device)
+                globals = globals.to(device)
                 mask = mask.to(device)
                 label = label.to(device)
 
                 with autocast_ctx:
-                    logits = model(tokens_cont, tokens_id, mask=mask)
+                    logits = model(tokens_cont, tokens_id, globals, mask=mask)
             else:  # binned format (4 items)
                 integer_tokens, globals_ints, mask, label = batch
                 integer_tokens = integer_tokens.to(device)
@@ -418,8 +421,32 @@ def train(cfg: DictConfig) -> dict:
     # Model assembly
     model = build_from_config(cfg, meta).to(device)
 
+    # Basic diagnostics for dry runs: parameter count and input sequence length
+    try:
+        total_params = sum(p.numel() for p in model.parameters())
+        # Peek one batch to infer effective sequence length
+        first_batch = next(iter(train_dl))
+        if len(first_batch) == 5:  # raw format
+            tokens_cont, tokens_id, globals, mask, _ = first_batch
+            seq_len = int(tokens_cont.shape[1])
+        else:  # binned format
+            integer_tokens, globals_ints, mask, _ = first_batch
+            seq_len = int(integer_tokens.shape[1])
+    except Exception:
+        total_params = None
+        seq_len = None
+
     # Initialize W&B (returns None if disabled or on error - training continues normally)
     wandb_run = init_wandb(cfg, model=model)
+
+    # Log basic diagnostics once
+    diag_metrics = {}
+    if total_params is not None:
+        diag_metrics["model/num_parameters"] = float(total_params)
+    if seq_len is not None:
+        diag_metrics["data/seq_length_tokens"] = float(seq_len)
+    if diag_metrics:
+        log_metrics(wandb_run, diag_metrics, step=0)
 
     # AdamW optimizer
     opt = torch.optim.AdamW(

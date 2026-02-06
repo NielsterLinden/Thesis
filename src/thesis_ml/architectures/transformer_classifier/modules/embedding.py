@@ -24,6 +24,7 @@ class InputEmbedding(nn.Module):
         model_dim: int,
         use_cls_token: bool = False,
         pos_enc: nn.Module | None = None,
+        include_met: bool = False,
     ):
         """Initialize input embedding.
 
@@ -45,6 +46,7 @@ class InputEmbedding(nn.Module):
         self.tokenizer = tokenizer
         self.use_cls_token = use_cls_token
         self.is_binned = hasattr(tokenizer, "token_embedding")  # BinnedTokenizer has token_embedding
+        self.include_met = include_met
 
         # Validate pos_enc dimension
         if pos_enc is not None:
@@ -58,6 +60,11 @@ class InputEmbedding(nn.Module):
             self.projection = nn.Linear(tokenizer_output_dim, model_dim)
         else:
             self.projection = nn.Identity()
+
+        # Simple projection for MET and METφ scalars into tokenizer space,
+        # only used when include_met is True and we are in raw (continuous) format.
+        if not self.is_binned and include_met:
+            self.met_projection = nn.Linear(1, tokenizer_output_dim)
 
         # CLS token (learned parameter)
         if use_cls_token:
@@ -89,9 +96,23 @@ class InputEmbedding(nn.Module):
             integer_tokens = args[0]  # [B, T]
             x = self.tokenizer(integer_tokens)  # [B, T, embed_dim]
         else:
-            # Raw format: two arguments (tokens_cont, tokens_id)
+            # Raw format: two or three arguments:
+            # (tokens_cont, tokens_id) or (tokens_cont, tokens_id, globals)
             tokens_cont, tokens_id = args[0], args[1]
+            globals_ = args[2] if len(args) > 2 else None
             x = self.tokenizer(tokens_cont, tokens_id)  # [B, T, tokenizer_output_dim]
+
+            # Optionally append MET and METφ as extra sequence tokens.
+            if self.include_met and globals_ is not None:
+                # globals_: [B, 2] with (MET, METphi)
+                met_scalars = globals_.unsqueeze(-1)  # [B, 2, 1]
+                met_tokens = self.met_projection(met_scalars)  # [B, 2, tokenizer_output_dim]
+                x = torch.cat([x, met_tokens], dim=1)  # [B, T+2, tokenizer_output_dim]
+
+                # Extend mask for the two MET tokens
+                if mask is not None:
+                    met_mask = torch.ones(mask.size(0), 2, dtype=mask.dtype, device=mask.device)
+                    mask = torch.cat([mask, met_mask], dim=1)  # [B, T+2]
 
         # Apply positional encoding BEFORE projection (if provided)
         # This allows selective PE on semantic dimensions (E, Pt, eta, phi, ID)
@@ -157,11 +178,13 @@ def build_input_embedding(cfg: DictConfig, meta: Mapping[str, Any], pos_enc: nn.
         )
         tokenizer_output_dim = model_dim
     else:
-        # Raw tokens: use specified tokenizer
-        tokenizer_name = cfg.classifier.model.tokenizer.name
+        # Raw tokens: use specified tokenizer. For now, we keep all 4 continuous
+        # features; cont_features in the config is advisory for analysis.
+        tokenizer_cfg = cfg.classifier.model.tokenizer
+        tokenizer_name = tokenizer_cfg.name
         num_types = meta.get("num_types")
         cont_dim = meta.get("token_feat_dim", 4)
-        id_embed_dim = cfg.classifier.model.tokenizer.get("id_embed_dim", 8)
+        id_embed_dim = tokenizer_cfg.get("id_embed_dim", 8)
 
         tokenizer = get_tokenizer(
             name=tokenizer_name,
@@ -183,10 +206,13 @@ def build_input_embedding(cfg: DictConfig, meta: Mapping[str, Any], pos_enc: nn.
             # For now, assume it outputs cont_dim + id_embed_dim
             tokenizer_output_dim = cont_dim + id_embed_dim
 
+    include_met = bool(cfg.classifier.get("globals", {}).get("include_met", False))
+
     return InputEmbedding(
         tokenizer=tokenizer,
         tokenizer_output_dim=tokenizer_output_dim,
         model_dim=model_dim,
         use_cls_token=use_cls_token,
         pos_enc=pos_enc,
+        include_met=include_met,
     )

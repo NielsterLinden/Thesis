@@ -76,7 +76,11 @@ class TransformerClassifier(nn.Module):
             Logits [B, n_classes]
         """
         # Handle raw vs binned input format explicitly
-        if len(args) == 2:
+        if len(args) == 3:
+            # Raw format with globals: (tokens_cont, tokens_id, globals)
+            tokens_cont, tokens_id, globals_ = args
+            x, mask = self.embedding(tokens_cont, tokens_id, globals_, mask=mask)
+        elif len(args) == 2:
             # Raw format: (tokens_cont, tokens_id)
             tokens_cont, tokens_id = args
             x, mask = self.embedding(tokens_cont, tokens_id, mask=mask)
@@ -94,7 +98,7 @@ class TransformerClassifier(nn.Module):
 
         # Optional physics-informed attention bias from pairwise kinematics (raw format only)
         attention_bias = None
-        if self.pairwise_bias_net is not None and len(args) == 2:
+        if self.pairwise_bias_net is not None and len(args) >= 2:
             tokens_cont = args[0]
             # Mask for physical tokens only (embedding may have prepended CLS so mask is [B, T+1])
             mask_phys = mask[:, 1:] if getattr(self.embedding, "use_cls_token", False) and mask is not None else mask
@@ -143,6 +147,9 @@ def build_from_config(cfg: DictConfig, meta: Mapping[str, Any]) -> nn.Module:
     # Base sequence length from data (number of physical tokens/objects)
     seq_len_tokens = meta["n_tokens"]
 
+    # Determine whether MET/METphi will be appended as extra tokens
+    include_met = bool(cfg.classifier.get("globals", {}).get("include_met", False))
+
     # Parse positional_space config (default "model" for backward compatibility)
     positional_space = cfg.classifier.model.get("positional_space", "model")
     if positional_space not in ("model", "token"):
@@ -186,12 +193,14 @@ def build_from_config(cfg: DictConfig, meta: Mapping[str, Any]) -> nn.Module:
     use_cls_token = pooling == "cls"
 
     # For token-space PE, we always use the physical token length (no CLS yet).
+    # MET tokens (if any) are appended after token-space PE is applied.
     max_seq_length_tokens = seq_len_tokens
 
-    # For model-space PE, the encoder sees the CLS token *prepended* by
-    # InputEmbedding when pooling="cls", so we need PE with length T+1
-    # to avoid shape mismatches (e.g. 19 vs 18).
-    max_seq_length_model = seq_len_tokens + 1 if positional_space == "model" and use_cls_token else seq_len_tokens
+    # For model-space PE, the encoder sees:
+    # - Optional CLS token (prepended) when pooling="cls"
+    # - Optional MET/METphi tokens (appended) when include_met is True
+    extra_tokens = (1 if use_cls_token else 0) + (2 if include_met else 0)
+    max_seq_length_model = seq_len_tokens + extra_tokens if positional_space == "model" else seq_len_tokens
 
     # Handle rotary PE specially: it goes into attention, not as additive PE
     rotary_emb = None
