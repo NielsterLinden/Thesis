@@ -4,7 +4,7 @@
 # Axes:
 #   - Tokenizer: raw vs identity  (2)
 #   - MET tokens: include_met true vs false (2)
-#   - Positional encodings: 6 variants via positional / space / mask (6)
+#   - Positional encodings: 6 variants via /classifier/pos_variant (2×3 learned/sinusoidal + rotary + none) (6)
 #   - Model size: s100k vs s500k (2)
 # Task: 4t (label 1) vs all background (labels 2,3,4,5)
 
@@ -13,6 +13,11 @@ meta:
 
 experiment:
   name: "emb_pe_4tbg"
+
+defaults:
+  - /classifier/model: transformer
+  - /classifier/model_size: s100k
+  - /data: h5_tokens
 
 hydra:
   mode: MULTIRUN
@@ -36,16 +41,8 @@ hydra:
       # - MET tokens on/off, read in embedding via cfg.classifier.globals.include_met
       classifier.globals.include_met: true,false
 
-      # Positional encoding axis (6 variants)
-      # 1) none
-      # 2) sinusoidal_full        : sinusoidal, model-space, no mask
-      # 3) sinusoidal_cont_only   : sinusoidal, token-space, mask on continuous dims only
-      # 4) learned_full           : learned, model-space, no mask
-      # 5) learned_cont_only      : learned, token-space, mask on continuous dims only
-      # 6) rotary                 : rotary (model-space, no mask)
-      classifier.model.positional: none,sinusoidal,sinusoidal,sinusoidal,learned,learned,rotary
-      classifier.model.positional_space: model,model,token,token,model,token,model
-      classifier.model.positional_dim_mask: null,null,["continuous"],["continuous"],null,["continuous"],null
+      # Positional encoding axis (6 variants) via dedicated config group
+      +classifier/pos_variant: none,sinusoidal_full,sinusoidal_cont,learned_full,learned_cont,rotary
 
       # Training basics (can be overridden on CLI for dry runs)
       classifier.trainer.epochs: 50
@@ -56,3 +53,5 @@ data:
     signal_vs_background:
       signal: 1
       background: [2, 3, 4, 5]
+    # Override default selected_labels from h5_tokens
+    selected_labels: null

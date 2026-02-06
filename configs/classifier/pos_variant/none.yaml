@@ -1,0 +1,5 @@
+classifier:
+  model:
+    positional: none
+    positional_space: model
+    positional_dim_mask: null

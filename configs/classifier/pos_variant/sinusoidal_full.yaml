@@ -1,0 +1,5 @@
+classifier:
+  model:
+    positional: sinusoidal
+    positional_space: model
+    positional_dim_mask: null

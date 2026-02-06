@@ -1,0 +1,5 @@
+classifier:
+  model:
+    positional: rotary
+    positional_space: model
+    positional_dim_mask: null

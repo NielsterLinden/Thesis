@@ -1,0 +1,5 @@
+classifier:
+  model:
+    positional: learned
+    positional_space: token
+    positional_dim_mask: ["continuous"]
