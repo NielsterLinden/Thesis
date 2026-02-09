@@ -2,6 +2,7 @@
 
 Available reports:
 - analyze_representations: Deep analysis of transformer representations
+- compare_embeddings_4tbg: Compare embedding strategies in emb_pe_4tbg sweep
 - compare_globals_heads: Compare globals reconstruction weights
 - compare_model_sizes: Compare model size and architecture effects
 - compare_norm_pos_pool: Compare normalization, positional encoding, and pooling
