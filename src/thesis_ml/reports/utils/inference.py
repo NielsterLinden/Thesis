@@ -84,10 +84,27 @@ def load_model_from_run(run_id: str, output_root: Path | str, device: str | None
             train_dl, val_dl, test_dl, meta = make_classification_dataloaders(cfg)
             _gather_meta(cfg, meta)
 
-        # IMPORTANT: Extract n_tokens from checkpoint to handle training/inference data mismatch
+        # Ensure cfg.meta exists as a mutable config node
+        if not hasattr(cfg, "meta") or cfg.meta is None:
+            cfg.meta = OmegaConf.create({})
+
+        # Try to obtain n_tokens from cfg.meta; if missing, fall back to checkpoint meta
+        data_n_tokens = getattr(cfg.meta, "n_tokens", None)
+
+        if data_n_tokens is None:
+            ckpt_meta = checkpoint.get("meta") if isinstance(checkpoint, dict) else None
+            if isinstance(ckpt_meta, dict) and "n_tokens" in ckpt_meta:
+                # Use n_tokens stored in checkpoint
+                data_n_tokens = int(ckpt_meta["n_tokens"])
+                cfg.meta.n_tokens = data_n_tokens
+            else:
+                # As a last resort, rebuild dataloaders to gather fresh meta
+                train_dl, val_dl, test_dl, meta = make_classification_dataloaders(cfg)
+                _gather_meta(cfg, meta)
+                data_n_tokens = int(cfg.meta.n_tokens)
+
+        # IMPORTANT: Extract n_tokens from checkpoint PE shapes to handle training/inference mismatch.
         # The positional encoding size depends on n_tokens at training time, not inference time.
-        # If checkpoint has pos_enc.pe, use its shape to infer the correct n_tokens.
-        data_n_tokens = cfg.meta.n_tokens
 
         if "pos_enc.pe" in state_dict:
             pe_shape = state_dict["pos_enc.pe"].shape  # [max_seq_len, dim]
