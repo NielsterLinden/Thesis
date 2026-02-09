@@ -1,0 +1,58 @@
+# Hydra config for report: phd_summary_4tbg
+#
+# One-stop summary for the emb_pe_4tbg sweep:
+# - Embedding types (4v, 4v+MET, ID, ID+MET)
+# - Positional encodings
+# - Model sizes (s100k vs s500k)
+#
+# All figures are written into a single report directory.
+
+inputs:
+  sweep_dir: null           # Path to multirun directory (exp_*_emb_pe_4tbg)
+  run_dirs: []              # Alternative: explicit list of run dirs
+  select: null              # Optional filtering
+
+report_name: phd_summary_4tbg
+
+outputs:
+  report_subdir: report
+  fig_format: png
+  dpi: 150
+  which_figures:
+    # Training: grouped AUROC curves
+    - val_auroc_by_embedding
+    - val_auroc_by_positional
+    - val_auroc_by_size
+    # Inference: overall curves and metrics
+    - roc_curves
+    - metrics_comparison
+    - confusion_matrices
+    - score_distributions
+    # Inference: grouped ROC curves
+    - roc_curves_by_embedding
+    - roc_curves_by_positional
+    - roc_curves_by_size
+    # Inference: grouped AUROC bar charts
+    - auroc_bar_by_embedding
+    - auroc_bar_by_positional
+    - auroc_bar_by_size
+
+thresholds:
+  val_acc: 0.8
+  comparison: ge
+  split: val
+
+summary_schema_version: 1
+
+inference:
+  enabled: true             # Run inference as part of the summary
+  persist_raw_scores: false # If true, save per-event scores
+  dataset_split: test       # Which split to evaluate on
+  autocast: true
+  batch_size: 512
+  seed: 42
+  n_points_roc: 250
+  max_samples: null         # Limit number of samples for testing (null = use all data)
+
+env:
+  output_root: null         # Set to /data/atlas/users/nterlind/outputs when running

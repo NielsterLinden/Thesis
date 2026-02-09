@@ -11,4 +11,5 @@ Available reports:
 - compare_regularization: Compare regularization hyperparameters
 - compare_tokenizers: Compare VQ vs non-VQ tokenizers
 - evaluate_classifier: Basic classifier evaluation with inference
+- phd_summary_4tbg: High-level summary of emb_pe_4tbg sweep (embedding, PE, size)
 """
