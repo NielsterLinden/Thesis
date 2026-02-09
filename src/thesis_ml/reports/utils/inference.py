@@ -114,13 +114,21 @@ def load_model_from_run(run_id: str, output_root: Path | str, device: str | None
         if "pos_enc.pe" in state_dict:
             pe_shape = state_dict["pos_enc.pe"].shape  # [max_seq_len, dim]
             checkpoint_max_seq_len = pe_shape[0]
-            # For model-space PE with CLS token, max_seq_len = n_tokens + 1
+            # For model-space PE, encoder sees:
+            #   - optional CLS token (prepended) when pooling="cls"
+            #   - optional MET/METphi tokens (appended) when include_met is True
             pooling = cfg.classifier.model.get("pooling", "cls")
             positional_space = cfg.classifier.model.get("positional_space", "model")
-            checkpoint_n_tokens = checkpoint_max_seq_len - 1 if positional_space == "model" and pooling == "cls" else checkpoint_max_seq_len
+            include_met = bool(cfg.classifier.get("globals", {}).get("include_met", False))
+            extra_tokens = (1 if pooling == "cls" else 0) + (2 if include_met else 0)
+            checkpoint_n_tokens = checkpoint_max_seq_len - extra_tokens if positional_space == "model" else checkpoint_max_seq_len
             # Override meta n_tokens to match checkpoint
             if checkpoint_n_tokens != data_n_tokens:
-                logger.info(f"Adjusting n_tokens from {data_n_tokens} (data) to {checkpoint_n_tokens} (checkpoint PE shape)")
+                logger.info(
+                    "Adjusting n_tokens from %s (data) to %s (checkpoint PE shape)",
+                    data_n_tokens,
+                    checkpoint_n_tokens,
+                )
             cfg.meta.n_tokens = checkpoint_n_tokens
 
         # Also check for embedding pos_enc (token-space PE)
