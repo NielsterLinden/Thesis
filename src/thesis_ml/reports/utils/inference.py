@@ -88,20 +88,25 @@ def load_model_from_run(run_id: str, output_root: Path | str, device: str | None
         if not hasattr(cfg, "meta") or cfg.meta is None:
             cfg.meta = OmegaConf.create({})
 
-        # Try to obtain n_tokens from cfg.meta; if missing, fall back to checkpoint meta
-        data_n_tokens = getattr(cfg.meta, "n_tokens", None)
+        # Merge any metadata stored in the checkpoint into cfg.meta (n_tokens, n_classes, etc.)
+        ckpt_meta = checkpoint.get("meta") if isinstance(checkpoint, dict) else None
+        if isinstance(ckpt_meta, dict):
+            for key, value in ckpt_meta.items():
+                # Do not overwrite values that are already present in cfg.meta
+                if not hasattr(cfg.meta, key) or getattr(cfg.meta, key) is None:
+                    setattr(cfg.meta, key, value)
 
-        if data_n_tokens is None:
-            ckpt_meta = checkpoint.get("meta") if isinstance(checkpoint, dict) else None
-            if isinstance(ckpt_meta, dict) and "n_tokens" in ckpt_meta:
-                # Use n_tokens stored in checkpoint
-                data_n_tokens = int(ckpt_meta["n_tokens"])
-                cfg.meta.n_tokens = data_n_tokens
-            else:
-                # As a last resort, rebuild dataloaders to gather fresh meta
-                train_dl, val_dl, test_dl, meta = make_classification_dataloaders(cfg)
-                _gather_meta(cfg, meta)
-                data_n_tokens = int(cfg.meta.n_tokens)
+        # At this point we expect at least n_tokens and n_classes to be present.
+        # If not, fall back once more to dataloader-based meta extraction.
+        if not hasattr(cfg.meta, "n_tokens") or cfg.meta.n_tokens is None:
+            train_dl, val_dl, test_dl, meta = make_classification_dataloaders(cfg)
+            _gather_meta(cfg, meta)
+
+        if not hasattr(cfg.meta, "n_classes") or cfg.meta.n_classes is None:
+            train_dl, val_dl, test_dl, meta = make_classification_dataloaders(cfg)
+            _gather_meta(cfg, meta)
+
+        data_n_tokens = int(cfg.meta.n_tokens)
 
         # IMPORTANT: Extract n_tokens from checkpoint PE shapes to handle training/inference mismatch.
         # The positional encoding size depends on n_tokens at training time, not inference time.
