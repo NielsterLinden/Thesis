@@ -75,6 +75,9 @@ def run_report(cfg: DictConfig) -> None:
     runs_df = _extract_embedding_metadata(runs_df)
     runs_df = _extract_positional_metadata(runs_df)
 
+    # Decide which column to use for size grouping: prefer size_label, fall back to model_size_group
+    size_group_col = "size_label" if "size_label" in runs_df.columns and runs_df["size_label"].notna().any() else "model_size_group"
+
     # Persist enriched summary
     runs_df.to_csv(training_dir / "summary.csv", index=False)
 
@@ -111,7 +114,7 @@ def run_report(cfg: DictConfig) -> None:
         plot_val_auroc_grouped_by(
             runs_df,
             per_epoch,
-            group_col="size_label",
+            group_col=size_group_col,
             figs_dir=training_figs_dir,
             fig_cfg=fig_cfg,
             fname="figure-val_auroc_by_size",
@@ -209,7 +212,7 @@ def run_report(cfg: DictConfig) -> None:
                     plot_roc_curves_grouped_by(
                         runs_df,
                         inference_results,
-                        group_col="size_label",
+                        group_col=size_group_col,
                         inference_figs_dir=inference_figs_dir,
                         fig_cfg=fig_cfg,
                         fname="figure-roc_curves_by_size",
@@ -251,7 +254,7 @@ def run_report(cfg: DictConfig) -> None:
                     plot_auroc_bar_by_group(
                         runs_df,
                         inference_results,
-                        group_col="size_label",
+                        group_col=size_group_col,
                         inference_figs_dir=inference_figs_dir,
                         fig_cfg=fig_cfg,
                         fname="figure-auroc_bar_by_size",

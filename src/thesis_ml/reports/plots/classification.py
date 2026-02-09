@@ -180,7 +180,14 @@ def plot_roc_curves(
     ax.set_xlabel("False Positive Rate", fontsize=14)
     ax.set_ylabel("True Positive Rate", fontsize=14)
     ax.set_title("ROC Curves", fontsize=16)
-    ax.legend(fontsize=12)
+    # Place legend outside the main axes to avoid covering curves
+    ax.legend(
+        fontsize=8,
+        loc="center left",
+        bbox_to_anchor=(1.02, 0.5),
+        borderaxespad=0.0,
+        framealpha=0.9,
+    )
     ax.grid(alpha=0.3)
     ax.set_xlim([0, 1])
     ax.set_ylim([0, 1])
