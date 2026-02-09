@@ -252,6 +252,7 @@ def extract_meta_fields(cfg: dict[str, Any]) -> dict[str, Any]:
     wc["meta.goal"] = meta.get("goal")
     wc["meta.model_family"] = meta.get("model_family")
     wc["meta.dataset_name"] = meta.get("dataset_name")
+    wc["meta.feature_mode"] = meta.get("feature_mode")
 
     # Process groups: three representations for different uses
     process_groups = meta.get("process_groups")
@@ -268,8 +269,20 @@ def extract_meta_fields(cfg: dict[str, Any]) -> dict[str, Any]:
     wc["meta.meta_confidence"] = meta.get("meta_confidence")
     wc["meta.needs_review"] = meta.get("needs_review", False)
 
-    # Flat key for easy W&B filtering by token order
-    wc["data/token_order"] = datatreatment.get("token_order") if datatreatment else None
+    # Flatten key subset of datatreatment for easier W&B filtering
+    if datatreatment:
+        # Existing convenience key (kept for backwards compatibility)
+        wc["data/token_order"] = datatreatment.get("token_order")
+
+        # Explicit meta.* mirrors for core datatreatment fields so you can slice
+        # directly in W&B without parsing JSON strings.
+        wc["meta.datatreatment_token_order"] = datatreatment.get("token_order")
+        wc["meta.datatreatment_pid_encoding"] = datatreatment.get("pid_encoding")
+        wc["meta.datatreatment_id_embed_dim"] = datatreatment.get("id_embed_dim")
+        wc["meta.datatreatment_met_rep"] = datatreatment.get("met_rep")
+        wc["meta.datatreatment_globals_included"] = datatreatment.get("globals_included")
+        wc["meta.datatreatment_feature_set_version"] = datatreatment.get("feature_set_version")
+        wc["meta.datatreatment_normalization"] = datatreatment.get("normalization")
 
     return wc
 

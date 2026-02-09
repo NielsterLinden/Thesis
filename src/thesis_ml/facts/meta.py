@@ -220,6 +220,39 @@ def _infer_met_rep(cfg: DictConfig | dict) -> str:
     return "unknown"
 
 
+def _infer_feature_mode(datatreatment: dict[str, Any] | None) -> str | None:
+    """Derive a high-level feature_mode string from datatreatment.
+
+    Encodes 4-vector vs 5-vector and presence of MET/globals in a compact form.
+
+    Examples
+    --------
+    - "4vec"
+    - "4vec+MET"
+    - "5vec+MET+globals"
+    """
+    if not datatreatment:
+        return None
+
+    pid_encoding = datatreatment.get("pid_encoding")
+    met_rep = datatreatment.get("met_rep")
+    globals_included = datatreatment.get("globals_included")
+
+    # 4-vector vs 5-vector based on PID encoding
+    base = "5vec" if pid_encoding == "embedded" else "4vec"
+
+    suffixes: list[str] = []
+    if met_rep and met_rep != "none":
+        suffixes.append("MET")
+    if globals_included is True:
+        suffixes.append("globals")
+
+    if not suffixes:
+        return base
+
+    return base + "+" + "+".join(suffixes)
+
+
 # =============================================================================
 # Canonicalization Functions
 # =============================================================================
@@ -471,6 +504,7 @@ def build_meta(cfg: DictConfig | dict) -> dict[str, Any]:
         "model_family": model_family,
         "process_groups": process_groups,
         "datatreatment": datatreatment,
+        "feature_mode": _infer_feature_mode(datatreatment),
         "meta_hash": None,  # computed below
         "meta_source": "live",
         "meta_confidence": overall_conf,

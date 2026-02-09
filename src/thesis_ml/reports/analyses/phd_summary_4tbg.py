@@ -75,8 +75,13 @@ def run_report(cfg: DictConfig) -> None:
     runs_df = _extract_embedding_metadata(runs_df)
     runs_df = _extract_positional_metadata(runs_df)
 
-    # Decide which column to use for size grouping: prefer size_label, fall back to model_size_group
-    size_group_col = "size_label" if "size_label" in runs_df.columns and runs_df["size_label"].notna().any() else "model_size_group"
+    # Group by actual parameter count when size_label/model_size_group are empty (e.g. emb_pe_4tbg sweep)
+    if "size_label" in runs_df.columns and runs_df["size_label"].notna().any():
+        size_group_col = "size_label"
+    elif "model_size_group" in runs_df.columns and runs_df["model_size_group"].notna().any():
+        size_group_col = "model_size_group"
+    else:
+        size_group_col = "model_size"
 
     # Persist enriched summary
     runs_df.to_csv(training_dir / "summary.csv", index=False)
