@@ -34,7 +34,7 @@ hydra:
       # MET: with or without MET + MET phi
       classifier.globals.include_met: true,false
       # Vector type: 4-vect (Pt,eta,phi,PID) vs 5-vect (+E)
-      data.cont_features: "[1,2,3],[0,1,2,3]"
+      +data.cont_features: "[1,2,3],[0,1,2,3]"
       # Model: ~400k params
       +classifier/model_size: s400k
       # Fixed architecture
