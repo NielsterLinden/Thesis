@@ -33,6 +33,7 @@ mlruns/
 # HPC-specific
 hpc/stoomboot/*.log
 *.sub.backup
+hpc/stoomboot/.wandb_env
 
 # Notebooks
 notebooks/*.ipynb

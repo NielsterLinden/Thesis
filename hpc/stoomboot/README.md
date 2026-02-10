@@ -1,5 +1,23 @@
 # Stoomboot HPC Job Submission Guide
 
+## Session Init (after SSH)
+
+After `ssh stbc-i1.nikhef.nl`, run one command to activate conda, go to project, git pull, and set WandB:
+
+```bash
+source /project/atlas/users/nterlind/Thesis-Code/hpc/stoomboot/init_session.sh
+```
+
+**One-liner alias**: Add to `~/.bashrc` on the HPC:
+
+```bash
+alias thesis='source /project/atlas/users/nterlind/Thesis-Code/hpc/stoomboot/init_session.sh'
+```
+
+Then type `thesis` after SSH.
+
+**WandB API key**: Create `hpc/stoomboot/.wandb_env` (gitignored) with `export WANDB_API_KEY="your_key"`, or put the key in `~/.wandb_api_key`. See `.wandb_env.example`.
+
 ## Prerequisites
 
 1. SSH access to Stoomboot configured
