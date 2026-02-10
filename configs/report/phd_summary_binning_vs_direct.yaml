@@ -1,0 +1,50 @@
+# Hydra config for report: phd_summary_binning_vs_direct
+#
+# Summary for the binning vs direct experiment:
+# - Pooling (cls, mean, max)
+# - Tokenization (direct vs binned)
+# - MET (with/without)
+# - Vector type (4-vect vs 5-vect)
+
+inputs:
+  sweep_dir: null           # Path to multirun directory (exp_*_exp_binning_vs_direct)
+  run_dirs: []
+  select: null
+
+report_name: phd_summary_binning_vs_direct
+
+outputs:
+  report_subdir: report
+  fig_format: png
+  dpi: 150
+  which_figures:
+    - val_auroc_by_pooling
+    - val_auroc_by_tokenization
+    - val_auroc_by_met
+    - val_auroc_by_vect
+    - roc_curves
+    - metrics_comparison
+    - roc_curves_by_pooling
+    - roc_curves_by_tokenization
+    - auroc_bar_by_pooling
+    - auroc_bar_by_tokenization
+
+thresholds:
+  val_acc: 0.8
+  comparison: ge
+  split: val
+
+summary_schema_version: 1
+
+inference:
+  enabled: true
+  persist_raw_scores: false
+  dataset_split: test
+  autocast: true
+  batch_size: 512
+  seed: 42
+  n_points_roc: 250
+  max_samples: null
+
+env:
+  output_root: null         # Set to /data/atlas/users/nterlind/outputs when running on HPC

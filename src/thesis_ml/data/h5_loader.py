@@ -136,6 +136,17 @@ def make_dataloaders(cfg):
     )
 
 
+def _parse_cont_features(cont_features) -> list[int]:
+    """Parse data.cont_features config to list of indices. Default [0,1,2,3] for 5-vect."""
+    if cont_features is None:
+        return [0, 1, 2, 3]
+    if isinstance(cont_features, ListConfig):
+        return [int(x) for x in cont_features]
+    if isinstance(cont_features, list | tuple):
+        return [int(x) for x in cont_features]
+    return [int(cont_features)]
+
+
 class ClassificationSplitDataset(Dataset):
     """Dataset for classification splits (raw format)."""
 
@@ -151,6 +162,7 @@ class ClassificationSplitDataset(Dataset):
         shuffle_tokens: bool = False,
         sort_tokens_by: str | None = None,
         seed: int = 42,
+        cont_features: list[int] | None = None,
     ):
         self.X = X
         self.Y = Y
@@ -161,6 +173,7 @@ class ClassificationSplitDataset(Dataset):
         self.shuffle_tokens = shuffle_tokens
         self.sort_tokens_by = sort_tokens_by
         self.seed = seed
+        self.cont_features = _parse_cont_features(cont_features)
 
     def _create_mask(self, ids: torch.Tensor) -> torch.Tensor:
         """Create attention mask from token IDs (nonzero = valid token)."""
@@ -176,11 +189,13 @@ class ClassificationSplitDataset(Dataset):
         ids = row[: self.T].to(torch.int64)
         globals_ = row[self.T : self.T + 2]
         cont = row[self.T + 2 :].view(self.T, 4)
-
-        tokens_cont = (cont - self.mu_norm) / self.sd_norm
+        # Slice continuous features (4-vect: [1,2,3] for pT,eta,phi; 5-vect: [0,1,2,3] for E,pT,eta,phi)
+        tokens_cont = cont[:, self.cont_features]
+        tokens_cont = (tokens_cont - self.mu_norm[self.cont_features]) / self.sd_norm[self.cont_features].clamp_min(1e-8)
 
         if self.shuffle_tokens or self.sort_tokens_by == "pt":
-            pt_vals = tokens_cont[:, 1] if self.sort_tokens_by == "pt" else None
+            pt_idx = self.cont_features.index(1) if 1 in self.cont_features else 0
+            pt_vals = tokens_cont[:, pt_idx] if self.sort_tokens_by == "pt" else None
             perm = _token_order_permutation(
                 self.T,
                 self.shuffle_tokens,
@@ -199,13 +214,24 @@ class ClassificationSplitDataset(Dataset):
 class BinnedClassificationSplitDataset(Dataset):
     """Dataset for classification splits (binned format)."""
 
-    def __init__(self, X, Y, T, pad_id: int = 0, *, shuffle_tokens: bool = False, seed: int = 42):
-        self.X = X  # [N, 20] integer tokens
+    def __init__(
+        self,
+        X,
+        Y,
+        T,
+        pad_id: int = 0,
+        *,
+        shuffle_tokens: bool = False,
+        seed: int = 42,
+        include_met: bool = False,
+    ):
+        self.X = X  # [N, 20] integer tokens (18 particles + MET + MET phi)
         self.Y = Y
         self.T = T
         self.pad_id = pad_id
         self.shuffle_tokens = shuffle_tokens
         self.seed = seed
+        self.include_met = include_met
 
     def _create_mask(self, tokens: torch.Tensor) -> torch.Tensor:
         """Create attention mask from tokens (nonzero = valid token)."""
@@ -225,6 +251,11 @@ class BinnedClassificationSplitDataset(Dataset):
             perm = _token_order_permutation(self.T, True, None, self.seed, idx, pt_values=None)
             integer_tokens = integer_tokens[perm]
 
+        if self.include_met:
+            # Return full sequence [18 + 2] with MET tokens appended
+            integer_tokens = torch.cat([integer_tokens, globals_ints], dim=0)
+            mask = self._create_mask(integer_tokens)
+            return integer_tokens, globals_ints, mask, label
         mask = self._create_mask(integer_tokens)
         return integer_tokens, globals_ints, mask, label
 
@@ -511,6 +542,7 @@ class H5ClassificationDataset(Dataset):
         X, Y = self.splits[name]
         shuffle_tokens = bool(getattr(self.cfg.data, "shuffle_tokens", False))
         sort_tokens_by = getattr(self.cfg.data, "sort_tokens_by", None)
+        cont_features = getattr(self.cfg.data, "cont_features", None)
         try:
             seed = int(self.cfg.classifier.trainer.seed)
         except (AttributeError, TypeError):
@@ -528,6 +560,7 @@ class H5ClassificationDataset(Dataset):
             shuffle_tokens=shuffle_tokens,
             sort_tokens_by=sort_tokens_by,
             seed=seed,
+            cont_features=cont_features,
         )
 
 
@@ -620,6 +653,7 @@ class H5BinnedClassificationDataset(Dataset):
     def get_split(self, name):
         X, Y = self.splits[name]
         shuffle_tokens = bool(getattr(self.cfg.data, "shuffle_tokens", False))
+        include_met = bool(self.cfg.classifier.get("globals", {}).get("include_met", False))
         try:
             seed = int(self.cfg.classifier.trainer.seed)
         except (AttributeError, TypeError):
@@ -627,7 +661,7 @@ class H5BinnedClassificationDataset(Dataset):
                 seed = int(self.cfg.trainer.seed)
             except (AttributeError, TypeError):
                 seed = int(getattr(self.cfg, "seed", 42))
-        return BinnedClassificationSplitDataset(X, Y, self.T, pad_id=0, shuffle_tokens=shuffle_tokens, seed=seed)
+        return BinnedClassificationSplitDataset(X, Y, self.T, pad_id=0, shuffle_tokens=shuffle_tokens, seed=seed, include_met=include_met)
 
 
 def make_classification_dataloaders(cfg):
@@ -664,8 +698,13 @@ def make_classification_dataloaders(cfg):
     batch_size = cfg.classifier.trainer.get("batch_size", cfg.data.get("batch_size", 32))
     num_workers = cfg.data.get("num_workers", 4)
 
+    include_met = bool(cfg.classifier.get("globals", {}).get("include_met", False))
+    n_tokens = int(cfg.data.n_tokens)
+    if use_binned and include_met:
+        n_tokens = n_tokens + 2  # 18 particles + MET + MET phi
+
     meta = {
-        "n_tokens": cfg.data.n_tokens,
+        "n_tokens": n_tokens,
         "has_globals": cfg.data.globals.get("present", False),
         "n_classes": ds.n_classes,
     }
@@ -675,7 +714,8 @@ def make_classification_dataloaders(cfg):
         meta["token_feat_dim"] = None  # Not applicable for binned
         meta["num_types"] = None  # Not applicable for binned
     else:
-        meta["token_feat_dim"] = 4  # Continuous features per token
+        cont_features = _parse_cont_features(getattr(cfg.data, "cont_features", None))
+        meta["token_feat_dim"] = len(cont_features)
         meta["vocab_size"] = None
         meta["num_types"] = ds.num_types  # For identity tokenizer
 

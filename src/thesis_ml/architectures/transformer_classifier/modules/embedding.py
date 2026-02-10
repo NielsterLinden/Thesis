@@ -100,7 +100,7 @@ class InputEmbedding(nn.Module):
             # (tokens_cont, tokens_id) or (tokens_cont, tokens_id, globals)
             tokens_cont, tokens_id = args[0], args[1]
             globals_ = args[2] if len(args) > 2 else None
-            x = self.tokenizer(tokens_cont, tokens_id)  # [B, T, tokenizer_output_dim]
+            x = self.tokenizer(tokens_cont, tokens_id, globals_) if getattr(self.tokenizer, "accepts_globals", False) else self.tokenizer(tokens_cont, tokens_id)
 
             # Optionally append MET and METφ as extra sequence tokens.
             if self.include_met and globals_ is not None:
@@ -178,32 +178,36 @@ def build_input_embedding(cfg: DictConfig, meta: Mapping[str, Any], pos_enc: nn.
         )
         tokenizer_output_dim = model_dim
     else:
-        # Raw tokens: use specified tokenizer. For now, we keep all 4 continuous
-        # features; cont_features in the config is advisory for analysis.
+        # Raw tokens: use specified tokenizer
         tokenizer_cfg = cfg.classifier.model.tokenizer
         tokenizer_name = tokenizer_cfg.name
         num_types = meta.get("num_types")
         cont_dim = meta.get("token_feat_dim", 4)
         id_embed_dim = tokenizer_cfg.get("id_embed_dim", 8)
 
+        tokenizer_kwargs = {}
+        if tokenizer_name == "pretrained":
+            tokenizer_kwargs["checkpoint_path"] = tokenizer_cfg.get("checkpoint_path")
+            tokenizer_kwargs["model_type"] = tokenizer_cfg.get("model_type", "vq")
+            tokenizer_kwargs["embed_dim"] = model_dim
+
         tokenizer = get_tokenizer(
             name=tokenizer_name,
             num_types=num_types,
             cont_dim=cont_dim,
             id_embed_dim=id_embed_dim,
+            embed_dim=model_dim,
+            **tokenizer_kwargs,
         )
 
         # Get tokenizer output dimension
-        # Identity: cont_dim + id_embed_dim
-        # Raw: cont_dim
-        # Binned: embed_dim (but we're not using this path)
         if tokenizer_name == "identity":
             tokenizer_output_dim = cont_dim + id_embed_dim
         elif tokenizer_name == "raw":
             tokenizer_output_dim = cont_dim
+        elif tokenizer_name == "pretrained":
+            tokenizer_output_dim = model_dim  # Pretrained outputs embed_dim
         else:
-            # For pretrained, we'd need to inspect the model
-            # For now, assume it outputs cont_dim + id_embed_dim
             tokenizer_output_dim = cont_dim + id_embed_dim
 
     include_met = bool(cfg.classifier.get("globals", {}).get("include_met", False))

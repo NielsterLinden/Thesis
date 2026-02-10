@@ -198,8 +198,9 @@ def build_from_config(cfg: DictConfig, meta: Mapping[str, Any]) -> nn.Module:
 
     # For model-space PE, the encoder sees:
     # - Optional CLS token (prepended) when pooling="cls"
-    # - Optional MET/METphi tokens (appended) when include_met is True
-    extra_tokens = (1 if use_cls_token else 0) + (2 if include_met else 0)
+    # - Optional MET/METphi tokens (appended) when include_met is True (raw only;
+    #   binned format already includes MET in the sequence)
+    extra_tokens = (1 if use_cls_token else 0) + (2 if include_met and not is_binned else 0)
     max_seq_length_model = seq_len_tokens + extra_tokens if positional_space == "model" else seq_len_tokens
 
     # Handle rotary PE specially: it goes into attention, not as additive PE

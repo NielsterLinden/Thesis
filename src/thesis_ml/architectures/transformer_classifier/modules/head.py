@@ -21,7 +21,7 @@ class ClassifierHead(nn.Module):
         n_classes : int
             Number of output classes
         pooling : str
-            Pooling strategy: "cls" (first token) or "mean" (mean over sequence)
+            Pooling strategy: "cls" (first token), "mean" (mean over sequence), or "max" (masked max)
         """
         super().__init__()
         self.pooling = pooling
@@ -39,7 +39,7 @@ class ClassifierHead(nn.Module):
             Input tensor [B, T, D] (or [B, T+1, D] if CLS token prepended)
         mask : torch.Tensor, optional
             Attention mask [B, T] or [B, T+1] (True=valid, False=padding)
-            Required for mean pooling, optional for CLS pooling
+            Required for mean/max pooling, optional for CLS pooling
 
         Returns
         -------
@@ -68,8 +68,23 @@ class ClassifierHead(nn.Module):
 
                 # Average
                 pooled = masked_sum / denom  # [B, D]
+        elif self.pooling == "max":
+            # Max pooling: masked max over sequence
+            if mask is None:
+                pooled = x.max(dim=1)[0]  # [B, D]
+            else:
+                mask_expanded = mask.unsqueeze(-1).float()  # [B, T, 1]
+                # Set padding to -inf so it doesn't affect max
+                x_masked = x.masked_fill(~mask.unsqueeze(-1).bool(), float("-inf"))
+                pooled = x_masked.max(dim=1)[0]  # [B, D]
+                # If all tokens are padding, max gives -inf; replace with zeros
+                pooled = torch.where(
+                    torch.isfinite(pooled),
+                    pooled,
+                    torch.zeros_like(pooled),
+                )
         else:
-            raise ValueError(f"Unknown pooling strategy: {self.pooling}. Choose 'cls' or 'mean'.")
+            raise ValueError(f"Unknown pooling strategy: {self.pooling}. Choose 'cls', 'mean', or 'max'.")
 
         # Classify
         logits = self.classifier(pooled)  # [B, n_classes]

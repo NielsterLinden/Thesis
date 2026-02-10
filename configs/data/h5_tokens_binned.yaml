@@ -1,0 +1,7 @@
+# @package _global_
+# Binned token format (Ambre-style 5 bins); our precomputed dataset
+defaults:
+  - h5_tokens
+
+path: "${env.data_root}/4tops_5bins_ours.h5"
+use_binned_tokens: true

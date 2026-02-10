@@ -1,0 +1,9 @@
+# @package _global_
+# Ambre's pre-binned 5-bin dataset
+# Path on HPC: /data/atlas/users/avisive/tokens/binning/4tops/4top_5bins_binningOnBckgdEvents_train_AND_test.h5
+defaults:
+  - h5_tokens
+
+# Override path when running on HPC (env.data_root is for nterlind; Ambre's path is fixed)
+path: "/data/atlas/users/avisive/tokens/binning/4tops/4top_5bins_binningOnBckgdEvents_train_AND_test.h5"
+use_binned_tokens: true

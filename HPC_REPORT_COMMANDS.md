@@ -77,6 +77,28 @@ All commands above use the correct patterns matching your actual experiment name
 - **WANDB_DIR**: Training and report jobs set `WANDB_DIR=/data/atlas/users/nterlind/outputs/wandb` so WandB local files are written on the large filesystem, not under the project directory (avoids disk quota). When running the migration script or any WandB-using tool manually on the login node, set the same: `export WANDB_DIR=/data/atlas/users/nterlind/outputs/wandb`.
 - **Cleanup**: Local WandB run dirs under `/data/atlas/users/nterlind/outputs/wandb` can be deleted after successful upload. Canonical data lives in Facts run dirs and in WandB cloud. After a large migration, you can remove the whole directory or old subdirs to free space.
 
+### Binning vs Direct Experiment (PhD Presentation)
+
+```bash
+# 1. Interactive preprocessing (run on login node via SSH)
+cd /project/atlas/users/nterlind/Thesis-Code
+conda activate thesis-ml
+python scripts/create_binned_dataset.py \
+  --input /data/atlas/users/nterlind/datasets/4tops_splitted.h5 \
+  --output /data/atlas/users/nterlind/datasets/4tops_5bins_ours.h5 \
+  --n-bins 5
+
+python scripts/compare_binned_datasets.py \
+  --ours /data/atlas/users/nterlind/datasets/4tops_5bins_ours.h5 \
+  --ambres /data/atlas/users/avisive/tokens/binning/4tops/4top_5bins_binningOnBckgdEvents_train_AND_test.h5
+
+# 2. Submit training sweep
+condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot loop=transformer_classifier classifier/experiment=phd_presentation/exp_binning_vs_direct --multirun'
+
+# 3. After training completes, submit report
+condor_submit hpc/stoomboot/report.sub -append 'arguments = --config-name phd_summary_binning_vs_direct inputs.sweep_dir=/data/atlas/users/nterlind/outputs/multiruns/exp_*_exp_binning_vs_direct inference.enabled=true'
+```
+
 ## Notes
 
 - The `compare_model_sizes` report now properly handles experiments using `+classifier/model_size: s200k,s600k,s1500k,s3000k` config groups

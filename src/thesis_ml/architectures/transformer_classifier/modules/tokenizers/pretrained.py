@@ -1,3 +1,5 @@
+"""Pretrained tokenizer: load VQ-VAE or AE from checkpoint and use as tokenizer."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -6,82 +8,116 @@ import torch
 import torch.nn as nn
 from omegaconf import OmegaConf
 
+from thesis_ml.architectures.autoencoder.base import build_from_config as build_ae_from_config
+
 
 class PretrainedTokenizer(nn.Module):
     """Load and use a pre-trained tokenizer from autoencoder models.
 
-    Supports loading:
-    - VQ-VAE encoders (to get quantized tokens)
-    - Standard autoencoder encoders (to get latent representations)
-    - Other tokenization models from the autoencoder section
+    Supports:
+    - VQ-VAE: encoder -> VQ bottleneck -> quantized indices -> embedding lookup
+    - AE: encoder -> latent (no quantization)
     """
 
-    def __init__(self, checkpoint_path: str | Path, model_type: str = "vq", **kwargs):  # "vq", "ae", etc.
+    accepts_globals = True  # Forward accepts optional globals_vec
+
+    def __init__(
+        self,
+        checkpoint_path: str | Path,
+        model_type: str = "vq",
+        embed_dim: int = 256,
+        **kwargs,
+    ):
         super().__init__()
         self.checkpoint_path = Path(checkpoint_path)
-        self.model_type = model_type
+        self.model_type = model_type.lower()
+        self.embed_dim = embed_dim
 
         if not self.checkpoint_path.exists():
             raise FileNotFoundError(f"Checkpoint not found: {self.checkpoint_path}")
 
-        # Load the checkpoint config to understand model structure
         config_path = self.checkpoint_path.parent / ".hydra" / "config.yaml"
         if not config_path.exists():
             raise FileNotFoundError(f"Config not found for checkpoint: {config_path}. " "Need .hydra/config.yaml to reconstruct model.")
 
-        self.cfg = OmegaConf.load(str(config_path))
+        self._cfg = OmegaConf.load(str(config_path))
+        self._encoder: nn.Module | None = None
+        self._bottleneck: nn.Module | None = None
+        self._index_embedding: nn.Embedding | None = None
+        self._n_codes: int = 0
+        self._loaded = False
 
-        # TODO: Load the model architecture
-        # - Reconstruct model from config
-        # - Load state dict
-        # - Extract encoder (or bottleneck for VQ) component
-        # - Set to eval mode
+    @property
+    def output_dim(self) -> int:
+        return self.embed_dim
 
-        # Placeholder for loaded model component
-        self.tokenizer_model: nn.Module | None = None
-        self.output_dim: int = 0  # Will be set after loading model
+    def _load_model(self) -> None:
+        if self._loaded:
+            return
 
-        raise NotImplementedError("PretrainedTokenizer not yet implemented. " "Need to: " "1. Reconstruct model from checkpoint config " "2. Load state dict " "3. Extract encoder/bottleneck component " "4. Determine output_dim from model architecture")
+        # Build full AE from config
+        model = build_ae_from_config(self._cfg)
+        ckpt = torch.load(self.checkpoint_path, map_location="cpu", weights_only=True)
+        state = ckpt["state_dict"] if isinstance(ckpt, dict) and "state_dict" in ckpt else ckpt
+
+        model.load_state_dict(state, strict=False)
+        model.eval()
+
+        self._encoder = model.encoder
+        self._bottleneck = model.bottleneck
+
+        # For VQ: create embedding layer for quantized indices
+        if self.model_type == "vq":
+            n_codes = int(self._cfg.phase1.latent_space.codebook_size)
+            self._n_codes = n_codes
+            self._index_embedding = nn.Embedding(n_codes, self.embed_dim)
+        else:
+            # AE: projection from latent_dim to embed_dim
+            latent_dim = int(self._cfg.phase1.latent_space.latent_dim)
+            self._proj = nn.Linear(latent_dim, self.embed_dim)
+
+        self._loaded = True
 
     def forward(
         self,
-        tokens_cont: torch.Tensor,  # [B, T, cont_dim]
-        tokens_id: torch.Tensor,  # [B, T] (int64)
-        globals_vec: torch.Tensor | None = None,  # [B, 2] (optional)
+        tokens_cont: torch.Tensor,
+        tokens_id: torch.Tensor,
+        globals_vec: torch.Tensor | None = None,
     ) -> torch.Tensor:
         """Apply pre-trained tokenizer.
 
         Parameters
         ----------
         tokens_cont : torch.Tensor
-            Continuous features [B, T, cont_dim]
+            [B, T, cont_dim] continuous features
         tokens_id : torch.Tensor
-            Particle ID integers [B, T]
+            [B, T] particle ID integers
         globals_vec : torch.Tensor, optional
-            Global features [B, 2] (MET, MET phi)
+            [B, 2] (MET, MET phi)
 
         Returns
         -------
         torch.Tensor
-            Tokenized features [B, T, output_dim]
+            [B, T, embed_dim] tokenized features
         """
-        if self.tokenizer_model is None:
-            raise RuntimeError("Tokenizer model not loaded. Call _load_model() first.")
+        self._load_model()
 
-        # TODO: Apply the pre-trained encoder/bottleneck
-        # - For VQ: encoder -> bottleneck (get quantized tokens)
-        # - For AE: encoder (get latent representation)
-        # - Handle globals if model expects them
+        if globals_vec is None:
+            globals_vec = torch.zeros(tokens_cont.size(0), 2, dtype=tokens_cont.dtype, device=tokens_cont.device)
 
-        raise NotImplementedError("PretrainedTokenizer forward not yet implemented")
+        with torch.no_grad():
+            z_e = self._encoder(
+                tokens_cont=tokens_cont,
+                tokens_id=tokens_id,
+                globals_vec=globals_vec,
+            )
+            bn_out = self._bottleneck(z_e)
 
-    def _load_model(self) -> None:
-        """Load the pre-trained model from checkpoint."""
-        # TODO: Implement model loading
-        # 1. Import model builder from autoencoder section
-        # 2. Reconstruct model from self.cfg
-        # 3. Load state dict from checkpoint
-        # 4. Extract encoder (or encoder+bottleneck for VQ)
-        # 5. Set to eval mode
-        # 6. Set self.output_dim based on model architecture
-        pass
+        if self.model_type == "vq" and isinstance(bn_out, dict) and "indices" in bn_out:
+            indices = bn_out["indices"]  # [B, T]
+            return self._index_embedding(indices)  # [B, T, embed_dim]
+
+        # AE path: use latent directly, project to embed_dim
+        z = bn_out.get("z_q", bn_out.get("z_e", z_e)) if isinstance(bn_out, dict) else bn_out
+
+        return self._proj(z)
