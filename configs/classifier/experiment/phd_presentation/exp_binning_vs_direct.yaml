@@ -1,10 +1,13 @@
 # @package _global_
 # PhD Presentation - Binning vs Direct Embedding Experiment
 #
-# Sweep: 3 pooling × 2 tokenization (direct vs binned) × 2 MET × 2 vect = 24 models
-# Direct: identity tokenizer (cont + ID embed); Binned: Ambre-style 5-bin integer tokens
+# Sweep: 3 pooling × 3 tokenization (direct, binned, VQ-VAE) × 2 MET × 2 vect = 36 models
+# Direct: identity tokenizer; Binned: Ambre-style 5-bin; VQ-VAE: pretrained encoder+VQ
 #
 # Fixed: ~400k params (s400k), sinusoidal PE, normformer, no early stopping, 50 epochs
+#
+# VQ-VAE: Pre-train first with loop=ae phase1/latent_space=vq, then copy best_val.pt
+#   to env.vq_checkpoint_path (e.g. /data/atlas/users/nterlind/checkpoints/vq_4tops_best.pt)
 
 meta:
   goal: "classification"
@@ -26,8 +29,8 @@ hydra:
     params:
       # Pooling: cls, mean, max
       classifier.model.pooling: cls,mean,max
-      # Tokenization: direct (raw data) vs binned (our 5-bin dataset)
-      +data: h5_tokens,h5_tokens_binned
+      # Tokenization: direct, binned, or VQ-VAE (pretrained)
+      +tokenization: direct,binned,vq
       # MET: with or without MET + MET phi
       classifier.globals.include_met: true,false
       # Vector type: 4-vect (Pt,eta,phi,PID) vs 5-vect (+E)
@@ -37,7 +40,6 @@ hydra:
       # Fixed architecture
       classifier.model.positional: sinusoidal
       classifier.model.norm.policy: normformer
-      classifier.model.tokenizer.name: identity
       classifier.model.tokenizer.id_embed_dim: 8
       classifier.trainer.epochs: 50
 

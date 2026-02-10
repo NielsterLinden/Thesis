@@ -1,0 +1,4 @@
+# @package _global_
+# Binned tokenization: Ambre-style 5-bin integer tokens
+defaults:
+  - override /data: h5_tokens_binned

@@ -1,0 +1,9 @@
+# @package _global_
+# Direct tokenization: raw continuous data + identity tokenizer (cont + ID embed)
+defaults:
+  - override /data: h5_tokens
+
+classifier:
+  model:
+    tokenizer:
+      name: identity

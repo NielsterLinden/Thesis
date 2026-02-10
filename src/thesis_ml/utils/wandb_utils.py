@@ -155,10 +155,11 @@ def extract_wandb_config(cfg: dict[str, Any], source_location: str = "live") -> 
     wc["norm/policy"] = _safe_get(cfg, "classifier.model.norm.policy")
 
     # === Tokenizer ===
-    tok = _safe_get(cfg, "classifier.tokenizer") or _safe_get(cfg, "tokenizer")
+    tok = _safe_get(cfg, "classifier.model.tokenizer") or _safe_get(cfg, "classifier.tokenizer") or _safe_get(cfg, "tokenizer")
     if isinstance(tok, dict):
         wc["tokenizer/type"] = tok.get("name")
         wc["tokenizer/id_embed_dim"] = tok.get("id_embed_dim")
+        wc["tokenizer/model_type"] = tok.get("model_type")
     elif tok:
         wc["tokenizer/type"] = tok
 
@@ -277,6 +278,7 @@ def extract_meta_fields(cfg: dict[str, Any]) -> dict[str, Any]:
         # Explicit meta.* mirrors for core datatreatment fields so you can slice
         # directly in W&B without parsing JSON strings.
         wc["meta.datatreatment_token_order"] = datatreatment.get("token_order")
+        wc["meta.datatreatment_tokenization"] = datatreatment.get("tokenization")
         wc["meta.datatreatment_pid_encoding"] = datatreatment.get("pid_encoding")
         wc["meta.datatreatment_id_embed_dim"] = datatreatment.get("id_embed_dim")
         wc["meta.datatreatment_met_rep"] = datatreatment.get("met_rep")

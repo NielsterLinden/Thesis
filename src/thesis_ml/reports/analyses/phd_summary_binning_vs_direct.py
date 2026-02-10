@@ -2,7 +2,7 @@
 
 Aggregates four axes:
 - Pooling (cls, mean, max)
-- Tokenization (direct vs binned)
+- Tokenization (direct, binned, VQ-VAE)
 - MET (with/without)
 - Vector type (4-vect vs 5-vect)
 """
@@ -33,6 +33,7 @@ def _extract_binning_experiment_metadata(runs_df: pd.DataFrame) -> pd.DataFrame:
         ("pooling", "classifier.model.pooling"),
         ("include_met", "classifier.globals.include_met"),
         ("use_binned_tokens", "data.use_binned_tokens"),
+        ("tokenizer_name", "classifier.model.tokenizer.name"),
         ("cont_features", "data.cont_features"),
     ]:
         if col in df.columns:
@@ -53,6 +54,9 @@ def _extract_binning_experiment_metadata(runs_df: pd.DataFrame) -> pd.DataFrame:
         binned = row.get("use_binned_tokens")
         if binned is True or str(binned).lower() == "true":
             return "binned"
+        tok = row.get("tokenizer_name")
+        if tok == "pretrained":
+            return "vq"
         return "direct"
 
     df["tokenization"] = df.apply(_tokenization_label, axis=1)

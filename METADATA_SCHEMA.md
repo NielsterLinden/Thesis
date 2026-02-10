@@ -78,6 +78,7 @@ Structured representation of data preprocessing choices.
 ```json
 {
   "token_order": "input_order",
+  "tokenization": "direct",
   "pid_encoding": "embedded",
   "id_embed_dim": 8,
   "met_rep": "met_metphi",
@@ -89,6 +90,7 @@ Structured representation of data preprocessing choices.
 
 Field definitions:
 - `token_order`: `"pt_sorted"` | `"shuffled"` | `"input_order"` | `"unknown"`
+- `tokenization`: `"direct"` | `"binned"` | `"vq"` – High-level tokenization: direct (identity/raw), binned (Ambre-style integer tokens), or vq (pretrained VQ-VAE). Used for W&B grouping in binning-vs-direct experiments.
 - `pid_encoding`: `"embedded"` | `"onehot"` | `"raw"` | `"none"` | `"unknown"`
 - `id_embed_dim`: integer or `null` (only if pid_encoding=embedded)
 - `met_rep`: `"met_metphi"` | `"met_vec"` | `"none"` | `"unknown"`
@@ -193,6 +195,7 @@ PROCESS_ID_NAMES = {
   "process_groups": [["4t"], ["ttH", "ttW", "ttWW", "ttZ"]],
   "datatreatment": {
     "token_order": "input_order",
+    "tokenization": "direct",
     "pid_encoding": "embedded",
     "id_embed_dim": 8,
     "met_rep": "met_metphi",
@@ -238,6 +241,7 @@ All meta fields are uploaded to W&B config with `meta.*` prefix:
 - `meta.row_key`
 - `meta.n_classes`
 - `meta.datatreatment` (JSON string)
+- `meta.datatreatment_tokenization` (direct | binned | vq – for W&B filtering)
 - `meta.meta_hash`
 - `meta.meta_confidence`
 - `meta.needs_review`

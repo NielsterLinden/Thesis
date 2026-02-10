@@ -1,3 +1,5 @@
 # Stoomboot HPC environment paths
 data_root: "/data/atlas/users/nterlind/datasets"
 output_root: "/data/atlas/users/nterlind/outputs"
+# VQ-VAE checkpoint for pretrained tokenizer (copy best_val.pt here after training)
+vq_checkpoint_path: "/data/atlas/users/nterlind/checkpoints/vq_4tops_best.pt"

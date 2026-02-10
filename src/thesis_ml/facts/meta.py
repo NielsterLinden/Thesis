@@ -183,6 +183,20 @@ def _infer_token_order(cfg: DictConfig | dict) -> str:
     return "input_order"
 
 
+def _infer_tokenization(cfg: DictConfig | dict) -> str:
+    """Infer high-level tokenization type for WandB grouping.
+
+    Returns "direct", "binned", or "vq".
+    """
+    use_binned = _safe_get(cfg, "data.use_binned_tokens")
+    if use_binned is True or str(use_binned).lower() == "true":
+        return "binned"
+    tok = _safe_get(cfg, "classifier.model.tokenizer.name")
+    if tok == "pretrained":
+        return "vq"
+    return "direct"
+
+
 def _infer_pid_encoding(cfg: DictConfig | dict) -> str:
     """Infer PID encoding from config."""
     tokenizer_name = _safe_get(cfg, "classifier.model.tokenizer.name")
@@ -363,6 +377,7 @@ def canonicalize_datatreatment(cfg: DictConfig | dict) -> tuple[dict[str, Any], 
     """
     treatment = {
         "token_order": _infer_token_order(cfg),
+        "tokenization": _infer_tokenization(cfg),
         "pid_encoding": _infer_pid_encoding(cfg),
         "id_embed_dim": _safe_get(cfg, "classifier.model.tokenizer.id_embed_dim"),
         "met_rep": _infer_met_rep(cfg),

@@ -1,3 +1,5 @@
 # Local Windows environment paths
 data_root: "C:/Users/niels/Projects/Thesis-Code/Data"
 output_root: "C:/Users/niels/Projects/Thesis-Code/Code/Niels_repo/outputs"
+# VQ-VAE checkpoint (copy best_val.pt here after phase1 training)
+vq_checkpoint_path: "C:/Users/niels/Projects/Thesis-Code/Code/Niels_repo/outputs/checkpoints/vq_4tops_best.pt"

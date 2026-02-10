@@ -1,0 +1,12 @@
+# @package _global_
+# VQ-VAE tokenization: pretrained encoder + VQ bottleneck
+# Requires: pre-train VQ-VAE first, then copy best_val.pt to env.vq_checkpoint_path
+defaults:
+  - override /data: h5_tokens
+
+classifier:
+  model:
+    tokenizer:
+      name: pretrained
+      checkpoint_path: ${env.vq_checkpoint_path}
+      model_type: vq
