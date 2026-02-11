@@ -523,6 +523,22 @@ def plot_training_curves(run_dir: Path, output_path: Path | None = None):
     plt.show()
 
 
+def convert_to_json_serializable(obj):
+    """Convert numpy types to JSON-serializable Python types."""
+    if isinstance(obj, dict):
+        return {k: convert_to_json_serializable(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_to_json_serializable(item) for item in obj]
+    elif isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    else:
+        return obj
+
+
 def print_summary(
     codebook_analysis: dict,
     training_analysis: dict,
