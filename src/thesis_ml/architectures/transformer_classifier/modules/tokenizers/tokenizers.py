@@ -119,10 +119,17 @@ def get_tokenizer(name: str, num_types: int | None = None, cont_dim: int = 4, id
             # cont_dim = number of continuous features (not including ID)
             # 5vec: [0,1,2,3] = 4 features → cont_dim = 4
             # 4vec: [1,2,3] = 3 features → cont_dim = 3
+            import logging
+
+            logger = logging.getLogger(__name__)
+            logger.info(f"[VQ checkpoint selection] cont_dim={cont_dim}, 5vec={checkpoint_path_5vec}, 4vec={checkpoint_path_4vec}")
+
             if cont_dim == 4:  # 4 continuous features (E, px, py, pz)
                 checkpoint_path = checkpoint_path_5vec
+                logger.info("[VQ checkpoint selection] Selected 5vec checkpoint")
             elif cont_dim == 3:  # 3 continuous features (px, py, pz)
                 checkpoint_path = checkpoint_path_4vec
+                logger.info("[VQ checkpoint selection] Selected 4vec checkpoint")
             else:
                 raise ValueError(f"Cannot auto-select VQ checkpoint: unexpected cont_dim={cont_dim}. " f"Expected 3 (px,py,pz) or 4 (E,px,py,pz)")
 
