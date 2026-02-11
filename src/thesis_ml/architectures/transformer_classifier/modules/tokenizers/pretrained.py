@@ -145,6 +145,19 @@ class PretrainedTokenizer(nn.Module):
 
         self._load_model()
 
+        # Ensure AE components live on the same device as the classifier inputs
+        target_device = tokens_cont.device
+        if hasattr(self, "_encoder") and self._encoder is not None:
+            self._encoder = self._encoder.to(target_device)
+        if hasattr(self, "_bottleneck") and self._bottleneck is not None:
+            self._bottleneck = self._bottleneck.to(target_device)
+        if self.model_type == "vq":
+            if hasattr(self, "_index_embedding") and self._index_embedding is not None:
+                self._index_embedding = self._index_embedding.to(target_device)
+        else:
+            if hasattr(self, "_proj") and self._proj is not None:
+                self._proj = self._proj.to(target_device)
+
         if globals_vec is None:
             globals_vec = torch.zeros(tokens_cont.size(0), 2, dtype=tokens_cont.dtype, device=tokens_cont.device)
 
