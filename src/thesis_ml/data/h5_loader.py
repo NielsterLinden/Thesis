@@ -184,6 +184,13 @@ def _parse_cont_features(cont_features) -> list[int]:
         return [int(x) for x in cont_features]
     if isinstance(cont_features, list | tuple):
         return [int(x) for x in cont_features]
+    # Handle string representations like "[1,2,3]" from Hydra CLI
+    if isinstance(cont_features, str):
+        cleaned = cont_features.strip().strip("'\"")
+        parsed = ast.literal_eval(cleaned)
+        if isinstance(parsed, list | tuple):
+            return [int(x) for x in parsed]
+        return [int(parsed)]
     return [int(cont_features)]
 
 
