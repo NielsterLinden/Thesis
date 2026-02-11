@@ -26,12 +26,16 @@ class PretrainedTokenizer(nn.Module):
         checkpoint_path: str | Path,
         model_type: str = "vq",
         embed_dim: int = 256,
+        meta_num_types: int | None = None,
+        meta_cont_dim: int | None = None,
         **kwargs,
     ):
         super().__init__()
         self.checkpoint_path = Path(checkpoint_path)
         self.model_type = model_type.lower()
         self.embed_dim = embed_dim
+        self._meta_num_types = meta_num_types
+        self._meta_cont_dim = meta_cont_dim
 
         if not self.checkpoint_path.exists():
             raise FileNotFoundError(f"Checkpoint not found: {self.checkpoint_path}")
@@ -41,6 +45,14 @@ class PretrainedTokenizer(nn.Module):
             raise FileNotFoundError(f"Config not found for checkpoint: {config_path}. " "Need .hydra/config.yaml to reconstruct model.")
 
         self._cfg = OmegaConf.load(str(config_path))
+        # Ensure meta section has basic fields needed by encoder/decoder even if
+        # they were not present in the original saved config.
+        if not hasattr(self._cfg, "meta") or self._cfg.meta is None:
+            self._cfg.meta = OmegaConf.create({})
+        if self._meta_num_types is not None and "num_types" not in self._cfg.meta:
+            self._cfg.meta.num_types = int(self._meta_num_types)
+        if self._meta_cont_dim is not None and "cont_dim" not in self._cfg.meta:
+            self._cfg.meta.cont_dim = int(self._meta_cont_dim)
         self._encoder: nn.Module | None = None
         self._bottleneck: nn.Module | None = None
         self._index_embedding: nn.Embedding | None = None

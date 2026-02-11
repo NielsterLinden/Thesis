@@ -114,12 +114,17 @@ def get_tokenizer(name: str, num_types: int | None = None, cont_dim: int = 4, id
         if not checkpoint_path:
             raise ValueError("pretrained tokenizer requires checkpoint_path in kwargs")
         model_type = kwargs.pop("model_type", "vq")  # "vq", "ae", etc.
+        # Optional meta hints so AE can be reconstructed when config.meta is missing
+        meta_num_types = kwargs.pop("meta_num_types", None)
+        meta_cont_dim = kwargs.pop("meta_cont_dim", None)
         # Allow callers to pass embed_dim either positionally or via kwargs without breaking
         kwargs.pop("embed_dim", None)
         return PretrainedTokenizer(
             checkpoint_path=checkpoint_path,
             model_type=model_type,
             embed_dim=embed_dim,
+            meta_num_types=meta_num_types,
+            meta_cont_dim=meta_cont_dim,
             **kwargs,
         )
     else:

@@ -189,6 +189,9 @@ def build_input_embedding(cfg: DictConfig, meta: Mapping[str, Any], pos_enc: nn.
         if tokenizer_name == "pretrained":
             tokenizer_kwargs["checkpoint_path"] = tokenizer_cfg.get("checkpoint_path")
             tokenizer_kwargs["model_type"] = tokenizer_cfg.get("model_type", "vq")
+            # Pass meta info through so the pretrained AE can rebuild encoder correctly
+            tokenizer_kwargs["meta_num_types"] = num_types
+            tokenizer_kwargs["meta_cont_dim"] = cont_dim
 
         tokenizer = get_tokenizer(
             name=tokenizer_name,
