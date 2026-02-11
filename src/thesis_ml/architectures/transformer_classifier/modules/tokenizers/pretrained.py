@@ -53,6 +53,9 @@ class PretrainedTokenizer(nn.Module):
             self._cfg.meta.num_types = int(self._meta_num_types)
         if self._meta_cont_dim is not None and "cont_dim" not in self._cfg.meta:
             self._cfg.meta.cont_dim = int(self._meta_cont_dim)
+        # Number of global features (MET, MET phi); default to 2 when missing.
+        if "globals" not in self._cfg.meta:
+            self._cfg.meta.globals = 2
         self._encoder: nn.Module | None = None
         self._bottleneck: nn.Module | None = None
         self._index_embedding: nn.Embedding | None = None
