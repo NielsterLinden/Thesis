@@ -44,7 +44,9 @@ hydra:
       classifier.trainer.epochs: 50
 
 # Signal vs background (4t vs ttH+ttW+ttWW+ttZ)
+# _struct_: false allows merged keys from data config group (n_tokens, path, etc.) to be accessible
 data:
+  _struct_: false
   classifier:
     signal_vs_background:
       signal: 1

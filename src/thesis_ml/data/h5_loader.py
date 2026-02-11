@@ -3,8 +3,23 @@ import ast
 import h5py
 import torch
 from hydra.utils import to_absolute_path
-from omegaconf import ListConfig
+from omegaconf import ListConfig, OmegaConf
 from torch.utils.data import DataLoader, Dataset, TensorDataset
+
+
+def _safe_data_get(cfg, key: str, default=None):
+    """Get data.{key} from config, bypassing OmegaConf struct restrictions."""
+    try:
+        return OmegaConf.select(cfg, f"data.{key}", default=default)
+    except Exception:
+        pass
+    try:
+        data = OmegaConf.to_container(getattr(cfg, "data", {}), resolve=True)
+        if isinstance(data, dict):
+            return data.get(key, default)
+    except Exception:
+        pass
+    return default
 
 
 def _token_order_permutation(
@@ -430,7 +445,7 @@ class H5ClassificationDataset(Dataset):
 
     def __init__(self, cfg):
         self.cfg = cfg
-        self.T = int(cfg.data.n_tokens)  # 18
+        self.T = int(_safe_data_get(cfg, "n_tokens", 18))
 
         # Normalize label configuration to unified label_groups format
         label_groups, label_map, selected_labels = _normalize_label_groups(cfg)
@@ -578,7 +593,7 @@ class H5BinnedClassificationDataset(Dataset):
 
     def __init__(self, cfg):
         self.cfg = cfg
-        self.T = int(cfg.data.n_tokens)  # 18
+        self.T = int(_safe_data_get(cfg, "n_tokens", 18))
 
         # Normalize label configuration to unified label_groups format
         label_groups, label_map, selected_labels = _normalize_label_groups(cfg)
@@ -687,7 +702,7 @@ def make_classification_dataloaders(cfg):
         Train, val, test dataloaders and metadata dict
     """
     # Check if we should use binned tokens
-    use_binned = cfg.data.get("use_binned_tokens", False)
+    use_binned = bool(_safe_data_get(cfg, "use_binned_tokens", False))
 
     if use_binned:
         ds = H5BinnedClassificationDataset(cfg)
@@ -704,7 +719,7 @@ def make_classification_dataloaders(cfg):
     num_workers = cfg.data.get("num_workers", 4)
 
     include_met = bool(cfg.classifier.get("globals", {}).get("include_met", False))
-    n_tokens = int(cfg.data.n_tokens)
+    n_tokens = int(_safe_data_get(cfg, "n_tokens", 18))
     if use_binned and include_met:
         n_tokens = n_tokens + 2  # 18 particles + MET + MET phi
 
