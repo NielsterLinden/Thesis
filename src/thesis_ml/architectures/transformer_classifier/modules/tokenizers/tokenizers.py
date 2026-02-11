@@ -116,17 +116,15 @@ def get_tokenizer(name: str, num_types: int | None = None, cont_dim: int = 4, id
 
         # Auto-select checkpoint based on cont_features if dual paths provided
         if checkpoint_path_5vec and checkpoint_path_4vec:
-            # Determine from cfg or meta
-            actual_cont_dim = cont_dim  # from meta
-            # cont_dim includes ID column, so actual cont features = cont_dim - 1
-            # 5vec: [0,1,2,3] = 4 features + 1 ID = cont_dim 5
-            # 4vec: [1,2,3] = 3 features + 1 ID = cont_dim 4
-            if actual_cont_dim == 5:  # 4 cont features + 1 ID
+            # cont_dim = number of continuous features (not including ID)
+            # 5vec: [0,1,2,3] = 4 features → cont_dim = 4
+            # 4vec: [1,2,3] = 3 features → cont_dim = 3
+            if cont_dim == 4:  # 4 continuous features (E, px, py, pz)
                 checkpoint_path = checkpoint_path_5vec
-            elif actual_cont_dim == 4:  # 3 cont features + 1 ID
+            elif cont_dim == 3:  # 3 continuous features (px, py, pz)
                 checkpoint_path = checkpoint_path_4vec
             else:
-                raise ValueError(f"Cannot auto-select VQ checkpoint: unexpected cont_dim={actual_cont_dim}. " f"Expected 4 (3 cont + ID) or 5 (4 cont + ID)")
+                raise ValueError(f"Cannot auto-select VQ checkpoint: unexpected cont_dim={cont_dim}. " f"Expected 3 (px,py,pz) or 4 (E,px,py,pz)")
 
         if not checkpoint_path:
             raise ValueError("pretrained tokenizer requires checkpoint_path in kwargs")
