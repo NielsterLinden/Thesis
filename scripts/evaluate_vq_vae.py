@@ -825,6 +825,9 @@ def main():
         if recon_analysis:
             results["reconstruction_analysis"] = recon_analysis
 
+        # Convert numpy types to JSON-serializable types
+        results = convert_to_json_serializable(results)
+
         output_json = args.output_dir / "vq_analysis.json"
         with open(output_json, "w") as f:
             json.dump(results, f, indent=2)
