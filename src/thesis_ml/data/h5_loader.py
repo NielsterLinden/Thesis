@@ -101,10 +101,18 @@ class H5TokenDataset(Dataset):
         # constants
         self.T = int(cfg.data.n_tokens)  # 18
 
+        # Parse cont_features: which of the 4 continuous features to keep
+        # Default [0,1,2,3] = all 4 (E, pT, eta, phi)
+        raw_cf = _safe_data_get(cfg, "cont_features", None)
+        self.cont_features = _parse_cont_features(raw_cf)  # e.g. [1,2,3] for 4-vec
+        self.cont_dim = len(self.cont_features)
+
         # compute normalization stats for continuous features from TRAIN only
         # layout: [ 0..T-1 ids | T..T+1 globals | T+2.. end continuous (T*4) ]
-        train_cont = self.splits["train"][:, self.T + 2 :].view(-1, self.T, 4)
-        self.mu = train_cont.mean(dim=(0, 1), keepdim=True)  # [1,1,4]
+        train_cont_all = self.splits["train"][:, self.T + 2 :].view(-1, self.T, 4)
+        # Slice to selected cont_features
+        train_cont = train_cont_all[:, :, self.cont_features]  # [N, T, cont_dim]
+        self.mu = train_cont.mean(dim=(0, 1), keepdim=True)  # [1, 1, cont_dim]
         self.sd = train_cont.std(dim=(0, 1), keepdim=True).clamp_min(1e-8)
 
         # derive number of types from all splits (assumes non-negative and 0-based)
@@ -129,7 +137,7 @@ class H5TokenDataset(Dataset):
         ids = row[: self.T]  # [T]
         globals_ = row[self.T : self.T + 2]  # [2]
         cont = row[self.T + 2 :]  # [T*4]
-        tokens_cont = cont.view(self.T, 4)
+        tokens_cont = cont.view(self.T, 4)[:, self.cont_features]  # [T, cont_dim]
 
         # normalize continuous features
         tokens_cont = (tokens_cont - self.mu[0, 0]) / self.sd[0, 0]
@@ -143,8 +151,10 @@ class H5TokenDataset(Dataset):
         ids = X[:, : self.T].to(torch.int64)  # [N, T]
         gl = X[:, self.T : self.T + 2]  # [N, 2]
         cont = X[:, self.T + 2 :].view(-1, self.T, 4)  # [N, T, 4]
+        # Slice to selected cont_features
+        cont = cont[:, :, self.cont_features]  # [N, T, cont_dim]
         # Normalize continuous features
-        tc = (cont - self.mu[0, 0]) / self.sd[0, 0]  # [N, T, 4]
+        tc = (cont - self.mu[0, 0]) / self.sd[0, 0]  # [N, T, cont_dim]
         return TensorDataset(tc, ids, gl)
 
 
@@ -159,7 +169,7 @@ def make_dataloaders(cfg):
         DataLoader(te, batch_size=cfg.phase1.trainer.batch_size, shuffle=False, num_workers=cfg.data.num_workers),
         {
             "n_tokens": cfg.data.n_tokens,
-            "cont_dim": 4,
+            "cont_dim": ds.cont_dim,  # respects data.cont_features (3 for 4-vec, 4 for 5-vec)
             "globals": cfg.data.globals.size,
             "num_types": ds.num_types,
         },
