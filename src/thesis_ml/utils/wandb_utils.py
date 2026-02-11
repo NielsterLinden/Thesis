@@ -458,8 +458,8 @@ def init_wandb(cfg: DictConfig, model: Any = None) -> Any:
         tags = list(wandb_cfg.tags) if wandb_cfg.get("tags") else extract_meta_tags(cfg_dict)
 
         # Extract comprehensive config for maximum WandB divisibility
-        # This allows filtering by any config parameter in dashboards
-        wandb_config = extract_wandb_config(cfg_dict, source_location="live")
+        # Pass cfg (DictConfig) so build_meta can access nested config (e.g. data.classifier)
+        wandb_config = extract_wandb_config(cfg, source_location="live")
 
         run = wandb.init(
             project=str(wandb_cfg.project),

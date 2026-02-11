@@ -347,7 +347,7 @@ def _normalize_label_groups(cfg) -> tuple[list[dict], dict[int, int], list[int]]
 
     Parameters
     ----------
-    cfg : DictConfig
+    cfg : DictConfig | dict
         Configuration with data.classifier.* keys
 
     Returns
@@ -357,11 +357,16 @@ def _normalize_label_groups(cfg) -> tuple[list[dict], dict[int, int], list[int]]
         - label_map: Dict mapping original label -> class index (0-indexed)
         - selected_labels: Union of all labels from all groups (for data filtering)
     """
-    classifier_cfg = cfg.data.classifier
+    data_cfg = cfg.get("data", cfg) if isinstance(cfg, dict) else getattr(cfg, "data", None)
+    if data_cfg is None:
+        raise ValueError("Config must have data section")
+    classifier_cfg = data_cfg.get("classifier", {}) if isinstance(data_cfg, dict) else getattr(data_cfg, "classifier", None)
+    if classifier_cfg is None:
+        raise ValueError("Config data must have classifier section")
 
     # Priority 1: Use label_groups if explicitly provided
-    if "label_groups" in classifier_cfg and classifier_cfg.label_groups is not None:
-        label_groups_raw = classifier_cfg.label_groups
+    label_groups_raw = classifier_cfg.get("label_groups") if isinstance(classifier_cfg, dict) else getattr(classifier_cfg, "label_groups", None)
+    if label_groups_raw is not None:
         label_groups = []
         label_map = {}
         selected_labels_set = set()

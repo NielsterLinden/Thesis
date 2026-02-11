@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Delete all old toy models and runs from W&B.
+"""Delete old toy models and runs from W&B.
 
 This script cleans up the W&B project to prepare for a fresh migration
 of all runs with proper metadata.
@@ -10,6 +10,9 @@ Usage:
 
     # Actually delete everything
     python scripts/cleanup_wandb.py --project thesis-ml --execute
+
+    # Delete only runs from a specific group (e.g. failed experiment)
+    python scripts/cleanup_wandb.py --project thesis-ml --group "exp_20260210-135259_exp_binning_vs_direct" --execute
 
     # Delete only runs (keep artifacts)
     python scripts/cleanup_wandb.py --project thesis-ml --runs-only --execute
@@ -34,6 +37,7 @@ def cleanup_wandb(
     dry_run: bool = True,
     delete_runs: bool = True,
     delete_artifacts: bool = True,
+    group: str | None = None,
 ) -> tuple[int, int]:
     """Delete runs and/or artifacts from a W&B project.
 
@@ -49,6 +53,8 @@ def cleanup_wandb(
         If True, delete all runs
     delete_artifacts : bool
         If True, delete all model artifacts
+    group : str | None
+        If set, only delete runs in this group (e.g. exp_20260210-135259_exp_binning_vs_direct)
 
     Returns
     -------
@@ -72,8 +78,13 @@ def cleanup_wandb(
     # Delete runs
     if delete_runs:
         try:
-            runs = list(api.runs(project_path))
-            logger.info("Found %d runs in project '%s'", len(runs), project_path)
+            all_runs = list(api.runs(project_path))
+            if group:
+                runs = [r for r in all_runs if getattr(r, "group", None) == group]
+                logger.info("Found %d runs in group '%s' (of %d total)", len(runs), group, len(all_runs))
+            else:
+                runs = all_runs
+                logger.info("Found %d runs in project '%s'", len(runs), project_path)
 
             for run in runs:
                 if dry_run:
@@ -162,6 +173,12 @@ def main():
         action="store_true",
         help="Only delete artifacts, keep runs",
     )
+    parser.add_argument(
+        "--group",
+        type=str,
+        default=None,
+        help="Only delete runs in this group (e.g. exp_20260210-135259_exp_binning_vs_direct)",
+    )
 
     args = parser.parse_args()
 
@@ -177,6 +194,8 @@ def main():
     else:
         # Confirmation prompt
         project_path = f"{args.entity}/{args.project}" if args.entity else args.project
+        if args.group:
+            project_path = f"{project_path} (group={args.group})"
         what = []
         if delete_runs:
             what.append("runs")
@@ -199,6 +218,7 @@ def main():
         dry_run=dry_run,
         delete_runs=delete_runs,
         delete_artifacts=delete_artifacts,
+        group=args.group,
     )
 
     # Summary

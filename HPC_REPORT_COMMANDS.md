@@ -117,7 +117,16 @@ condor_submit hpc/stoomboot/report.sub -append 'arguments = --config-name phd_su
 condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot loop=transformer_classifier classifier/experiment=phd_presentation/exp_binning_vs_direct logging=wandb_online hydra.sweeper.params.tokenization=direct,binned --multirun'
 ```
 
-**WandB live tracking**: The `logging=wandb_online` override enables real-time metrics to WandB from HPC. Ensure `wandb login` has been run once (e.g. locally or on a login node with `wandb login` and a valid API key). The train script sets `WANDB_DIR` and `WANDB_MODE=online`; with `logging=wandb_online` the config uses `mode: "online"` for live syncing.
+**WandB live tracking**: The `logging=wandb_online` override enables real-time metrics to WandB from HPC.
+
+**Delete runs from a specific group** (e.g. failed experiment):
+```bash
+# Dry run first
+python scripts/cleanup_wandb.py --project thesis-ml --entity nterlind-nikhef --group "exp_20260210-135259_exp_binning_vs_direct"
+
+# Actually delete
+python scripts/cleanup_wandb.py --project thesis-ml --entity nterlind-nikhef --group "exp_20260210-135259_exp_binning_vs_direct" --runs-only --execute
+``` Ensure `wandb login` has been run once (e.g. locally or on a login node with `wandb login` and a valid API key). The train script sets `WANDB_DIR` and `WANDB_MODE=online`; with `logging=wandb_online` the config uses `mode: "online"` for live syncing.
 
 ## Notes
 
