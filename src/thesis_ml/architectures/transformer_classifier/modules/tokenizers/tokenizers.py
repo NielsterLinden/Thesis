@@ -111,6 +111,23 @@ def get_tokenizer(name: str, num_types: int | None = None, cont_dim: int = 4, id
     elif name == "pretrained":
         # Pop handled kwargs so we don't pass duplicates to PretrainedTokenizer
         checkpoint_path = kwargs.pop("checkpoint_path", None)
+        checkpoint_path_5vec = kwargs.pop("checkpoint_path_5vec", None)
+        checkpoint_path_4vec = kwargs.pop("checkpoint_path_4vec", None)
+
+        # Auto-select checkpoint based on cont_features if dual paths provided
+        if checkpoint_path_5vec and checkpoint_path_4vec:
+            # Determine from cfg or meta
+            actual_cont_dim = cont_dim  # from meta
+            # cont_dim includes ID column, so actual cont features = cont_dim - 1
+            # 5vec: [0,1,2,3] = 4 features + 1 ID = cont_dim 5
+            # 4vec: [1,2,3] = 3 features + 1 ID = cont_dim 4
+            if actual_cont_dim == 5:  # 4 cont features + 1 ID
+                checkpoint_path = checkpoint_path_5vec
+            elif actual_cont_dim == 4:  # 3 cont features + 1 ID
+                checkpoint_path = checkpoint_path_4vec
+            else:
+                raise ValueError(f"Cannot auto-select VQ checkpoint: unexpected cont_dim={actual_cont_dim}. " f"Expected 4 (3 cont + ID) or 5 (4 cont + ID)")
+
         if not checkpoint_path:
             raise ValueError("pretrained tokenizer requires checkpoint_path in kwargs")
         model_type = kwargs.pop("model_type", "vq")  # "vq", "ae", etc.

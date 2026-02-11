@@ -8,5 +8,7 @@ classifier:
   model:
     tokenizer:
       name: pretrained
-      checkpoint_path: ${env.vq_checkpoint_path}
+      # Pass both checkpoint paths - PretrainedTokenizer will auto-select based on cont_features
+      checkpoint_path_5vec: ${env.vq_checkpoint_path_5vec}
+      checkpoint_path_4vec: ${env.vq_checkpoint_path_4vec}
       model_type: vq
