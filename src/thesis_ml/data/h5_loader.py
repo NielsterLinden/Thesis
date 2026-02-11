@@ -14,12 +14,27 @@ def _safe_data_get(cfg, key: str, default=None):
     except Exception:
         pass
     try:
-        data = OmegaConf.to_container(getattr(cfg, "data", {}), resolve=True)
+        data = _get_data_dict(cfg)
         if isinstance(data, dict):
             return data.get(key, default)
     except Exception:
         pass
     return default
+
+
+def _get_data_dict(cfg) -> dict:
+    """Get cfg.data as a plain dict, bypassing OmegaConf struct restrictions."""
+    try:
+        raw = OmegaConf.select(cfg, "data")
+        if raw is None:
+            return {}
+        return OmegaConf.to_container(raw, resolve=True) or {}
+    except Exception:
+        try:
+            raw = getattr(cfg, "data", None)
+            return OmegaConf.to_container(raw, resolve=True) or {} if raw is not None else {}
+        except Exception:
+            return {}
 
 
 def _token_order_permutation(
@@ -445,7 +460,8 @@ class H5ClassificationDataset(Dataset):
 
     def __init__(self, cfg):
         self.cfg = cfg
-        self.T = int(_safe_data_get(cfg, "n_tokens", 18))
+        data = _get_data_dict(cfg)
+        self.T = int(data.get("n_tokens", 18))
 
         # Normalize label configuration to unified label_groups format
         label_groups, label_map, selected_labels = _normalize_label_groups(cfg)
@@ -454,17 +470,20 @@ class H5ClassificationDataset(Dataset):
         self.selected_labels = selected_labels
         self.n_classes = len(label_groups)
 
-        # Load data and labels
-        with h5py.File(to_absolute_path(str(cfg.data.path)), "r") as f:
-            Xtr = f[cfg.data.datasets.x_train][:]
-            Xva = f[cfg.data.datasets.x_val][:]
-            Xte = f[cfg.data.datasets.x_test][:]
+        path = str(data.get("path", ""))
+        datasets = data.get("datasets", {})
+        x_train = datasets.get("x_train", "X_train")
+        x_val = datasets.get("x_val", "X_val")
+        x_test = datasets.get("x_test", "X_test")
+        y_train_key = datasets.get("y_train", "Y_train")
+        y_val_key = datasets.get("y_val", "y_val")
+        y_test_key = datasets.get("y_test", "y_test")
 
-            # Load labels (note: HDF5 file has inconsistent casing: Y_train but y_val and y_test)
-            # Use config values to handle the misnomer
-            y_train_key = cfg.data.datasets.get("y_train", "Y_train")
-            y_val_key = cfg.data.datasets.get("y_val", "y_val")
-            y_test_key = cfg.data.datasets.get("y_test", "y_test")
+        # Load data and labels
+        with h5py.File(to_absolute_path(path), "r") as f:
+            Xtr = f[x_train][:]
+            Xva = f[x_val][:]
+            Xte = f[x_test][:]
 
             Ytr = f.get(y_train_key, None)
             Yva = f.get(y_val_key, None)
@@ -477,7 +496,7 @@ class H5ClassificationDataset(Dataset):
             Yte = Yte[:] if Yte is not None else Ytr[: len(Xte)]  # Fallback if missing
 
         # Limit samples if specified
-        limit = int(getattr(cfg.data, "limit_samples", 0) or 0)
+        limit = int(self._data.get("limit_samples", 0) or 0)
         if limit > 0:
             Xtr = Xtr[:limit]
             Xva = Xva[: min(limit, len(Xva))]
@@ -560,9 +579,9 @@ class H5ClassificationDataset(Dataset):
 
     def get_split(self, name):
         X, Y = self.splits[name]
-        shuffle_tokens = bool(getattr(self.cfg.data, "shuffle_tokens", False))
-        sort_tokens_by = getattr(self.cfg.data, "sort_tokens_by", None)
-        cont_features = getattr(self.cfg.data, "cont_features", None)
+        shuffle_tokens = bool(self._data.get("shuffle_tokens", False))
+        sort_tokens_by = self._data.get("sort_tokens_by")
+        cont_features = self._data.get("cont_features")
         try:
             seed = int(self.cfg.classifier.trainer.seed)
         except (AttributeError, TypeError):
@@ -593,7 +612,8 @@ class H5BinnedClassificationDataset(Dataset):
 
     def __init__(self, cfg):
         self.cfg = cfg
-        self.T = int(_safe_data_get(cfg, "n_tokens", 18))
+        self._data = _get_data_dict(cfg)
+        self.T = int(self._data.get("n_tokens", 18))
 
         # Normalize label configuration to unified label_groups format
         label_groups, label_map, selected_labels = _normalize_label_groups(cfg)
@@ -602,16 +622,20 @@ class H5BinnedClassificationDataset(Dataset):
         self.selected_labels = selected_labels
         self.n_classes = len(label_groups)
 
-        # Load binned token data
-        with h5py.File(to_absolute_path(str(cfg.data.path)), "r") as f:
-            Xtr = f[cfg.data.datasets.x_train][:]  # [N, 20] integers
-            Xva = f[cfg.data.datasets.x_val][:]
-            Xte = f[cfg.data.datasets.x_test][:]
+        path = str(self._data.get("path", ""))
+        datasets = self._data.get("datasets", {})
+        x_train = datasets.get("x_train", "X_train")
+        x_val = datasets.get("x_val", "X_val")
+        x_test = datasets.get("x_test", "X_test")
+        y_train_key = datasets.get("y_train", "Y_train")
+        y_val_key = datasets.get("y_val", "y_val")
+        y_test_key = datasets.get("y_test", "y_test")
 
-            # Load labels
-            y_train_key = cfg.data.datasets.get("y_train", "y_train")
-            y_val_key = cfg.data.datasets.get("y_val", "y_val")
-            y_test_key = cfg.data.datasets.get("y_test", "y_test")
+        # Load binned token data
+        with h5py.File(to_absolute_path(path), "r") as f:
+            Xtr = f[x_train][:]  # [N, 20] integers
+            Xva = f[x_val][:]
+            Xte = f[x_test][:]
 
             Ytr = f.get(y_train_key, None)
             Yva = f.get(y_val_key, None)
@@ -624,7 +648,7 @@ class H5BinnedClassificationDataset(Dataset):
             Yte = Yte[:] if Yte is not None else Ytr[: len(Xte)]
 
         # Limit samples if specified
-        limit = int(getattr(cfg.data, "limit_samples", 0) or 0)
+        limit = int(self._data.get("limit_samples", 0) or 0)
         if limit > 0:
             Xtr = Xtr[:limit]
             Xva = Xva[: min(limit, len(Xva))]
@@ -672,7 +696,7 @@ class H5BinnedClassificationDataset(Dataset):
 
     def get_split(self, name):
         X, Y = self.splits[name]
-        shuffle_tokens = bool(getattr(self.cfg.data, "shuffle_tokens", False))
+        shuffle_tokens = bool(self._data.get("shuffle_tokens", False))
         include_met = bool(self.cfg.classifier.get("globals", {}).get("include_met", False))
         try:
             seed = int(self.cfg.classifier.trainer.seed)
@@ -715,17 +739,21 @@ def make_classification_dataloaders(cfg):
     va = ds.get_split("val")
     te = ds.get_split("test")
 
-    batch_size = cfg.classifier.trainer.get("batch_size", cfg.data.get("batch_size", 32))
-    num_workers = cfg.data.get("num_workers", 4)
+    data_dict = _get_data_dict(cfg)
+    batch_size = cfg.classifier.trainer.get("batch_size", data_dict.get("batch_size", 32))
+    num_workers = data_dict.get("num_workers", 4)
 
     include_met = bool(cfg.classifier.get("globals", {}).get("include_met", False))
     n_tokens = int(_safe_data_get(cfg, "n_tokens", 18))
     if use_binned and include_met:
         n_tokens = n_tokens + 2  # 18 particles + MET + MET phi
 
+    globals_cfg = data_dict.get("globals", {})
+    has_globals = globals_cfg.get("present", False) if isinstance(globals_cfg, dict) else False
+
     meta = {
         "n_tokens": n_tokens,
-        "has_globals": cfg.data.globals.get("present", False),
+        "has_globals": has_globals,
         "n_classes": ds.n_classes,
     }
 
@@ -734,7 +762,7 @@ def make_classification_dataloaders(cfg):
         meta["token_feat_dim"] = None  # Not applicable for binned
         meta["num_types"] = None  # Not applicable for binned
     else:
-        cont_features = _parse_cont_features(getattr(cfg.data, "cont_features", None))
+        cont_features = _parse_cont_features(data_dict.get("cont_features"))
         meta["token_feat_dim"] = len(cont_features)
         meta["vocab_size"] = None
         meta["num_types"] = ds.num_types  # For identity tokenizer
