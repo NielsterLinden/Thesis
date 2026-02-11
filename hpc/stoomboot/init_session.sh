@@ -4,6 +4,10 @@
 #    or: source /project/atlas/users/nterlind/Thesis-Code/hpc/stoomboot/init_session.sh
 #    or: add alias thesis='source .../init_session.sh' to ~/.bashrc and type 'thesis'
 
+# If this script is sourced, shell options (e.g. -e, -u) would persist and can
+# inadvertently terminate your SSH session on a harmless error/typo. Save and
+# restore options to keep interactive shells friendly.
+__THESIS_OLD_SET_OPTS="$(set +o)"
 set -e
 
 PROJECT_DIR="/project/atlas/users/nterlind/Thesis-Code"
@@ -53,3 +57,7 @@ if command -v condor_q &>/dev/null; then
 fi
 
 echo "Session ready."
+
+# Restore prior shell options (important when sourced).
+eval "$__THESIS_OLD_SET_OPTS"
+unset __THESIS_OLD_SET_OPTS

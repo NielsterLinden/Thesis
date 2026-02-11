@@ -109,10 +109,18 @@ def get_tokenizer(name: str, num_types: int | None = None, cont_dim: int = 4, id
             embed_dim=embed_dim,
         )
     elif name == "pretrained":
-        checkpoint_path = kwargs.get("checkpoint_path")
+        # Pop handled kwargs so we don't pass duplicates to PretrainedTokenizer
+        checkpoint_path = kwargs.pop("checkpoint_path", None)
         if not checkpoint_path:
             raise ValueError("pretrained tokenizer requires checkpoint_path in kwargs")
-        model_type = kwargs.get("model_type", "vq")  # "vq", "ae", etc.
-        return PretrainedTokenizer(checkpoint_path=checkpoint_path, model_type=model_type, **kwargs)
+        model_type = kwargs.pop("model_type", "vq")  # "vq", "ae", etc.
+        # Allow callers to pass embed_dim either positionally or via kwargs without breaking
+        kwargs.pop("embed_dim", None)
+        return PretrainedTokenizer(
+            checkpoint_path=checkpoint_path,
+            model_type=model_type,
+            embed_dim=embed_dim,
+            **kwargs,
+        )
     else:
         raise ValueError(f"Unknown tokenizer: {name}. Choose from: identity, raw, binned, pretrained")
