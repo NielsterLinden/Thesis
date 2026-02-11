@@ -460,8 +460,8 @@ class H5ClassificationDataset(Dataset):
 
     def __init__(self, cfg):
         self.cfg = cfg
-        data = _get_data_dict(cfg)
-        self.T = int(data.get("n_tokens", 18))
+        self._data = _get_data_dict(cfg)
+        self.T = int(self._data.get("n_tokens", 18))
 
         # Normalize label configuration to unified label_groups format
         label_groups, label_map, selected_labels = _normalize_label_groups(cfg)
@@ -470,8 +470,10 @@ class H5ClassificationDataset(Dataset):
         self.selected_labels = selected_labels
         self.n_classes = len(label_groups)
 
-        path = str(data.get("path", ""))
-        datasets = data.get("datasets", {})
+        path = str(self._data.get("path", ""))
+        if not path:
+            raise ValueError("data.path is empty. Use data=h5_tokens_binned or ensure data config has path.")
+        datasets = self._data.get("datasets", {})
         x_train = datasets.get("x_train", "X_train")
         x_val = datasets.get("x_val", "X_val")
         x_test = datasets.get("x_test", "X_test")
@@ -623,6 +625,8 @@ class H5BinnedClassificationDataset(Dataset):
         self.n_classes = len(label_groups)
 
         path = str(self._data.get("path", ""))
+        if not path:
+            raise ValueError("data.path is empty. Use data=h5_tokens_binned or ensure data config has path.")
         datasets = self._data.get("datasets", {})
         x_train = datasets.get("x_train", "X_train")
         x_val = datasets.get("x_val", "X_val")

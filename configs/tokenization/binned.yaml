@@ -2,3 +2,16 @@
 # Binned tokenization: Ambre-style 5-bin integer tokens
 defaults:
   - override /data: h5_tokens_binned
+
+# Explicit data overrides (in case override alone loses keys when merged with experiment)
+data:
+  path: "${env.data_root}/4tops_5bins_ours.h5"
+  use_binned_tokens: true
+  n_tokens: 18
+  datasets:
+    x_train: "X_train"
+    x_val: "X_val"
+    x_test: "X_test"
+    y_train: "Y_train"
+    y_val: "y_val"
+    y_test: "y_test"
