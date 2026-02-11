@@ -5,7 +5,7 @@ output_root: "/data/atlas/users/nterlind/outputs"
 # VQ-VAE checkpoints for pretrained tokenizer
 # Two checkpoints for different input dimensions (auto-selected based on cont_features):
 vq_checkpoint_path_5vec: "/data/atlas/users/nterlind/outputs/runs/run_20260211-115323_vq-pretrain-5vec-50ep/best_val.pt"  # [0,1,2,3] = E,px,py,pz
-vq_checkpoint_path_4vec: "/data/atlas/users/nterlind/outputs/runs/run_20260211-122224_vq-pretrain-4vec-fixed/best_val.pt"  # [1,2,3] = px,py,pz
+vq_checkpoint_path_4vec: "/data/atlas/users/nterlind/outputs/runs/run_20260211-125527_vq-pretrain-4vec-fixed/best_val.pt"  # [1,2,3] = px,py,pz
 
 # Legacy single checkpoint path for backward compatibility
 vq_checkpoint_path: "${env.vq_checkpoint_path_5vec}"
