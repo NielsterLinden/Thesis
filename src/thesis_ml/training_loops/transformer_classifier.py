@@ -94,16 +94,29 @@ def _save_split_scores_and_embeddings(
 
 def _gather_meta(cfg: DictConfig, ds_meta: Mapping[str, Any]) -> None:
     """Attach data-derived meta to cfg for module constructors."""
+    # #region agent log
+    try:
+        import json
+
+        _tf = ds_meta.get("token_feat_dim")
+        _nt = ds_meta.get("num_types")
+        with open(r"c:\Users\niels\Projects\Thesis-Code\Code\Niels_repo\.cursor\debug.log", "a") as _f:
+            _f.write(json.dumps({"location": "transformer_classifier._gather_meta", "message": "ds_meta token_feat_dim and num_types", "data": {"token_feat_dim": _tf, "num_types": _nt, "token_feat_dim_is_none": _tf is None, "num_types_is_none": _nt is None}, "hypothesisId": "H1_H2", "timestamp": __import__("time").time()}) + "\n")
+    except Exception:
+        pass
+    # #endregion
     prev_struct = OmegaConf.is_struct(cfg)
     try:
         OmegaConf.set_struct(cfg, False)
+        _token_feat_dim = ds_meta.get("token_feat_dim", 4)
+        _num_types = ds_meta.get("num_types", 0)
         cfg.meta = OmegaConf.create(
             {
                 "n_tokens": int(ds_meta["n_tokens"]),
-                "token_feat_dim": int(ds_meta.get("token_feat_dim", 4)),
+                "token_feat_dim": int(_token_feat_dim) if _token_feat_dim is not None else 4,
                 "has_globals": bool(ds_meta.get("has_globals", False)),
                 "n_classes": int(ds_meta["n_classes"]),
-                "num_types": int(ds_meta.get("num_types", 0)),  # For identity tokenizer
+                "num_types": int(_num_types) if _num_types is not None else 0,  # For identity tokenizer
                 "vocab_size": ds_meta.get("vocab_size"),  # For binned tokenizer
             }
         )

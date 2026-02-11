@@ -731,6 +731,17 @@ def make_classification_dataloaders(cfg):
     """
     # Check if we should use binned tokens
     use_binned = bool(_safe_data_get(cfg, "use_binned_tokens", False))
+    # #region agent log
+    try:
+        import json
+
+        _dp = _get_data_dict(cfg)
+        _path = (_dp.get("path") or getattr(getattr(cfg, "data", None), "path", None)) or "unknown"
+        with open(r"c:\Users\niels\Projects\Thesis-Code\Code\Niels_repo\.cursor\debug.log", "a") as _f:
+            _f.write(json.dumps({"location": "h5_loader.make_classification_dataloaders", "message": "use_binned and path", "data": {"use_binned": use_binned, "data_path": str(_path)}, "hypothesisId": "H3_H4", "timestamp": __import__("time").time()}) + "\n")
+    except Exception:
+        pass
+    # #endregion
 
     if use_binned:
         ds = H5BinnedClassificationDataset(cfg)
@@ -770,6 +781,16 @@ def make_classification_dataloaders(cfg):
         meta["token_feat_dim"] = len(cont_features)
         meta["vocab_size"] = None
         meta["num_types"] = ds.num_types  # For identity tokenizer
+
+    # #region agent log
+    try:
+        import json
+
+        with open(r"c:\Users\niels\Projects\Thesis-Code\Code\Niels_repo\.cursor\debug.log", "a") as _f:
+            _f.write(json.dumps({"location": "h5_loader.make_classification_dataloaders", "message": "meta before return", "data": {"token_feat_dim": meta.get("token_feat_dim"), "num_types": meta.get("num_types"), "vocab_size": meta.get("vocab_size")}, "hypothesisId": "H1_H2", "timestamp": __import__("time").time()}) + "\n")
+    except Exception:
+        pass
+    # #endregion
 
     return (
         DataLoader(tr, batch_size=batch_size, shuffle=True, num_workers=num_workers),
