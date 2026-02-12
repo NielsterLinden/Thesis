@@ -63,7 +63,7 @@ def get_feature_map(tokenizer_name: str, tokenizer_output_dim: int, id_embed_dim
         raise ValueError(f"Unknown tokenizer: {tokenizer_name}")
 
 
-def get_tokenizer(name: str, num_types: int | None = None, cont_dim: int = 4, id_embed_dim: int = 8, vocab_size: int | None = None, embed_dim: int = 256, **kwargs) -> nn.Module:  # Only needed for identity  # Only needed for identity  # For binned tokenizer  # Model dimension (for binned)
+def get_tokenizer(name: str, num_types: int | None = None, cont_dim: int = 4, id_embed_dim: int = 8, vocab_size: int | None = None, embed_dim: int = 256, pid_mode: str = "learned", **kwargs) -> nn.Module:
     """Get tokenizer module by name.
 
     Parameters
@@ -80,6 +80,9 @@ def get_tokenizer(name: str, num_types: int | None = None, cont_dim: int = 4, id
         Vocabulary size for binned tokenizer (typically 886 for 0-885)
     embed_dim : int
         Embedding dimension (model dimension, used for binned tokenizer)
+    pid_mode : str
+        PID embedding mode for identity tokenizer:
+        "learned" (default), "one_hot", or "fixed_random"
     **kwargs
         Additional arguments passed to constructor:
         - For "pretrained": checkpoint_path, model_type ("vq", "ae", etc.)
@@ -98,6 +101,7 @@ def get_tokenizer(name: str, num_types: int | None = None, cont_dim: int = 4, id
             num_types=num_types,
             cont_dim=cont_dim,
             id_embed_dim=id_embed_dim,
+            pid_mode=pid_mode,
         )
     elif name == "raw":
         return RawTokenizer(cont_dim=cont_dim)

@@ -159,6 +159,7 @@ def extract_wandb_config(cfg: dict[str, Any], source_location: str = "live") -> 
     if isinstance(tok, dict):
         wc["tokenizer/type"] = tok.get("name")
         wc["tokenizer/id_embed_dim"] = tok.get("id_embed_dim")
+        wc["tokenizer/pid_mode"] = tok.get("pid_mode")
         wc["tokenizer/model_type"] = tok.get("model_type")
     elif tok:
         wc["tokenizer/type"] = tok
@@ -179,6 +180,10 @@ def extract_wandb_config(cfg: dict[str, Any], source_location: str = "live") -> 
     wc["training/lr_schedule"] = _safe_get(cfg, "classifier.trainer.lr_schedule")
     wc["training/grad_clip"] = _safe_get(cfg, "classifier.trainer.grad_clip")
     wc["training/seed"] = _safe_get(cfg, "trainer.seed") or _safe_get(cfg, "seed")
+
+    # === PID Schedule ===
+    wc["pid/schedule_mode"] = _safe_get(cfg, "classifier.trainer.pid_schedule.mode")
+    wc["pid/transition_epoch"] = _safe_get(cfg, "classifier.trainer.pid_schedule.transition_epoch")
 
     # === Early Stopping ===
     wc["early_stop/enabled"] = _safe_get(cfg, "classifier.trainer.early_stopping.enabled")

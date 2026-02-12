@@ -28,6 +28,14 @@ classifier:
     # Gradient clipping
     grad_clip: 1.0
 
+    # PID embedding experiment settings
+    log_pid_embeddings: false       # Log PID embedding geometry per epoch (cosine sim, norms, isotropy)
+    pid_schedule:
+      mode: standard                # "standard" | "warmup_fixed" | "frozen_backbone"
+      transition_epoch: 50          # Epoch at which the phase switch happens
+      reinit_mode: normal           # "normal" (Gaussian) or "one_hot_padded" (only for frozen_backbone)
+      pid_lr: null                  # Optional separate LR for PID-only phase (null = use main lr)
+
     # Early stopping
     early_stopping:
       enabled: false

@@ -12,6 +12,7 @@ from omegaconf import DictConfig, OmegaConf
 from sklearn.metrics import f1_score, roc_auc_score
 
 from thesis_ml.architectures.transformer_classifier.base import build_from_config
+from thesis_ml.architectures.transformer_classifier.modules.tokenizers.identity import IdentityTokenizer
 from thesis_ml.data.h5_loader import make_classification_dataloaders
 from thesis_ml.facts import append_jsonl_event, append_scalars_csv, build_event_payload, build_meta, write_meta
 from thesis_ml.monitoring.orchestrator import handle_event
@@ -407,6 +408,164 @@ def _validate_one_epoch(
     return {"loss": avg_loss, **metrics}
 
 
+# ---------------------------------------------------------------------------
+# PID embedding helpers
+# ---------------------------------------------------------------------------
+
+
+def _get_pid_tokenizer(model: torch.nn.Module) -> IdentityTokenizer | None:
+    """Walk the model tree to find the IdentityTokenizer (if any)."""
+    if hasattr(model, "embedding") and hasattr(model.embedding, "tokenizer"):
+        tok = model.embedding.tokenizer
+        if isinstance(tok, IdentityTokenizer):
+            return tok
+    return None
+
+
+def _log_pid_metrics(
+    model: torch.nn.Module,
+    wandb_run,
+    epoch: int,
+    outdir: str | None,
+) -> None:
+    """Extract and log PID embedding geometry metrics.
+
+    Logs to WandB (if available):
+    - pid/mean_off_diag_cosine: mean absolute cosine similarity (off-diagonal)
+    - pid/max_off_diag_cosine: max absolute cosine similarity (off-diagonal)
+    - pid/mean_norm: mean L2 norm of embedding vectors
+    - pid/std_norm: std of L2 norms
+    - pid/isotropy: ratio of min/max singular value (1 = perfectly isotropic)
+
+    Also saves the raw weight snapshot to disk (outdir/pid_snapshots/epoch_{n}.pt)
+    for offline PCA/tSNE analysis.
+    """
+    tok = _get_pid_tokenizer(model)
+    if tok is None:
+        return
+
+    W = tok.get_pid_weight()  # [num_types, id_embed_dim]
+
+    # Cosine similarity matrix
+    norms = W.norm(dim=1, keepdim=True).clamp(min=1e-8)  # [N, 1]
+    W_normed = W / norms
+    cosine_matrix = W_normed @ W_normed.T  # [N, N]
+
+    # Off-diagonal stats
+    N = cosine_matrix.size(0)
+    mask = ~torch.eye(N, dtype=torch.bool)
+    off_diag = cosine_matrix[mask].abs()
+    mean_off_diag = off_diag.mean().item()
+    max_off_diag = off_diag.max().item()
+
+    # Norms
+    norms_vec = norms.squeeze()  # [N]
+    mean_norm = norms_vec.mean().item()
+    std_norm = norms_vec.std().item()
+
+    # Isotropy via SVD
+    try:
+        S = torch.linalg.svdvals(W.float())  # [min(N, D)]
+        isotropy = (S.min() / S.max()).item() if S.max() > 0 else 0.0
+    except Exception:
+        isotropy = 0.0
+
+    # Log to WandB
+    pid_metrics = {
+        "pid/mean_off_diag_cosine": mean_off_diag,
+        "pid/max_off_diag_cosine": max_off_diag,
+        "pid/mean_norm": mean_norm,
+        "pid/std_norm": std_norm,
+        "pid/isotropy": isotropy,
+    }
+    log_metrics(wandb_run, pid_metrics, step=epoch)
+
+    # Save raw snapshot to disk
+    if outdir:
+        snap_dir = os.path.join(outdir, "pid_snapshots")
+        os.makedirs(snap_dir, exist_ok=True)
+        torch.save(
+            {
+                "epoch": epoch,
+                "weight": W,
+                "cosine_matrix": cosine_matrix,
+                "norms": norms_vec,
+                "pid_mode": tok.pid_mode,
+                "num_types": tok.num_types,
+                "id_embed_dim": tok.id_embed_dim,
+            },
+            os.path.join(snap_dir, f"epoch_{epoch:04d}.pt"),
+        )
+
+
+def _handle_pid_phase_transition(
+    model: torch.nn.Module,
+    cfg: DictConfig,
+    epoch: int,
+    opt: torch.optim.Optimizer,
+    wandb_run,
+    outdir: str | None,
+    device: torch.device,
+) -> torch.optim.Optimizer:
+    """Check for and execute PID schedule phase transitions.
+
+    Returns the (possibly rebuilt) optimizer.
+    """
+    import logging as _logging
+
+    _logger = _logging.getLogger(__name__)
+
+    schedule_cfg = cfg.classifier.trainer.get("pid_schedule", {})
+    schedule_mode = schedule_cfg.get("mode", "standard")
+    transition_epoch = schedule_cfg.get("transition_epoch", 50)
+
+    if schedule_mode == "standard" or epoch != transition_epoch:
+        return opt
+
+    tok = _get_pid_tokenizer(model)
+    if tok is None:
+        _logger.warning("[PID schedule] No IdentityTokenizer found — skipping transition")
+        return opt
+
+    # Save pre-transition checkpoint
+    if outdir:
+        torch.save(
+            {"model_state_dict": model.state_dict(), "epoch": epoch, "phase": "pre_transition"},
+            os.path.join(outdir, "phase1_final.pt"),
+        )
+
+    if schedule_mode == "warmup_fixed":
+        # ── Phase 2: unfreeze PID embedding ─────────────────────
+        tok.unfreeze_pid()
+        # Rebuild optimizer to include the newly-unfrozen PID params
+        opt = torch.optim.AdamW(
+            [p for p in model.parameters() if p.requires_grad],
+            lr=cfg.classifier.trainer.lr,
+            weight_decay=cfg.classifier.trainer.get("weight_decay", 1e-2),
+        )
+        _logger.info("[PID schedule] warmup_fixed → unfroze PID at epoch %d, rebuilt optimizer", epoch)
+
+    elif schedule_mode == "frozen_backbone":
+        # ── Phase 2: freeze everything, re-init + unfreeze PID ──
+        for p in model.parameters():
+            p.requires_grad = False
+        init_mode = schedule_cfg.get("reinit_mode", "normal")
+        tok.reinit_pid(mode=init_mode)
+        # Rebuild optimizer with ONLY the PID params
+        pid_lr = schedule_cfg.get("pid_lr") or cfg.classifier.trainer.lr
+        opt = torch.optim.AdamW(
+            [tok.id_embedding.weight],
+            lr=pid_lr,
+            weight_decay=cfg.classifier.trainer.get("weight_decay", 1e-2),
+        )
+        _logger.info("[PID schedule] frozen_backbone → froze all, re-init PID at epoch %d, optimizer has %d params", epoch, 1)
+
+    # Log transition event
+    log_metrics(wandb_run, {"pid/phase_transition": 1.0}, step=epoch)
+
+    return opt
+
+
 def train(cfg: DictConfig) -> dict:
     """Train transformer classifier.
 
@@ -540,8 +699,14 @@ def train(cfg: DictConfig) -> dict:
 
     progress = TrainingProgressShower(cfg.classifier.trainer.epochs)
 
+    # PID schedule config
+    log_pid = cfg.classifier.trainer.get("log_pid_embeddings", False)
+
     for epoch in range(cfg.classifier.trainer.epochs):
         epoch_start = time.time()
+
+        # ── PID phase transition (warmup_fixed / frozen_backbone) ──
+        opt = _handle_pid_phase_transition(model, cfg, epoch, opt, wandb_run, outdir, device)
 
         # Train
         train_metrics = _train_one_epoch(model, train_dl, opt, criterion, device, cfg, meta["n_classes"], warmup_scheduler)
@@ -594,6 +759,8 @@ def train(cfg: DictConfig) -> dict:
                             "class_weights": class_weights.cpu().tolist(),
                             "tokenizer_name": cfg.classifier.model.tokenizer.name,
                             "tokenizer_version": "1.0",
+                            "pid_mode": cfg.classifier.model.tokenizer.get("pid_mode", "learned"),
+                            "pid_schedule": cfg.classifier.trainer.get("pid_schedule", {}).get("mode", "standard"),
                         },
                         "config": OmegaConf.to_container(cfg, resolve=True),
                     }
@@ -692,6 +859,10 @@ def train(cfg: DictConfig) -> dict:
             step=epoch,
         )
 
+        # ── PID embedding geometry logging ──
+        if log_pid:
+            _log_pid_metrics(model, wandb_run, epoch, outdir)
+
         # Log AUROC warning if single class detected
         if outdir and val_metrics["auroc"] is None:
             import warnings
@@ -756,6 +927,8 @@ def train(cfg: DictConfig) -> dict:
                 "class_weights": class_weights.cpu().tolist(),
                 "tokenizer_name": cfg.classifier.model.tokenizer.name,
                 "tokenizer_version": "1.0",
+                "pid_mode": cfg.classifier.model.tokenizer.get("pid_mode", "learned"),
+                "pid_schedule": cfg.classifier.trainer.get("pid_schedule", {}).get("mode", "standard"),
             },
             "config": OmegaConf.to_container(cfg, resolve=True),
         }

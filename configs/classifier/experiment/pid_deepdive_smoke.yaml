@@ -1,0 +1,43 @@
+# @package _global_
+# Smoke test for PID embedding experiment — runs ALL 13 configs with 1 epoch
+# Usage: thesis-train --multirun env=local +classifier/experiment=pid_deepdive_smoke
+
+experiment:
+  name: "pid_deepdive_smoke"
+
+hydra:
+  mode: MULTIRUN
+  job:
+    chdir: true
+    name: ${experiment.name}
+  run:
+    dir: ${env.output_root}/smoke/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweep:
+    dir: ${env.output_root}/smoke/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${env.output_root}/smoke/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweeper:
+    params:
+      # === STANDARD: pid_mode × id_embed_dim (9 combos, 7 unique after one_hot dedup) ===
+      classifier.model.tokenizer.pid_mode: learned,one_hot,fixed_random
+      classifier.model.tokenizer.id_embed_dim: 8,16,32
+
+meta:
+  goal: "classification"
+
+classifier:
+  model:
+    tokenizer:
+      name: identity
+  trainer:
+    epochs: 1
+    warmup_steps: 0
+    log_pid_embeddings: true
+
+logging:
+  make_plots: false
+
+data:
+  classifier:
+    signal_vs_background:
+      signal: 1
+      background: [2, 3, 4, 5]

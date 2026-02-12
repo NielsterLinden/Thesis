@@ -57,5 +57,6 @@ classifier:
     tokenizer:
       name: raw           # "identity", "raw", "binned", or "pretrained"
       id_embed_dim: 8     # Dimension for ID embedding in identity tokenizer (only for "identity")
+      pid_mode: learned   # PID embedding mode: "learned", "one_hot", or "fixed_random" (only for "identity")
       # For "binned": vocab_size will be inferred from data (typically 886)
       # For "pretrained": checkpoint_path and model_type must be specified

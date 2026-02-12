@@ -185,6 +185,8 @@ def build_input_embedding(cfg: DictConfig, meta: Mapping[str, Any], pos_enc: nn.
         cont_dim = meta.get("token_feat_dim", 4)
         id_embed_dim = tokenizer_cfg.get("id_embed_dim", 8)
 
+        pid_mode = tokenizer_cfg.get("pid_mode", "learned")
+
         tokenizer_kwargs = {}
         if tokenizer_name == "pretrained":
             # Support both single checkpoint and dual checkpoint paths
@@ -202,12 +204,15 @@ def build_input_embedding(cfg: DictConfig, meta: Mapping[str, Any], pos_enc: nn.
             cont_dim=cont_dim,
             id_embed_dim=id_embed_dim,
             embed_dim=model_dim,
+            pid_mode=pid_mode,
             **tokenizer_kwargs,
         )
 
-        # Get tokenizer output dimension
+        # Get tokenizer output dimension — read from tokenizer instance
+        # (one_hot mode may override id_embed_dim to num_types)
         if tokenizer_name == "identity":
-            tokenizer_output_dim = cont_dim + id_embed_dim
+            tokenizer_output_dim = tokenizer.output_dim
+            id_embed_dim = tokenizer.id_embed_dim  # update for feature_map
         elif tokenizer_name == "raw":
             tokenizer_output_dim = cont_dim
         elif tokenizer_name == "pretrained":

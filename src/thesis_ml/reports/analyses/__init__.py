@@ -1,6 +1,7 @@
 """Experiment-specific report orchestration modules.
 
 Available reports:
+- analyze_pid_embeddings: Deep analysis of PID embedding representations, geometry, and evolution
 - analyze_representations: Deep analysis of transformer representations
 - compare_embeddings_4tbg: Compare embedding strategies in emb_pe_4tbg sweep
 - compare_globals_heads: Compare globals reconstruction weights
