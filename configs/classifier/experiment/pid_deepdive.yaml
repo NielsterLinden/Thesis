@@ -1,0 +1,98 @@
+# @package _global_
+# ─────────────────────────────────────────────────────────────────────
+# PID Embedding Deep Dive  (single config for ALL 13 runs)
+# ─────────────────────────────────────────────────────────────────────
+# Investigate how PID embedding dimensionality (8/16/32), mode
+# (learned / one_hot / fixed_random), and training schedule (standard /
+# warmup_fixed / frozen_backbone) affect classification and embedding
+# geometry.
+#
+# ┌────┬─────┬──────────────┬─────────────────┬───────────────────────────────┐
+# │  # │ dim │ pid_mode     │ schedule        │ Description                   │
+# ├────┼─────┼──────────────┼─────────────────┼───────────────────────────────┤
+# │  1 │   8 │ learned      │ standard        │ Baseline — current default    │
+# │  2 │  16 │ learned      │ standard        │ Wider learned PID             │
+# │  3 │  32 │ learned      │ standard        │ Widest learned PID            │
+# │  4 │   8 │ one_hot      │ standard        │ Fixed eye(8), never trains    │
+# │  5 │   8 │ fixed_random │ standard        │ Random init, frozen           │
+# │  6 │  16 │ fixed_random │ standard        │ Random init, frozen, wider    │
+# │  7 │  32 │ fixed_random │ standard        │ Random init, frozen, widest   │
+# │  8 │   8 │ learned      │ warmup_fixed    │ one-hot frozen → unfreeze     │
+# │  9 │  16 │ learned      │ warmup_fixed    │ one-hot-padded → unfreeze     │
+# │ 10 │  32 │ learned      │ warmup_fixed    │ one-hot-padded → unfreeze     │
+# │ 11 │   8 │ learned      │ frozen_backbone │ Full train → freeze + re-init │
+# │ 12 │  16 │ learned      │ frozen_backbone │ Same, wider PID               │
+# │ 13 │  32 │ learned      │ frozen_backbone │ Same, widest PID              │
+# └────┴─────┴──────────────┴─────────────────┴───────────────────────────────┘
+#
+# ── Usage ──────────────────────────────────────────────────────────────
+#
+# The config sets all SHARED settings.  Sweep parameters go in CLI.
+#
+#   ── Group A: standard schedule (9 runs, 7 unique after one_hot dedup) ──
+#   thesis-train --multirun classifier/experiment=pid_deepdive \
+#     classifier.model.tokenizer.pid_mode=learned,one_hot,fixed_random \
+#     classifier.model.tokenizer.id_embed_dim=8,16,32
+#
+#   ── Group B: warmup_fixed schedule (3 runs) ──
+#   thesis-train --multirun classifier/experiment=pid_deepdive \
+#     classifier.model.tokenizer.pid_mode=one_hot \
+#     classifier.model.tokenizer.id_embed_dim=8,16,32 \
+#     classifier.trainer.pid_schedule.mode=warmup_fixed \
+#     classifier.trainer.pid_schedule.transition_epoch=50
+#
+#   ── Group C: frozen_backbone schedule (3 runs) ──
+#   thesis-train --multirun classifier/experiment=pid_deepdive \
+#     classifier.model.tokenizer.pid_mode=learned \
+#     classifier.model.tokenizer.id_embed_dim=8,16,32 \
+#     classifier.trainer.pid_schedule.mode=frozen_backbone \
+#     classifier.trainer.pid_schedule.transition_epoch=50
+#
+#   ── Quick smoke test (1 epoch, tiny data) ──
+#   thesis-train classifier/experiment=pid_deepdive \
+#     classifier.trainer.epochs=1 classifier.trainer.warmup_steps=0 \
+#     data.limit_samples=50 env=local
+#
+#   ── 1-epoch test (full data, 1 epoch — verify config) ──
+#   thesis-train classifier/experiment=pid_deepdive \
+#     classifier.trainer.epochs=1 classifier.trainer.warmup_steps=0 \
+#     env=local
+# ───────────────────────────────────────────────────────────────────────
+
+experiment:
+  name: "pid_deepdive"
+
+# ── Hydra output paths ─────────────────────────────────────────────────
+# NOTE: Only sweep paths are set here. hydra.run.dir inherits from
+#       hydra/run_single.yaml so single-run smoke tests work correctly.
+hydra:
+  job:
+    chdir: true
+    name: ${experiment.name}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+
+# ── Metadata ────────────────────────────────────────────────────────────
+meta:
+  goal: "classification"
+
+# ── Model: force identity tokenizer (PID experiment requires it) ───────
+classifier:
+  model:
+    tokenizer:
+      name: identity
+  trainer:
+    epochs: 100
+    log_pid_embeddings: true
+
+# ── Logging ─────────────────────────────────────────────────────────────
+logging:
+  make_plots: false
+
+# ── Data: 4t (signal) vs all backgrounds ───────────────────────────────
+data:
+  classifier:
+    signal_vs_background:
+      signal: 1
+      background: [2, 3, 4, 5]

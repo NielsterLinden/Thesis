@@ -19,6 +19,10 @@ norm: "zscore"
 seed: 42
 num_workers: 4
 
+# Limit samples per split (0 = use all). Override from CLI for fast debug:
+#   data.limit_samples=50
+limit_samples: 0
+
 # Classification-specific settings
 classifier:
   # Selected ProcessIDs to include (default: [1, 2] for binary 4t vs ttH)
