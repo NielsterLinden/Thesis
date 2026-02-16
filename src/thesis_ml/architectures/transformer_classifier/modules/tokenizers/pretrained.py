@@ -51,7 +51,8 @@ class PretrainedTokenizer(nn.Module):
             self._cfg.meta = OmegaConf.create({})
         if self._meta_num_types is not None and "num_types" not in self._cfg.meta:
             self._cfg.meta.num_types = int(self._meta_num_types)
-        if self._meta_cont_dim is not None and "cont_dim" not in self._cfg.meta:
+        # Always override cont_dim when explicitly provided (for checkpoint compatibility)
+        if self._meta_cont_dim is not None:
             self._cfg.meta.cont_dim = int(self._meta_cont_dim)
         # Number of global features (MET, MET phi); default to 2 when missing.
         if "globals" not in self._cfg.meta:
