@@ -139,8 +139,21 @@ def load_model_from_run(run_id: str, output_root: Path | str, device: str | None
                 logger.info(f"Adjusting n_tokens from {data_n_tokens} (data) to {checkpoint_n_tokens} (checkpoint embedding PE shape)")
             cfg.meta.n_tokens = checkpoint_n_tokens
 
+        # Detect binned checkpoint: has token_embedding, no projection. Set vocab_size so model builder uses binned path.
+        binned_emb_key = "embedding.tokenizer.token_embedding.weight"
+        if binned_emb_key in state_dict:
+            ckpt_vocab_size = int(state_dict[binned_emb_key].shape[0])
+            current = getattr(cfg.meta, "vocab_size", None)
+            if current != ckpt_vocab_size:
+                logger.info(
+                    "Adjusting vocab_size from %s (config) to %s (checkpoint token_embedding shape)",
+                    current,
+                    ckpt_vocab_size,
+                )
+            cfg.meta.vocab_size = ckpt_vocab_size
+
         # Infer token_feat_dim from checkpoint for raw/identity models (avoids 4-vect vs 5-vect mismatch).
-        # projection.weight [model_dim, tokenizer_output_dim]; for identity: tokenizer_output = cont_dim + id_embed_dim.
+        # Only applies when checkpoint has projection (raw/identity); skip for binned (has token_embedding instead).
         proj_key = "embedding.projection.weight"
         if proj_key in state_dict:
             proj_shape = state_dict[proj_key].shape

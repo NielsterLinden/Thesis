@@ -113,20 +113,17 @@ condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot loop=tr
 # Exact sweep for run_20260211-141827_exp_binning_vs_direct (36 models):
 # Sweep dir: /data/atlas/users/nterlind/outputs/multiruns/exp_20260211-141827_exp_binning_vs_direct
 
-# Interactive (SSH to login node):
-cd /project/atlas/users/nterlind/Thesis-Code
-conda activate /data/atlas/users/nterlind/venvs/thesis-ml
-export WANDB_DIR=/data/atlas/users/nterlind/outputs/wandb
-
-thesis-report --config-name phd_summary_binning_vs_direct \
-  inputs.sweep_dir=/data/atlas/users/nterlind/outputs/multiruns/exp_20260211-141827_exp_binning_vs_direct \
-  inference.enabled=true
-
-# Batch (Condor) - exact sweep:
+# RECOMMENDED: Submit via Condor (avoids login-node load, proper resources):
 condor_submit hpc/stoomboot/report.sub -append 'arguments = --config-name phd_summary_binning_vs_direct inputs.sweep_dir=/data/atlas/users/nterlind/outputs/multiruns/exp_20260211-141827_exp_binning_vs_direct inference.enabled=true'
 
-# Batch (Condor) - generic pattern for any exp_binning_vs_direct run:
+# Alternative: Generic pattern for any exp_binning_vs_direct run:
 condor_submit hpc/stoomboot/report.sub -append 'arguments = --config-name phd_summary_binning_vs_direct inputs.sweep_dir=/data/atlas/users/nterlind/outputs/multiruns/exp_*_exp_binning_vs_direct inference.enabled=true'
+
+# Interactive (SSH) - only if Condor is unavailable:
+# cd /project/atlas/users/nterlind/Thesis-Code
+# conda activate /data/atlas/users/nterlind/venvs/thesis-ml
+# export WANDB_DIR=/data/atlas/users/nterlind/outputs/wandb
+# thesis-report --config-name phd_summary_binning_vs_direct inputs.sweep_dir=/data/atlas/users/nterlind/outputs/multiruns/exp_20260211-141827_exp_binning_vs_direct inference.enabled=true
 ```
 
 Report output: `/data/atlas/users/nterlind/outputs/reports/report_<timestamp>_phd_summary_binning_vs_direct/`
