@@ -139,9 +139,22 @@ def load_model_from_run(run_id: str, output_root: Path | str, device: str | None
                 logger.info(f"Adjusting n_tokens from {data_n_tokens} (data) to {checkpoint_n_tokens} (checkpoint embedding PE shape)")
             cfg.meta.n_tokens = checkpoint_n_tokens
 
-        # Detect binned checkpoint: has token_embedding, no projection. Set vocab_size so model builder uses binned path.
+        # Detect tokenizer type from checkpoint keys (config may be wrong or incomplete).
+        # Order matters: pretrained and binned are mutually exclusive.
+        pretrained_key = "embedding.tokenizer._index_embedding.weight"
         binned_emb_key = "embedding.tokenizer.token_embedding.weight"
-        if binned_emb_key in state_dict:
+        if pretrained_key in state_dict:
+            # VQ/pretrained checkpoint: force tokenizer.name so model builder uses pretrained path
+            if not hasattr(cfg.classifier.model, "tokenizer"):
+                cfg.classifier.model.tokenizer = OmegaConf.create({})
+            current_name = cfg.classifier.model.tokenizer.get("name", "")
+            if current_name != "pretrained":
+                logger.info(
+                    "Adjusting tokenizer.name from %r (config) to 'pretrained' (checkpoint has _index_embedding)",
+                    current_name,
+                )
+                cfg.classifier.model.tokenizer.name = "pretrained"
+        elif binned_emb_key in state_dict:
             ckpt_vocab_size = int(state_dict[binned_emb_key].shape[0])
             current = getattr(cfg.meta, "vocab_size", None)
             if current != ckpt_vocab_size:
