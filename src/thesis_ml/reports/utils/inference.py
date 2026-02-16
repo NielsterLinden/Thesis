@@ -197,6 +197,40 @@ def load_model_from_run(run_id: str, output_root: Path | str, device: str | None
                             )
                             cfg.meta.token_feat_dim = inferred_cont_dim
 
+        # Infer token_feat_dim from pretrained tokenizer encoder (VQ) if present.
+        # The encoder's first layer weight reveals the actual input dimension used during training.
+        encoder_key = "embedding.tokenizer._encoder.net.0.weight"
+        if encoder_key in state_dict:
+            encoder_weight_shape = state_dict[encoder_key].shape
+            if len(encoder_weight_shape) == 2:
+                encoder_input_dim = int(encoder_weight_shape[1])  # [out_features, in_features]
+                id_embed_dim = cfg.classifier.model.tokenizer.get("id_embed_dim", 8)
+                # For identity tokenizer: input = cont_features + id_embed_dim
+                # For raw tokenizer: input = cont_features only
+                tokenizer_name = cfg.classifier.model.tokenizer.get("name", "identity")
+                if tokenizer_name == "identity" and encoder_input_dim > id_embed_dim:
+                    inferred_cont_dim = encoder_input_dim - id_embed_dim
+                    if inferred_cont_dim in (3, 4):  # 4-vect or 5-vect
+                        current = getattr(cfg.meta, "token_feat_dim", None)
+                        if current != inferred_cont_dim:
+                            logger.info(
+                                "Adjusting token_feat_dim from %s (config) to %s (VQ encoder input shape)",
+                                current,
+                                inferred_cont_dim,
+                            )
+                            cfg.meta.token_feat_dim = inferred_cont_dim
+                elif tokenizer_name == "raw":
+                    inferred_cont_dim = encoder_input_dim
+                    if inferred_cont_dim in (3, 4):
+                        current = getattr(cfg.meta, "token_feat_dim", None)
+                        if current != inferred_cont_dim:
+                            logger.info(
+                                "Adjusting token_feat_dim from %s (config) to %s (VQ encoder input shape)",
+                                current,
+                                inferred_cont_dim,
+                            )
+                            cfg.meta.token_feat_dim = inferred_cont_dim
+
         model = build_classifier(cfg, cfg.meta).to(dev)
 
         # For pretrained (VQ) tokenizer: force lazy-load so submodules exist before load_state_dict.
