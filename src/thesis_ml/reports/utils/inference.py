@@ -198,6 +198,19 @@ def load_model_from_run(run_id: str, output_root: Path | str, device: str | None
                             cfg.meta.token_feat_dim = inferred_cont_dim
 
         model = build_classifier(cfg, cfg.meta).to(dev)
+
+        # For pretrained (VQ) tokenizer: force lazy-load so submodules exist before load_state_dict.
+        # PretrainedTokenizer creates _encoder, _bottleneck, _index_embedding in _load_model().
+        from thesis_ml.architectures.transformer_classifier.modules.tokenizers.pretrained import PretrainedTokenizer
+
+        tokenizer = getattr(getattr(model, "embedding", None), "tokenizer", None)
+        if isinstance(tokenizer, PretrainedTokenizer) and not tokenizer._loaded:
+            try:
+                tokenizer._load_model()
+                logger.info("Pre-loaded VQ tokenizer submodules for state_dict compatibility")
+            except Exception as e:
+                logger.warning("Could not pre-load VQ tokenizer (checkpoint missing?): %s", e)
+
     elif hasattr(cfg, "phase1"):
         # Autoencoder model
         from thesis_ml.architectures.autoencoder.base import build_from_config
