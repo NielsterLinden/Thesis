@@ -26,8 +26,16 @@ outputs:
     - metrics_comparison
     - roc_curves_by_pooling
     - roc_curves_by_tokenization
+    - roc_curves_by_met
+    - roc_curves_by_vect
     - auroc_bar_by_pooling
     - auroc_bar_by_tokenization
+    - auroc_bar_by_met
+    - auroc_bar_by_vect
+    - auroc_heatmap_tokenization_x_pooling
+    - auroc_heatmap_tokenization_x_vect
+    - auroc_heatmap_tokenization_x_met
+    - auroc_heatmap_pooling_x_met
 
 thresholds:
   val_acc: 0.8

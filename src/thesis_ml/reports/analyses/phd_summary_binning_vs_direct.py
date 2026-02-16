@@ -18,6 +18,7 @@ from omegaconf import DictConfig
 from thesis_ml.facts.readers import _extract_value_from_composed_cfg, _read_cfg
 from thesis_ml.reports.plots.classification import plot_auroc_bar_by_group, plot_roc_curves_grouped_by
 from thesis_ml.reports.plots.curves import plot_val_auroc_grouped_by
+from thesis_ml.reports.plots.grids import plot_grid_heatmap
 from thesis_ml.reports.utils.inference import load_models_for_runs, persist_inference_artifacts
 from thesis_ml.reports.utils.io import finalize_report, get_fig_config, setup_report_environment
 from thesis_ml.utils.paths import get_run_id
@@ -246,6 +247,181 @@ def run_report(cfg: DictConfig) -> None:
                     )
                 except Exception as e:
                     logger.warning("Error generating AUROC bar by tokenization: %s", e)
+
+            if "roc_curves_by_met" in wanted:
+                try:
+                    plot_roc_curves_grouped_by(
+                        runs_df,
+                        inference_results,
+                        group_col="met",
+                        inference_figs_dir=inference_figs_dir,
+                        fig_cfg=fig_cfg,
+                        fname="figure-roc_curves_by_met",
+                        title="ROC Curves by MET",
+                    )
+                except Exception as e:
+                    logger.warning("Error generating ROC curves by MET: %s", e)
+
+            if "roc_curves_by_vect" in wanted:
+                try:
+                    plot_roc_curves_grouped_by(
+                        runs_df,
+                        inference_results,
+                        group_col="vect_type",
+                        inference_figs_dir=inference_figs_dir,
+                        fig_cfg=fig_cfg,
+                        fname="figure-roc_curves_by_vect",
+                        title="ROC Curves by Vector Type",
+                    )
+                except Exception as e:
+                    logger.warning("Error generating ROC curves by vect: %s", e)
+
+            if "auroc_bar_by_met" in wanted:
+                try:
+                    plot_auroc_bar_by_group(
+                        runs_df,
+                        inference_results,
+                        group_col="met",
+                        inference_figs_dir=inference_figs_dir,
+                        fig_cfg=fig_cfg,
+                        fname="figure-auroc_bar_by_met",
+                        title="AUROC by MET",
+                    )
+                except Exception as e:
+                    logger.warning("Error generating AUROC bar by MET: %s", e)
+
+            if "auroc_bar_by_vect" in wanted:
+                try:
+                    plot_auroc_bar_by_group(
+                        runs_df,
+                        inference_results,
+                        group_col="vect_type",
+                        inference_figs_dir=inference_figs_dir,
+                        fig_cfg=fig_cfg,
+                        fname="figure-auroc_bar_by_vect",
+                        title="AUROC by Vector Type",
+                    )
+                except Exception as e:
+                    logger.warning("Error generating AUROC bar by vect: %s", e)
+
+            # Heatmaps: merge runs_df with inference AUROC
+            heatmap_df = None
+            if inference_results and any(
+                h in wanted
+                for h in (
+                    "auroc_heatmap_tokenization_x_pooling",
+                    "auroc_heatmap_tokenization_x_vect",
+                    "auroc_heatmap_tokenization_x_met",
+                    "auroc_heatmap_pooling_x_met",
+                )
+            ):
+                rows = []
+                for _, row in runs_df.iterrows():
+                    run_dir = row.get("run_dir")
+                    if pd.isna(run_dir):
+                        continue
+                    run_id = get_run_id(Path(str(run_dir)))
+                    auroc = inference_results.get(run_id, {}).get("auroc") if run_id in inference_results else None
+                    if auroc is not None:
+                        rows.append(
+                            {
+                                "pooling": row.get("pooling"),
+                                "tokenization": row.get("tokenization"),
+                                "met": row.get("met"),
+                                "vect_type": row.get("vect_type"),
+                                "auroc": float(auroc),
+                            }
+                        )
+                heatmap_df = pd.DataFrame(rows)
+
+            if heatmap_df is not None and not heatmap_df.empty:
+                if "auroc_heatmap_tokenization_x_pooling" in wanted:
+                    try:
+                        plot_grid_heatmap(
+                            heatmap_df,
+                            row_col="tokenization",
+                            col_col="pooling",
+                            value_col="auroc",
+                            title="Test AUROC: Tokenization x Pooling",
+                            figs_dir=inference_figs_dir,
+                            fname="figure-auroc_heatmap_tokenization_x_pooling",
+                            fig_cfg=fig_cfg,
+                        )
+                    except Exception as e:
+                        logger.warning("Error generating tokenization x pooling heatmap: %s", e)
+                if "auroc_heatmap_tokenization_x_vect" in wanted:
+                    try:
+                        plot_grid_heatmap(
+                            heatmap_df,
+                            row_col="tokenization",
+                            col_col="vect_type",
+                            value_col="auroc",
+                            title="Test AUROC: Tokenization x Vector Type",
+                            figs_dir=inference_figs_dir,
+                            fname="figure-auroc_heatmap_tokenization_x_vect",
+                            fig_cfg=fig_cfg,
+                        )
+                    except Exception as e:
+                        logger.warning("Error generating tokenization x vect heatmap: %s", e)
+                if "auroc_heatmap_tokenization_x_met" in wanted:
+                    try:
+                        plot_grid_heatmap(
+                            heatmap_df,
+                            row_col="tokenization",
+                            col_col="met",
+                            value_col="auroc",
+                            title="Test AUROC: Tokenization x MET",
+                            figs_dir=inference_figs_dir,
+                            fname="figure-auroc_heatmap_tokenization_x_met",
+                            fig_cfg=fig_cfg,
+                        )
+                    except Exception as e:
+                        logger.warning("Error generating tokenization x MET heatmap: %s", e)
+                if "auroc_heatmap_pooling_x_met" in wanted:
+                    try:
+                        plot_grid_heatmap(
+                            heatmap_df,
+                            row_col="pooling",
+                            col_col="met",
+                            value_col="auroc",
+                            title="Test AUROC: Pooling x MET",
+                            figs_dir=inference_figs_dir,
+                            fname="figure-auroc_heatmap_pooling_x_met",
+                            fig_cfg=fig_cfg,
+                        )
+                    except Exception as e:
+                        logger.warning("Error generating pooling x MET heatmap: %s", e)
+
+            # Best models summary (requires inference)
+            if inference_results:
+                rows = []
+                for _, row in runs_df.iterrows():
+                    run_dir = row.get("run_dir")
+                    if pd.isna(run_dir):
+                        continue
+                    run_id = get_run_id(Path(str(run_dir)))
+                    auroc = inference_results.get(run_id, {}).get("auroc")
+                    if auroc is not None:
+                        rows.append(
+                            {
+                                "run_id": run_id,
+                                "auroc": float(auroc),
+                                "pooling": row.get("pooling"),
+                                "tokenization": row.get("tokenization"),
+                                "met": row.get("met"),
+                                "vect_type": row.get("vect_type"),
+                            }
+                        )
+                if rows:
+                    best_df = pd.DataFrame(rows).sort_values("auroc", ascending=False).reset_index(drop=True)
+                    best_df.insert(0, "rank", best_df.index + 1)
+                    best_df.to_csv(training_dir / "best_models.csv", index=False)
+                    # Top-5 text summary for presentation
+                    top5 = best_df.head(5)
+                    lines = ["Top 5 models by test AUROC\n" + "=" * 60 + "\n"]
+                    for _, r in top5.iterrows():
+                        lines.append(f"Rank {int(r['rank'])}: AUROC={r['auroc']:.4f} | " f"pooling={r['pooling']} | tokenization={r['tokenization']} | " f"MET={r['met']} | vect={r['vect_type']} | {r['run_id']}\n")
+                    (training_dir / "best_models_summary.txt").write_text("".join(lines), encoding="utf-8")
 
             persist_inference_artifacts(
                 inference_dir=inference_dir,
