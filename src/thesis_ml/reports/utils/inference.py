@@ -241,24 +241,37 @@ def load_model_from_run(run_id: str, output_root: Path | str, device: str | None
 
         # Infer token_feat_dim from pretrained tokenizer encoder (VQ) if present.
         # The encoder's first layer weight reveals the actual input dimension used during training.
+        # This is the most reliable source for pretrained/VQ models because it reads the
+        # actual trained weights, not an external VQ checkpoint that might not match.
         encoder_key = "embedding.tokenizer._encoder.net.0.weight"
         if encoder_key in state_dict:
             encoder_weight_shape = state_dict[encoder_key].shape
             if len(encoder_weight_shape) == 2:
                 encoder_input_dim = int(encoder_weight_shape[1])  # [out_features, in_features]
                 id_embed_dim = cfg.classifier.model.tokenizer.get("id_embed_dim", 8)
-                # For identity tokenizer: input = cont_features + id_embed_dim
+                # For identity/pretrained tokenizer: input = cont_features + id_embed_dim
                 # For raw tokenizer: input = cont_features only
                 tokenizer_name = cfg.classifier.model.tokenizer.get("name", "identity")
-                if tokenizer_name == "identity" and encoder_input_dim > id_embed_dim:
+                # #region agent log
+                logger.info(
+                    "[DEBUG-H1] encoder_key check: tokenizer_name=%r, encoder_input_dim=%d, " "id_embed_dim=%d, current_token_feat_dim=%s",
+                    tokenizer_name,
+                    encoder_input_dim,
+                    id_embed_dim,
+                    getattr(cfg.meta, "token_feat_dim", None),
+                )
+                # #endregion
+                if tokenizer_name in ("identity", "pretrained") and encoder_input_dim > id_embed_dim:
                     inferred_cont_dim = encoder_input_dim - id_embed_dim
                     if inferred_cont_dim in (3, 4):  # 4-vect or 5-vect
                         current = getattr(cfg.meta, "token_feat_dim", None)
                         if current != inferred_cont_dim:
                             logger.info(
-                                "Adjusting token_feat_dim from %s (config) to %s (VQ encoder input shape)",
+                                "Adjusting token_feat_dim from %s to %s (main checkpoint encoder key, " "encoder_input=%d - id_embed=%d)",
                                 current,
                                 inferred_cont_dim,
+                                encoder_input_dim,
+                                id_embed_dim,
                             )
                             cfg.meta.token_feat_dim = inferred_cont_dim
                 elif tokenizer_name == "raw":
@@ -267,11 +280,22 @@ def load_model_from_run(run_id: str, output_root: Path | str, device: str | None
                         current = getattr(cfg.meta, "token_feat_dim", None)
                         if current != inferred_cont_dim:
                             logger.info(
-                                "Adjusting token_feat_dim from %s (config) to %s (VQ encoder input shape)",
+                                "Adjusting token_feat_dim from %s to %s (main checkpoint encoder key)",
                                 current,
                                 inferred_cont_dim,
                             )
                             cfg.meta.token_feat_dim = inferred_cont_dim
+
+        # #region agent log
+        logger.info(
+            "[DEBUG-H4] Final cfg.meta before build: token_feat_dim=%s, vocab_size=%s, " "n_tokens=%s, n_classes=%s, tokenizer_name=%s",
+            getattr(cfg.meta, "token_feat_dim", "MISSING"),
+            getattr(cfg.meta, "vocab_size", "MISSING"),
+            getattr(cfg.meta, "n_tokens", "MISSING"),
+            getattr(cfg.meta, "n_classes", "MISSING"),
+            cfg.classifier.model.tokenizer.get("name", "MISSING") if hasattr(cfg.classifier.model, "tokenizer") else "NO_TOKENIZER",
+        )
+        # #endregion
 
         model = build_classifier(cfg, cfg.meta).to(dev)
 
@@ -303,7 +327,33 @@ def load_model_from_run(run_id: str, output_root: Path | str, device: str | None
         raise ValueError("Cannot determine model type from config (missing 'classifier' or 'phase1' section)")
 
     # Load state dict (already extracted above)
-    model.load_state_dict(state_dict)
+    # #region agent log
+    try:
+        model.load_state_dict(state_dict)
+    except RuntimeError as e:
+        # Log diagnostic info for shape mismatches
+        logger.error("load_state_dict failed for run %s: %s", run_dir, e)
+        model_params = {k: tuple(v.shape) for k, v in model.state_dict().items()}
+        ckpt_params = {k: tuple(v.shape) for k, v in state_dict.items()}
+        mismatches = []
+        for k in set(model_params) & set(ckpt_params):
+            if model_params[k] != ckpt_params[k]:
+                mismatches.append(f"  {k}: model={model_params[k]} vs ckpt={ckpt_params[k]}")
+        missing_in_model = set(ckpt_params) - set(model_params)
+        missing_in_ckpt = set(model_params) - set(ckpt_params)
+        if mismatches:
+            logger.error("Shape mismatches:\n%s", "\n".join(mismatches))
+        if missing_in_model:
+            logger.error("Keys in checkpoint but not in model: %s", missing_in_model)
+        if missing_in_ckpt:
+            logger.error("Keys in model but not in checkpoint: %s", missing_in_ckpt)
+        logger.error(
+            "cfg.meta at failure: token_feat_dim=%s, vocab_size=%s",
+            getattr(cfg.meta, "token_feat_dim", "MISSING") if hasattr(cfg, "meta") else "NO_META",
+            getattr(cfg.meta, "vocab_size", "MISSING") if hasattr(cfg, "meta") else "NO_META",
+        )
+        raise
+    # #endregion
     model.eval()
     return cfg, model, dev
 
@@ -356,10 +406,25 @@ def load_models_for_runs(
         List of (run_id, cfg, model) tuples
     """
     models = []
+    failed = []
 
     for run_id in run_ids:
-        cfg, model, _ = load_model_from_run(run_id, output_root, device=device)
-        models.append((run_id, cfg, model))
+        # #region agent log
+        try:
+            cfg, model, _ = load_model_from_run(run_id, output_root, device=device)
+            models.append((run_id, cfg, model))
+        except Exception as e:
+            logger.error("[DEBUG] Failed to load model for run %s: %s", run_id, e)
+            failed.append((run_id, str(e)))
+        # #endregion
+
+    if failed:
+        logger.warning(
+            "[DEBUG] %d/%d runs failed to load:\n%s",
+            len(failed),
+            len(run_ids),
+            "\n".join(f"  {rid}: {err}" for rid, err in failed),
+        )
 
     return models
 
