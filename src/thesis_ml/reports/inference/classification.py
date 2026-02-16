@@ -60,46 +60,38 @@ def run_classification_inference(
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info(f"Using device: {device} (autocast: {inference_cfg.get('autocast', False)})")
 
-    # Create dataloader
     batch_size = inference_cfg.get("batch_size", 512)
-
-    # Create a copy to avoid modifying the original config
-    temp_cfg = OmegaConf.create(dataset_cfg) if isinstance(dataset_cfg, dict) else OmegaConf.create(OmegaConf.to_container(dataset_cfg, resolve=True))
-
-    # Override batch_size (make_classification_dataloaders expects cfg.classifier.trainer.batch_size)
-    if hasattr(temp_cfg, "classifier") and hasattr(temp_cfg.classifier, "trainer"):
-        temp_cfg.classifier.trainer.batch_size = batch_size
-    else:
-        # Create classifier.trainer section if it doesn't exist
-        if not hasattr(temp_cfg, "classifier"):
-            temp_cfg.classifier = OmegaConf.create({})
-        temp_cfg.classifier.trainer = OmegaConf.create({"batch_size": batch_size})
-
-    # If testing, reduce dataset size at the source
-    max_samples = inference_cfg.get("max_samples", None)
-    if max_samples is not None and max_samples > 0:
-        if not hasattr(temp_cfg, "data"):
-            temp_cfg.data = OmegaConf.create({})
-        temp_cfg.data.limit_samples = int(max_samples)
-        logger.info(f"Limiting dataset to first {max_samples} samples at load time (testing mode)")
-
-    train_dl, val_dl, test_dl, _meta = make_classification_dataloaders(temp_cfg)
-
-    if split == "train":
-        dataloader = train_dl
-    elif split == "test":
-        dataloader = test_dl
-    else:
-        dataloader = val_dl
-
     autocast = inference_cfg.get("autocast", False)
     autocast_ctx = torch.autocast(device_type="cuda", dtype=torch.float16) if autocast and device.type == "cuda" else nullcontext()
 
     results = {}
 
-    # Process each model
+    # Process each model with its own dataloader (4-vect vs 5-vect, binned vs raw need different data formats)
     for model_idx, (run_id, model_cfg, model) in enumerate(models, 1):
         logger.info(f"[{model_idx}/{len(models)}] Processing model: {run_id}")
+
+        # Create dataloader from this model's config (handles 4-vect vs 5-vect, binned vs direct)
+        temp_cfg = OmegaConf.create(OmegaConf.to_container(model_cfg, resolve=True))
+        if hasattr(temp_cfg, "classifier") and hasattr(temp_cfg.classifier, "trainer"):
+            temp_cfg.classifier.trainer.batch_size = batch_size
+        else:
+            if not hasattr(temp_cfg, "classifier"):
+                temp_cfg.classifier = OmegaConf.create({})
+            temp_cfg.classifier.trainer = OmegaConf.create({"batch_size": batch_size})
+
+        max_samples = inference_cfg.get("max_samples", None)
+        if max_samples is not None and max_samples > 0:
+            if not hasattr(temp_cfg, "data"):
+                temp_cfg.data = OmegaConf.create({})
+            temp_cfg.data.limit_samples = int(max_samples)
+
+        train_dl, val_dl, test_dl, _meta = make_classification_dataloaders(temp_cfg)
+        if split == "train":
+            dataloader = train_dl
+        elif split == "test":
+            dataloader = test_dl
+        else:
+            dataloader = val_dl
 
         model.eval()
         model.to(device)

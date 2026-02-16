@@ -139,6 +139,38 @@ def load_model_from_run(run_id: str, output_root: Path | str, device: str | None
                 logger.info(f"Adjusting n_tokens from {data_n_tokens} (data) to {checkpoint_n_tokens} (checkpoint embedding PE shape)")
             cfg.meta.n_tokens = checkpoint_n_tokens
 
+        # Infer token_feat_dim from checkpoint for raw/identity models (avoids 4-vect vs 5-vect mismatch).
+        # projection.weight [model_dim, tokenizer_output_dim]; for identity: tokenizer_output = cont_dim + id_embed_dim.
+        proj_key = "embedding.projection.weight"
+        if proj_key in state_dict:
+            proj_shape = state_dict[proj_key].shape
+            if len(proj_shape) == 2:
+                ckpt_tokenizer_out = int(proj_shape[1])
+                id_embed_dim = cfg.classifier.model.tokenizer.get("id_embed_dim", 8)
+                tokenizer_name = cfg.classifier.model.tokenizer.get("name", "identity")
+                if tokenizer_name == "identity" and ckpt_tokenizer_out > id_embed_dim:
+                    inferred_cont_dim = ckpt_tokenizer_out - id_embed_dim
+                    if inferred_cont_dim in (3, 4):  # 4-vect or 5-vect
+                        current = getattr(cfg.meta, "token_feat_dim", None)
+                        if current != inferred_cont_dim:
+                            logger.info(
+                                "Adjusting token_feat_dim from %s (config) to %s (checkpoint projection shape)",
+                                current,
+                                inferred_cont_dim,
+                            )
+                            cfg.meta.token_feat_dim = inferred_cont_dim
+                elif tokenizer_name == "raw":
+                    inferred_cont_dim = ckpt_tokenizer_out
+                    if inferred_cont_dim in (3, 4):
+                        current = getattr(cfg.meta, "token_feat_dim", None)
+                        if current != inferred_cont_dim:
+                            logger.info(
+                                "Adjusting token_feat_dim from %s (config) to %s (checkpoint projection shape)",
+                                current,
+                                inferred_cont_dim,
+                            )
+                            cfg.meta.token_feat_dim = inferred_cont_dim
+
         model = build_classifier(cfg, cfg.meta).to(dev)
     elif hasattr(cfg, "phase1"):
         # Autoencoder model
