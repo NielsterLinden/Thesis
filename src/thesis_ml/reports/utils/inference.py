@@ -154,6 +154,48 @@ def load_model_from_run(run_id: str, output_root: Path | str, device: str | None
                     current_name,
                 )
                 cfg.classifier.model.tokenizer.name = "pretrained"
+
+            # For pretrained tokenizers: infer cont_dim from VQ checkpoint encoder shape
+            # This must happen before model building so the correct VQ checkpoint is selected
+            vq_checkpoint_path = None
+            if hasattr(cfg.classifier.model.tokenizer, "checkpoint_path") and cfg.classifier.model.tokenizer.checkpoint_path:
+                vq_checkpoint_path = Path(cfg.classifier.model.tokenizer.checkpoint_path)
+            elif hasattr(cfg.classifier.model.tokenizer, "checkpoint_path_5vec"):
+                # Dual checkpoint mode: try to load one to infer shape
+                path_5vec = cfg.classifier.model.tokenizer.get("checkpoint_path_5vec")
+                path_4vec = cfg.classifier.model.tokenizer.get("checkpoint_path_4vec")
+                # Try 5vec first (most common), then fall back to 4vec
+                if path_5vec:
+                    vq_checkpoint_path = Path(path_5vec)
+                elif path_4vec:
+                    vq_checkpoint_path = Path(path_4vec)
+
+            if vq_checkpoint_path and vq_checkpoint_path.exists():
+                try:
+                    vq_ckpt = torch.load(vq_checkpoint_path, map_location="cpu", weights_only=True)
+                    vq_state = vq_ckpt.get("state_dict", vq_ckpt) if isinstance(vq_ckpt, dict) else vq_ckpt
+                    encoder_key = "encoder.net.0.weight"
+                    if encoder_key in vq_state:
+                        encoder_shape = vq_state[encoder_key].shape
+                        if len(encoder_shape) == 2:
+                            encoder_input_dim = int(encoder_shape[1])  # [out, in]
+                            id_embed_dim = cfg.classifier.model.tokenizer.get("id_embed_dim", 8)
+                            # For identity tokenizer: encoder_input = cont_dim + id_embed_dim
+                            # Infer cont_dim (should be 3 or 4)
+                            inferred_cont_dim = encoder_input_dim - id_embed_dim
+                            if inferred_cont_dim in (3, 4):
+                                current = getattr(cfg.meta, "token_feat_dim", None)
+                                if current != inferred_cont_dim:
+                                    logger.info(
+                                        "Adjusting token_feat_dim from %s (config) to %s (VQ encoder input=%d - id_embed=%d)",
+                                        current,
+                                        inferred_cont_dim,
+                                        encoder_input_dim,
+                                        id_embed_dim,
+                                    )
+                                    cfg.meta.token_feat_dim = inferred_cont_dim
+                except Exception as e:
+                    logger.warning("Could not infer cont_dim from VQ checkpoint %s: %s", vq_checkpoint_path, e)
         elif binned_emb_key in state_dict:
             ckpt_vocab_size = int(state_dict[binned_emb_key].shape[0])
             current = getattr(cfg.meta, "vocab_size", None)
