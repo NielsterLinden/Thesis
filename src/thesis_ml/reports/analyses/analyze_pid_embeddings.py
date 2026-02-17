@@ -359,7 +359,8 @@ def _plot_pid_pca_tsne(
         ax = axes[1, col_idx]
         if W.shape[1] >= 2 and num_types > 2:
             perplexity = min(5, max(1, num_types - 1))
-            tsne = TSNE(n_components=2, perplexity=perplexity, random_state=42, n_iter=1000)
+            # Use only arguments supported across sklearn versions
+            tsne = TSNE(n_components=2, perplexity=perplexity, random_state=42)
             W_tsne = tsne.fit_transform(W)
             for pid in range(num_types):
                 ax.scatter(W_tsne[pid, 0], W_tsne[pid, 1], color=cmap(pid), s=100, edgecolors="black", zorder=3)
