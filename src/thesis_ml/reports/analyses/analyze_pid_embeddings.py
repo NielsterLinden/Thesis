@@ -94,13 +94,11 @@ def _extract_pid_metadata(runs_df: pd.DataFrame) -> pd.DataFrame:
             labels.append("unknown")
             continue
 
-        tok = _extract_value_from_composed_cfg(cfg, "classifier.model.tokenizer")
-        if isinstance(tok, dict):
-            mode = tok.get("pid_mode", "learned")
-            dim = tok.get("id_embed_dim", 8)
-        else:
-            mode = "learned"
-            dim = 8
+        # Read PID mode and dim explicitly from composed config to be robust
+        # against different tokenizer config shapes.
+        mode = _extract_value_from_composed_cfg(cfg, "classifier.model.tokenizer.pid_mode") or "learned"
+        dim_val = _extract_value_from_composed_cfg(cfg, "classifier.model.tokenizer.id_embed_dim", int)
+        dim = dim_val if dim_val is not None else 8
 
         sched_cfg = _extract_value_from_composed_cfg(cfg, "classifier.trainer.pid_schedule")
         if isinstance(sched_cfg, dict):
