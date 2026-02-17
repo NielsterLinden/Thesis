@@ -391,24 +391,13 @@ def _plot_performance_comparison(
     """Bar chart of final metric by run_label, plus learning curves colored by pid_mode."""
     df = runs_df.copy()
 
-    # #region agent log
-    _agent_debug_log(
-        hypothesis_id="H1",
-        location="analyze_pid_embeddings._plot_performance_comparison:before-loop",
-        message="runs_df columns and sample row keys before performance plotting",
-        data={
-            "columns": list(df.columns),
-            "num_rows": int(len(df)),
-        },
-    )
-    # #endregion agent log
-
     # Final metric per run
     final_vals = {}
     for _, row in df.iterrows():
-        run_id = row["run_id"]
+        run_dir = row["run_dir"]
         label = row["run_label"]
-        ep_df = per_epoch.get(run_id, pd.DataFrame())
+        # per_epoch is keyed by run_dir string, see load_runs()
+        ep_df = per_epoch.get(str(run_dir), pd.DataFrame())
         if ep_df.empty:
             continue
         if metric in ep_df.columns:
