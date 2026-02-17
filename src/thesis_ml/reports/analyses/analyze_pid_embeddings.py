@@ -36,6 +36,34 @@ from thesis_ml.reports.utils.io import finalize_report, get_fig_config, setup_re
 logger = logging.getLogger(__name__)
 
 
+# #region agent log
+def _agent_debug_log(hypothesis_id: str, location: str, message: str, data: dict[str, Any]) -> None:
+    """Lightweight NDJSON logger for debugging analyze_pid_embeddings."""
+    try:
+        import json
+        import time
+
+        log_path = Path(".cursor") / "debug.log"
+        payload = {
+            "id": f"log_{int(time.time() * 1000)}",
+            "timestamp": int(time.time() * 1000),
+            "location": location,
+            "message": message,
+            "data": data,
+            "runId": "pid-deepdive",
+            "hypothesisId": hypothesis_id,
+        }
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        with log_path.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(payload) + "\n")
+    except Exception:
+        # Never let debugging interfere with report generation
+        return
+
+
+# #endregion agent log
+
+
 # ---------------------------------------------------------------------------
 # Metadata extraction
 # ---------------------------------------------------------------------------
@@ -362,6 +390,18 @@ def _plot_performance_comparison(
 ) -> None:
     """Bar chart of final metric by run_label, plus learning curves colored by pid_mode."""
     df = runs_df.copy()
+
+    # #region agent log
+    _agent_debug_log(
+        hypothesis_id="H1",
+        location="analyze_pid_embeddings._plot_performance_comparison:before-loop",
+        message="runs_df columns and sample row keys before performance plotting",
+        data={
+            "columns": list(df.columns),
+            "num_rows": int(len(df)),
+        },
+    )
+    # #endregion agent log
 
     # Final metric per run
     final_vals = {}

@@ -116,34 +116,6 @@ class PretrainedTokenizer(nn.Module):
         torch.Tensor
             [B, T, embed_dim] tokenized features
         """
-        # #region agent log
-        try:
-            import json
-            import time as _t
-
-            _data = {
-                "tokens_cont_device": str(getattr(tokens_cont, "device", "none")),
-                "tokens_id_device": str(getattr(tokens_id, "device", "none")),
-                "globals_vec_device": str(getattr(globals_vec, "device", "none")) if globals_vec is not None else "None",
-                "encoder_loaded": bool(self._loaded),
-            }
-            with open(r"c:\Users\niels\Projects\Thesis-Code\Code\Niels_repo\.cursor\debug.log", "a") as _f:
-                _f.write(
-                    json.dumps(
-                        {
-                            "location": "pretrained.PretrainedTokenizer.forward",
-                            "message": "before _load_model",
-                            "data": _data,
-                            "hypothesisId": "H1_H5",
-                            "timestamp": _t.time(),
-                        }
-                    )
-                    + "\n"
-                )
-        except Exception:
-            pass
-        # #endregion
-
         self._load_model()
 
         # Ensure AE components live on the same device as the classifier inputs
