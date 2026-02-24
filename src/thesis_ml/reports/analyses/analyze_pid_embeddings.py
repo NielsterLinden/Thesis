@@ -596,10 +596,22 @@ def run_report(cfg: DictConfig) -> None:
 
         # Evolution plot
         if "pid_evolution" in wanted or "pid_geometry" in wanted:
+            # Handle NaN / None transition_epoch values gracefully
+            te_raw = transition_epoch
+            if te_raw is None:
+                te_int: int | None = None
+            else:
+                try:
+                    # Some configs may store this as float (or NaN); coerce or drop.
+                    te_float = float(te_raw)
+                    te_int = None if np.isnan(te_float) else int(te_float)
+                except Exception:
+                    te_int = None
+
             fig = _plot_pid_evolution(
                 snapshots,
                 run_label,
-                transition_epoch=int(transition_epoch) if transition_epoch is not None else None,
+                transition_epoch=te_int,
                 fig_cfg=fig_cfg,
             )
             fig.savefig(run_pid_dir / f"evolution.{fmt}", dpi=dpi)
