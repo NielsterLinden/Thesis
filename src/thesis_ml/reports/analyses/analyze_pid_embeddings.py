@@ -36,6 +36,27 @@ from thesis_ml.reports.utils.io import finalize_report, get_fig_config, setup_re
 logger = logging.getLogger(__name__)
 
 
+# Human-readable labels for PID indices (dataset-specific).
+# Index 0 is effectively unused/padding in this setup.
+PARTICLE_LABELS: list[str] = [
+    "pad",  # 0
+    "j",  # 1: jet
+    "b",  # 2: b-jet
+    "e+",  # 3: positron
+    "e-",  # 4: electron
+    "mu+",  # 5: muon
+    "mu-",  # 6: anti-muon
+    "g",  # 7: photon
+]
+
+
+def _pid_label(pid: int) -> str:
+    """Map PID index to human-readable label."""
+    if 0 <= pid < len(PARTICLE_LABELS):
+        return PARTICLE_LABELS[pid]
+    return str(pid)
+
+
 # #region agent log
 def _agent_debug_log(hypothesis_id: str, location: str, message: str, data: dict[str, Any]) -> None:
     """Lightweight NDJSON logger for debugging analyze_pid_embeddings."""
