@@ -29,7 +29,7 @@ import torch
 from matplotlib.figure import Figure
 from omegaconf import DictConfig
 
-from thesis_ml.facts.readers import _extract_value_from_composed_cfg, _read_cfg
+from thesis_ml.facts.readers import _extract_value_from_composed_cfg, _parse_hydra_overrides, _read_cfg
 from thesis_ml.reports.plots.curves import plot_all_train_curves, plot_all_val_curves
 from thesis_ml.reports.utils.io import finalize_report, get_fig_config, setup_report_environment
 
@@ -121,13 +121,27 @@ def _extract_pid_metadata(runs_df: pd.DataFrame) -> pd.DataFrame:
         dim_val = _extract_value_from_composed_cfg(cfg, "classifier.model.tokenizer.id_embed_dim", int)
         dim = dim_val if dim_val is not None else 8
 
-        sched_cfg = _extract_value_from_composed_cfg(cfg, "classifier.trainer.pid_schedule")
-        if isinstance(sched_cfg, dict):
-            sched = sched_cfg.get("mode", "standard")
-            trans_ep = sched_cfg.get("transition_epoch")
+        # Prefer pid_schedule information from Hydra overrides when present,
+        # fall back to composed config otherwise.
+        overrides = _parse_hydra_overrides(cfg)
+        sched_key = "classifier.trainer.pid_schedule.mode"
+        trans_key = "classifier.trainer.pid_schedule.transition_epoch"
+
+        if sched_key in overrides:
+            sched = str(overrides[sched_key])
+            trans_raw = overrides.get(trans_key)
+            try:
+                trans_ep = int(trans_raw) if trans_raw is not None else None
+            except (TypeError, ValueError):
+                trans_ep = None
         else:
-            sched = "standard"
-            trans_ep = None
+            sched_cfg = _extract_value_from_composed_cfg(cfg, "classifier.trainer.pid_schedule")
+            if isinstance(sched_cfg, dict):
+                sched = sched_cfg.get("mode", "standard")
+                trans_ep = sched_cfg.get("transition_epoch")
+            else:
+                sched = "standard"
+                trans_ep = None
 
         pid_modes.append(mode)
         id_embed_dims.append(int(dim) if dim is not None else 8)
@@ -189,15 +203,22 @@ def _plot_cosine_heatmap(
     """Plot a heatmap of the cosine similarity between PID embedding vectors."""
     fig, ax = plt.subplots(1, 1, figsize=(7, 6))
 
-    mat = cosine_matrix.numpy()
+    # Optionally drop padding PID (index 0) so plots focus on physical types.
+    full = cosine_matrix.numpy()
+    offset = 1 if full.shape[0] == len(PARTICLE_LABELS) else 0
+    mat = full[offset:, offset:] if offset == 1 else full
+
     im = ax.imshow(mat, cmap="RdBu_r", vmin=-1, vmax=1)
     fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
 
     n = mat.shape[0]
     ax.set_xticks(range(n))
     ax.set_yticks(range(n))
-    ax.set_xlabel("Particle Type ID")
-    ax.set_ylabel("Particle Type ID")
+    labels = [_pid_label(i + offset) for i in range(n)]
+    ax.set_xticklabels(labels)
+    ax.set_yticklabels(labels)
+    ax.set_xlabel("Particle")
+    ax.set_ylabel("Particle")
     ax.set_title(title)
 
     # Annotate cells
@@ -236,8 +257,16 @@ def _plot_pid_evolution(
     for s in snapshots:
         C = s["cosine_matrix"]
         N = C.size(0)
-        mask = ~torch.eye(N, dtype=torch.bool)
-        off = C[mask].abs()
+        # Focus orthogonality metrics on physical PIDs (skip padding index 0 if present).
+        idx_start = 1 if len(PARTICLE_LABELS) == N else 0
+        if idx_start == 1:
+            idx = torch.arange(idx_start, N)
+            C_phys = C[idx][:, idx]
+        else:
+            C_phys = C
+        N_phys = C_phys.size(0)
+        mask = ~torch.eye(N_phys, dtype=torch.bool)
+        off = C_phys[mask].abs()
         mean_off_diag.append(off.mean().item())
         max_off_diag.append(off.max().item())
 
@@ -248,7 +277,10 @@ def _plot_pid_evolution(
         except Exception:
             isotropies.append(0.0)
 
-        mean_norms.append(s["norms"].mean().item())
+        norms = s["norms"]
+        if norms.numel() == len(PARTICLE_LABELS):
+            norms = norms[1:]  # drop padding PID
+        mean_norms.append(norms.mean().item())
 
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
 
@@ -287,12 +319,20 @@ def _plot_pid_evolution(
 
     # (1,1) — Per-type norms at final epoch
     ax = axes[1, 1]
-    final_norms = snapshots[-1]["norms"].numpy()
-    ax.bar(range(len(final_norms)), final_norms, color="steelblue", edgecolor="black")
-    ax.set_xlabel("Particle Type ID")
+    norms = snapshots[-1]["norms"]
+    if norms.numel() == len(PARTICLE_LABELS):
+        idx_start = 1
+        norms = norms[1:]
+    else:
+        idx_start = 0
+    final_norms = norms.numpy()
+    n = len(final_norms)
+    ax.bar(range(n), final_norms, color="steelblue", edgecolor="black")
+    ax.set_xlabel("Particle")
     ax.set_ylabel("L2 Norm")
-    ax.set_title("Per-Type Norms (final epoch)")
-    ax.set_xticks(range(len(final_norms)))
+    ax.set_title("Per-Particle Norms (final epoch)")
+    ax.set_xticks(range(n))
+    ax.set_xticklabels([_pid_label(i + idx_start) for i in range(n)])
     ax.grid(True, alpha=0.3, axis="y")
 
     fig.suptitle(f"PID Embedding Evolution — {run_label}", fontsize=14, fontweight="bold")
@@ -351,25 +391,29 @@ def _plot_pid_pca_tsne(
         axes = axes.reshape(2, 1)
 
     cmap = plt.cm.tab10
-    num_types = selected[0][1]["num_types"]
+    num_types_full = selected[0][1]["num_types"]
+    idx_start = 1 if num_types_full == len(PARTICLE_LABELS) else 0
+    pid_indices = list(range(idx_start, num_types_full))
+    num_types = len(pid_indices)
 
     for col_idx, (ep, snap) in enumerate(selected):
-        W = snap["weight"].numpy()  # [num_types, id_embed_dim]
+        W_full = snap["weight"].numpy()  # [num_types_full, id_embed_dim]
+        W = W_full[pid_indices, :]  # [num_types, id_embed_dim]
 
         # PCA
         ax = axes[0, col_idx]
         if W.shape[1] >= 2:
             pca = PCA(n_components=2)
             W_pca = pca.fit_transform(W)
-            for pid in range(num_types):
-                ax.scatter(W_pca[pid, 0], W_pca[pid, 1], color=cmap(pid), s=100, edgecolors="black", zorder=3)
-                ax.annotate(f"{pid}", (W_pca[pid, 0], W_pca[pid, 1]), fontsize=8, ha="center", va="bottom")
+            for k, pid in enumerate(pid_indices):
+                ax.scatter(W_pca[k, 0], W_pca[k, 1], color=cmap(pid), s=100, edgecolors="black", zorder=3)
+                ax.annotate(_pid_label(pid), (W_pca[k, 0], W_pca[k, 1]), fontsize=8, ha="center", va="bottom")
             ev = pca.explained_variance_ratio_
             ax.set_xlabel(f"PC1 ({ev[0]:.0%})")
             ax.set_ylabel(f"PC2 ({ev[1]:.0%})")
         else:
-            ax.bar(range(num_types), W[:, 0], color=[cmap(i) for i in range(num_types)])
-            ax.set_xlabel("Particle Type")
+            ax.bar(range(num_types), W[:, 0], color=[cmap(i) for i in pid_indices])
+            ax.set_xlabel("Particle")
             ax.set_ylabel("Value")
         ax.set_title(f"PCA — Epoch {ep}")
         ax.grid(True, alpha=0.3)
@@ -381,9 +425,9 @@ def _plot_pid_pca_tsne(
             # Use only arguments supported across sklearn versions
             tsne = TSNE(n_components=2, perplexity=perplexity, random_state=42)
             W_tsne = tsne.fit_transform(W)
-            for pid in range(num_types):
-                ax.scatter(W_tsne[pid, 0], W_tsne[pid, 1], color=cmap(pid), s=100, edgecolors="black", zorder=3)
-                ax.annotate(f"{pid}", (W_tsne[pid, 0], W_tsne[pid, 1]), fontsize=8, ha="center", va="bottom")
+            for k, pid in enumerate(pid_indices):
+                ax.scatter(W_tsne[k, 0], W_tsne[k, 1], color=cmap(pid), s=100, edgecolors="black", zorder=3)
+                ax.annotate(_pid_label(pid), (W_tsne[k, 0], W_tsne[k, 1]), fontsize=8, ha="center", va="bottom")
             ax.set_xlabel("tSNE-1")
             ax.set_ylabel("tSNE-2")
         else:
