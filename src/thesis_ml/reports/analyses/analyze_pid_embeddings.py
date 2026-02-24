@@ -29,7 +29,7 @@ import torch
 from matplotlib.figure import Figure
 from omegaconf import DictConfig
 
-from thesis_ml.facts.readers import _extract_value_from_composed_cfg, _parse_hydra_overrides, _read_cfg
+from thesis_ml.facts.readers import _extract_value_from_composed_cfg, _read_cfg
 from thesis_ml.reports.plots.curves import plot_all_train_curves, plot_all_val_curves
 from thesis_ml.reports.utils.io import finalize_report, get_fig_config, setup_report_environment
 
@@ -104,8 +104,9 @@ def _extract_pid_metadata(runs_df: pd.DataFrame) -> pd.DataFrame:
     labels: list[str] = []
 
     for run_dir in df["run_dir"]:
+        run_path = Path(run_dir)
         try:
-            cfg, _ = _read_cfg(Path(run_dir))
+            cfg, _ = _read_cfg(run_path)
         except Exception as e:
             logger.warning("Failed to read cfg for %s: %s", run_dir, e)
             pid_modes.append("unknown")
@@ -121,20 +122,29 @@ def _extract_pid_metadata(runs_df: pd.DataFrame) -> pd.DataFrame:
         dim_val = _extract_value_from_composed_cfg(cfg, "classifier.model.tokenizer.id_embed_dim", int)
         dim = dim_val if dim_val is not None else 8
 
-        # Prefer pid_schedule information from Hydra overrides when present,
+        # Prefer pid_schedule information from the run's overrides.yaml if present,
         # fall back to composed config otherwise.
-        overrides = _parse_hydra_overrides(cfg)
-        sched_key = "classifier.trainer.pid_schedule.mode"
-        trans_key = "classifier.trainer.pid_schedule.transition_epoch"
+        sched = "standard"
+        trans_ep: int | None = None
 
-        if sched_key in overrides:
-            sched = str(overrides[sched_key])
-            trans_raw = overrides.get(trans_key)
+        overrides_path = run_path / ".hydra" / "overrides.yaml"
+        if overrides_path.exists():
             try:
-                trans_ep = int(trans_raw) if trans_raw is not None else None
-            except (TypeError, ValueError):
-                trans_ep = None
-        else:
+                for line in overrides_path.read_text(encoding="utf-8").splitlines():
+                    line = line.strip().lstrip("-").strip()
+                    if line.startswith("classifier.trainer.pid_schedule.mode="):
+                        sched = line.split("=", 1)[1].strip()
+                    elif line.startswith("classifier.trainer.pid_schedule.transition_epoch="):
+                        val = line.split("=", 1)[1].strip()
+                        try:
+                            trans_ep = int(val)
+                        except ValueError:
+                            trans_ep = None
+            except Exception as e:
+                logger.warning("Failed to parse overrides.yaml for %s: %s", run_dir, e)
+
+        if sched == "standard":
+            # If not overridden (or parsing failed), try composed config.
             sched_cfg = _extract_value_from_composed_cfg(cfg, "classifier.trainer.pid_schedule")
             if isinstance(sched_cfg, dict):
                 sched = sched_cfg.get("mode", "standard")
