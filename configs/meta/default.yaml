@@ -1,5 +1,5 @@
 # Metadata schema configuration
-# See METADATA_SCHEMA.md for full documentation
+# See docs/archive/METADATA_SCHEMA.md for full documentation
 
 schema_version: 1
 level: "sim_event"

@@ -9,7 +9,7 @@ Key design principles:
 - Canonical ordering ensures identical tasks hash identically
 - Derived fields are cache and can be regenerated
 
-See METADATA_SCHEMA.md for full documentation.
+See docs/archive/METADATA_SCHEMA.md for full documentation.
 """
 
 from __future__ import annotations
