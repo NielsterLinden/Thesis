@@ -543,6 +543,23 @@ def handle_event(cfg_logging, supported_families, moment, payload):
 2. Implement handler with `handle(moment, payload, cfg) -> list[Figure]`
 3. Register in `monitoring/registry.py`
 
+### WandB Integration
+
+**Core code:** `src/thesis_ml/utils/wandb_utils.py` — `init_wandb()`, `extract_wandb_config()`, `log_metrics()`, `finish_wandb()`, `log_artifact()`
+
+**Scripts:** `scripts/wandb/` — `cleanup_wandb.py`, `migrate_runs_to_wandb.py`, `sync_wandb.sh`, `test_wandb_hpc.py`, `backfill_labels.py`
+
+**Configs:** `configs/logging/` — `wandb_online`, `wandb_offline`, `default`
+
+**Auth:** `hpc/stoomboot/.wandb_env` (local and HPC; gitignored). Create with `export WANDB_API_KEY="your_key_here"`.
+
+**SOP for new config keys:**
+
+1. Add key to Hydra config YAML
+2. Optionally add curated extraction in `extract_wandb_config()` for clean dashboard UX
+3. `raw/*` auto-flatten ensures new keys are never lost
+4. Run `python scripts/wandb/backfill_labels.py --dry-run --labels '{"new/key": "default"}'` to stamp old runs with the default value
+
 ## 📁 File System Conventions
 
 ### Run Directory Structure

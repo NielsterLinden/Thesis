@@ -1,6 +1,0 @@
-# Copy to .wandb_env and add your key (file is gitignored):
-#   cp .wandb_env.example .wandb_env
-#   # then edit .wandb_env and replace with your key
-#
-# Or store key in ~/.wandb_api_key (one line, key only).
-export WANDB_API_KEY="your_key_here"

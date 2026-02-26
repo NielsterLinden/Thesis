@@ -4,7 +4,7 @@ defaults:
 
   # --- Hydra & logging ---
   - hydra: run_single
-  - logging: wandb_offline
+  - logging: wandb_online
 
   # --- Metadata schema ---
   - meta: default

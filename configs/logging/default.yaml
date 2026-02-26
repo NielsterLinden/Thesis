@@ -47,7 +47,7 @@ wandb:
   run_name: ""  # Leave empty to auto-generate from run directory (e.g., run_20260128-111834_myexp_job001)
   group: ""  # Leave empty to auto-extract from run_name (e.g., exp_20260128-111834_myexp), or set explicitly
   tags: []   # For filtering runs in W&B UI (e.g., ["classifier", "ablation"])
-  mode: "offline"      # "online" | "offline" (use offline for HPC)
+  mode: "online"       # "online" | "offline" (use offline for HPC when needed)
   watch_model: false   # watch gradients/parameters (can slow training)
   log_freq: 100        # steps between watch logs
   log_artifacts: false  # do not upload .pt to WandB; model files stay in Facts run dirs

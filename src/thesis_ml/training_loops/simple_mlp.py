@@ -7,13 +7,13 @@ import time
 from pathlib import Path
 
 import torch
-from omegaconf import OmegaConf
 
 from thesis_ml.architectures.simple.mlp import build_model
 from thesis_ml.data import build_dataloaders
 from thesis_ml.facts import append_jsonl_event, append_scalars_csv, build_event_payload
 from thesis_ml.monitoring.orchestrator import handle_event
 from thesis_ml.utils import TrainingProgressShower, set_all_seeds
+from thesis_ml.utils.wandb_utils import finish_wandb, init_wandb, log_artifact, log_metrics
 
 logger = logging.getLogger(__name__)
 
@@ -53,33 +53,8 @@ def train(cfg) -> dict:
     train_loader, val_loader, meta = build_dataloaders(cfg)
     model = build_model(cfg, input_dim=meta["input_dim"], task=meta["task"]).to(device)
 
-    # Optional: initialize Weights & Biases
-    wandb_run = None
-    if bool(cfg.logging.use_wandb):
-        try:
-            import wandb
-
-            # Ensure W&B output directory exists
-            wandb_dir = Path(str(cfg.logging.wandb.dir)).resolve()
-            wandb_dir.mkdir(parents=True, exist_ok=True)
-
-            wandb_run = wandb.init(
-                project=str(cfg.logging.wandb.project),
-                entity=str(cfg.logging.wandb.entity) or None,
-                name=str(cfg.logging.wandb.run_name) or None,
-                mode=str(cfg.logging.wandb.mode),
-                dir=str(wandb_dir),
-                config=OmegaConf.to_container(cfg, resolve=True),
-            )
-            if bool(cfg.logging.wandb.watch_model):
-                wandb.watch(
-                    model,
-                    log="all",
-                    log_freq=int(cfg.logging.wandb.log_freq),
-                )
-        except Exception as e:  # pragma: no cover - logging side-effect only
-            logger.warning("[wandb] disabled due to init error: %s", e)
-            wandb_run = None
+    # Initialize W&B (returns None if disabled or on error - training continues normally)
+    wandb_run = init_wandb(cfg, model=model)
 
     task = meta["task"]
     if task == "regression":
@@ -223,20 +198,13 @@ def train(cfg) -> dict:
         handle_event(cfg.logging, SUPPORTED_PLOT_FAMILIES, "on_epoch_end", payload)
 
         # Per-epoch W&B logging
-        if wandb_run is not None:
-            log = {
-                "epoch": epoch + 1,
-                "train/loss": float(epoch_train_loss),
-                "val/loss": float(epoch_val_loss),
-            }
-            if task == "binary" and total > 0:
-                log["val/acc"] = float(acc)
-            try:  # pragma: no cover - logging side-effect only
-                import wandb
-
-                wandb.log(log, step=epoch + 1)
-            except Exception as e:
-                logger.warning("[wandb] log failed: %s", e)
+        metrics = {
+            "train/loss": float(epoch_train_loss),
+            "val/loss": float(epoch_val_loss),
+        }
+        if task == "binary" and total > 0:
+            metrics["val/acc"] = float(acc)
+        log_metrics(wandb_run, metrics, step=epoch + 1)
 
     # Save artifacts
     saved_path: str | None = None
@@ -286,17 +254,8 @@ def train(cfg) -> dict:
         if bool(cfg.logging.save_artifacts):
             append_jsonl_event(str(run_dir), payload_end)
         handle_event(cfg.logging, SUPPORTED_PLOT_FAMILIES, "on_train_end", payload_end)
-        # Upload artifacts to W&B
-        if wandb_run is not None and bool(cfg.logging.wandb.log_artifacts):
-            try:  # pragma: no cover - logging side-effect only
-                import wandb
-
-                art = wandb.Artifact("model", type="model")
-                art.add_file(str(best_val_path))
-                wandb.log_artifact(art)
-                # Optional future: log figures via external tracker
-            except Exception as e:
-                logger.warning("[wandb] artifact log failed: %s", e)
+        # Upload artifacts to W&B (respects cfg.logging.wandb.log_artifacts)
+        log_artifact(wandb_run, best_val_path, "model", cfg)
         saved_path = str(run_dir.resolve())
     else:
         # Ephemeral: write to temp dir and remove after
@@ -329,23 +288,10 @@ def train(cfg) -> dict:
             )
             handle_event(cfg.logging, SUPPORTED_PLOT_FAMILIES, "on_train_end", payload_end)
             # Upload artifacts to W&B before temp dir deletes
-            if wandb_run is not None and bool(cfg.logging.wandb.log_artifacts):
-                try:  # pragma: no cover - logging side-effect only
-                    import wandb
-
-                    art = wandb.Artifact("model", type="model")
-                    art.add_file(str(model_path))
-                    wandb.log_artifact(art)
-                except Exception as e:
-                    logger.warning("[wandb] artifact log failed: %s", e)
+            log_artifact(wandb_run, model_path, "model", cfg)
             # directory auto-deletes here
 
-    # Finish W&B run
-    if wandb_run is not None:
-        try:  # pragma: no cover - logging side-effect only
-            wandb_run.finish()
-        except Exception as e:
-            logger.warning("[wandb] finish failed: %s", e)
+    finish_wandb(wandb_run)
 
     return {
         "final_train_loss": float(train_losses[-1]),

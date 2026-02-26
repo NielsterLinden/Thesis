@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -56,6 +57,18 @@ def _safe_get(cfg: dict[str, Any], path: str, default: Any = None) -> Any:
         return val if val != {} else default
     except Exception:
         return default
+
+
+def _flatten_dict(d: dict[str, Any], prefix: str = "") -> dict[str, Any]:
+    """Recursively flatten nested dict with path separator. For WandB raw/* catch-all."""
+    out: dict[str, Any] = {}
+    for k, v in d.items():
+        full_key = f"{prefix}/{k}" if prefix else k
+        if isinstance(v, dict):
+            out.update(_flatten_dict(v, full_key))
+        elif v is not None:
+            out[full_key] = json.dumps(v) if isinstance(v, list | dict) else v
+    return out
 
 
 def extract_wandb_config(cfg: dict[str, Any], source_location: str = "live") -> dict[str, Any]:
@@ -218,6 +231,19 @@ def extract_wandb_config(cfg: dict[str, Any], source_location: str = "live") -> 
     meta_fields = extract_meta_fields(cfg)
     wc.update(meta_fields)
 
+    # === raw/* auto-flatten: catch-all so new config keys are never lost ===
+    try:
+        from omegaconf import OmegaConf
+
+        data = OmegaConf.to_container(cfg, resolve=True) if not isinstance(cfg, dict) else cfg
+    except Exception:
+        data = cfg if isinstance(cfg, dict) else {}
+    if isinstance(data, dict):
+        data_no_hydra = {k: v for k, v in data.items() if k != "hydra"}
+        raw_flat = _flatten_dict(data_no_hydra, "raw")
+        for k, v in raw_flat.items():
+            if k not in wc:
+                wc[k] = v
     # Remove None values for cleaner WandB display
     return {k: v for k, v in wc.items() if v is not None}
 
@@ -348,6 +374,45 @@ def extract_meta_tags(cfg: dict[str, Any]) -> list[str]:
     return tags
 
 
+def _load_wandb_env_if_needed() -> None:
+    """Load WANDB_API_KEY from hpc/stoomboot/.wandb_env if not already set.
+
+    Both local and HPC use the same file. On HPC, init_session.sh sources it;
+    locally, we load it here so wandb login is not required.
+    """
+    if os.environ.get("WANDB_API_KEY"):
+        return
+    # Find project root (directory containing pyproject.toml)
+    path = Path(__file__).resolve()
+    for _ in range(6):  # utils -> thesis_ml -> src -> project root
+        path = path.parent
+        if (path / "pyproject.toml").exists():
+            break
+    else:
+        return
+    env_file = path / "hpc" / "stoomboot" / ".wandb_env"
+    if not env_file.exists():
+        return
+    try:
+        content = env_file.read_text()
+        for line in content.splitlines():
+            line = line.strip()
+            if line.startswith("#"):
+                continue
+            # Match: export WANDB_API_KEY="..." or WANDB_API_KEY="..."
+            if "WANDB_API_KEY" in line and "=" in line:
+                if line.startswith("export "):
+                    line = line[7:]
+                key, _, val = line.partition("=")
+                if key.strip() == "WANDB_API_KEY" and val:
+                    val = val.strip().strip("'\"").strip()
+                    if val:
+                        os.environ["WANDB_API_KEY"] = val
+                        return
+    except Exception as e:
+        logger.debug("[wandb] could not load .wandb_env: %s", e)
+
+
 def _get_run_name_from_cwd() -> str | None:
     """Extract a meaningful run name from the current working directory.
 
@@ -446,6 +511,8 @@ def init_wandb(cfg: DictConfig, model: Any = None) -> Any:
 
         import wandb
 
+        _load_wandb_env_if_needed()
+
         wandb_cfg = cfg.logging.wandb
         wandb_dir = Path(str(wandb_cfg.dir)).resolve()
         wandb_dir.mkdir(parents=True, exist_ok=True)
@@ -466,13 +533,15 @@ def init_wandb(cfg: DictConfig, model: Any = None) -> Any:
         # Pass cfg (DictConfig) so build_meta can access nested config (e.g. data.classifier)
         wandb_config = extract_wandb_config(cfg, source_location="live")
 
+        mode = os.environ.get("WANDB_MODE", str(wandb_cfg.mode))
+
         run = wandb.init(
             project=str(wandb_cfg.project),
             entity=entity,
             name=run_name,
             group=group,
             tags=tags,
-            mode=str(wandb_cfg.mode),
+            mode=mode,
             dir=str(wandb_dir),
             config=wandb_config,  # Use extracted config for consistent metadata
             resume="allow",  # Prevents duplicates on re-run
