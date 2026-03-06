@@ -2,7 +2,7 @@
 """Compare our binned dataset with Ambre's pre-binned dataset.
 
 Run interactively on HPC:
-  python scripts/compare_binned_datasets.py \\
+  python scripts/one_off/compare_binned_datasets.py \\
     --ours /data/atlas/users/nterlind/datasets/4tops_5bins_ours.h5 \\
     --ambres /data/atlas/users/avisive/tokens/binning/4tops/4top_5bins_binningOnBckgdEvents_train_AND_test.h5
 """
@@ -16,8 +16,8 @@ from pathlib import Path
 import h5py
 import numpy as np
 
-# Add project root for imports
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+# Add project root for imports (scripts/one_off/ -> project root)
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 

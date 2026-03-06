@@ -22,41 +22,130 @@ classifier:
     positional: sinusoidal  # "none", "sinusoidal", "learned", or "rotary"
 
     # Positional encoding space (where PE is applied)
-    positional_space: model  # "model" (after projection, old behavior) or "token" (before projection, for selective PE)
+    positional_space: model  # "model" (after projection) or "token" (before projection)
 
-    # Positional encoding dimension mask (only used when positional_space: "token")
-    # null: apply PE to all dimensions
-    # List of ints: explicit dimension indices (e.g., [0, 1, 2, 3])
-    # List of strings: semantic names (e.g., ["id"], ["E", "Pt"], ["continuous"])
-    #   Available names: "E", "Pt", "eta", "phi", "continuous", "id" (only for IdentityTokenizer)
+    # Positional encoding dimension mask (only when positional_space: "token")
+    # null: all dims; list of ints or ["E","Pt","eta","phi","continuous","id"]
     positional_dim_mask: null
 
-    # Rotary positional encoding options (only used when positional: rotary)
+    # Rotary positional encoding options (only when positional: rotary)
     rotary:
-      base: 10000.0       # Base for computing inverse frequencies
+      base: 10000.0
 
-    # Causal attention (encoder: position i cannot attend to j > i)
+    # Causal attention
     causal_attention: false
 
     # Pooling strategy
-    pooling: cls          # "cls" (first token) or "mean" (average pooling)
+    pooling: cls          # "cls" or "mean"
 
-    # Physics-informed pairwise attention bias (m2, deltaR from tokens_cont; raw format only)
+    # -----------------------------------------------------------------------
+    # Shared pairwise feature backbone (compute F_ij once for all modules)
+    # When enabled, lorentz_scalar, typepair_kinematic, MIAEncoder consume F_ij.
+    # -----------------------------------------------------------------------
+    shared_backbone:
+      enabled: true       # enable when any bias or MIA needs pairwise features
+      features: "all"     # "all" or list, e.g. [m2, deltaR, log_kt, z]
+
+    # -----------------------------------------------------------------------
+    # Physics-informed attention bias selector
+    #
+    # Set attention_biases to a "+" separated list of module names to enable.
+    # Each module has a learnable scalar gate (init=0) so adding any module
+    # never disturbs the baseline at initialisation.
+    # Raw tokenizer required (tokens_cont must be present).
+    #
+    # Valid tokens:
+    #   none                — baseline (no physics bias)
+    #   lorentz_scalar      — pairwise Lorentz-scalar MLP (Li et al. 2024)
+    #   typepair_kinematic  — learnable type-pair table (Builtjes et al. 2025)
+    #   typepair            — alias for typepair_kinematic
+    #   sm_interaction      — fixed SM coupling prior (Builtjes et al. 2025)
+    #   sm                  — alias for sm_interaction
+    #   global_conditioned  — MET-conditioned pairwise bias (novel)
+    #   global              — alias for global_conditioned
+    #
+    # Examples:
+    #   attention_biases: "none"
+    #   attention_biases: "lorentz_scalar"
+    #   attention_biases: "lorentz_scalar+typepair_kinematic"
+    #
+    # Sweep (--multirun):
+    #   "attention_biases=none,lorentz_scalar,typepair_kinematic,lorentz_scalar+typepair_kinematic"
+    # -----------------------------------------------------------------------
+    attention_biases: "none"
+
+    # Per-module hyperparameters (used only when the module name is selected above)
+    bias_config:
+
+      # Module 1 — Extended Lorentz-Scalar Bias
+      # Source: ParT (Qu et al. 2022), Li et al. (2024), Wu et al. MIParT (2025)
+      lorentz_scalar:
+        features: [m2, deltaR]    # subset of: m2, dot, log_m2, log_kt, z, deltaR, deltaR_ptw
+        hidden_dim: 8             # pointwise MLP hidden dim
+        per_head: false           # false → shared bias broadcast across heads
+        sparse_gating: false      # true: per-feature sigmoid gates for learned importance
+
+      # Module 2 — Type-Pair Kinematic Bias
+      # Source: Novel, inspired by Builtjes et al. (2025)
+      typepair_kinematic:
+        kinematic_gate: true         # multiply table by MLP(kinematic_feature)
+        kinematic_feature: log_m2    # one of VALID_FEATURES
+        init_from_physics: none      # none | binary | fixed_coupling
+        mask_value: -5.0
+        freeze_table: false          # true: freeze table (physics prior only, for interpretability)
+
+      # Module 3 — SM Interaction Bias
+      # Source: Builtjes et al. (2025), Section 4.2
+      sm_interaction:
+        mode: binary               # binary | fixed_coupling | running_coupling
+        mask_value: -100.0
+
+      # Module 4 — Global-Conditioned Bias
+      # Source: Novel
+      global_conditioned:
+        global_dim: 16             # hidden dim for globals MLP
+        mode: global_scale         # global_scale | met_direction
+
+    # -----------------------------------------------------------------------
+    # Nodewise-mass embedding patch (applied to x before the encoder)
+    # Source: Li et al. (2024), Section III.B
+    # Requires E (cont_dim=4). No-op otherwise.
+    # -----------------------------------------------------------------------
+    nodewise_mass:
+      enabled: false
+      k_values: [4, 8, 16, 32]    # neighbourhood sizes (Li et al. defaults)
+      hidden_dim: 64
+
+    # -----------------------------------------------------------------------
+    # MIParT pre-encoder (K MIA blocks + interaction reduction → U2)
+    # Source: Wu et al. (2025) MIParT, Sections II.B–II.D
+    # Operates on physical tokens before the standard encoder.
+    # reduction_dim should equal num_heads so U2 aligns with H-head bias.
+    # -----------------------------------------------------------------------
+    mia_blocks:
+      enabled: false
+      num_blocks: 5           # K MIA blocks (Wu et al. use K=5)
+      interaction_dim: 64     # D1 high-dim interaction embedding channels
+      reduction_dim: 8        # D2 after reduction (= num_heads by default)
+      dropout: 0.0
+      placement: prepend      # prepend (MIParT) | append | interleave
+
+    # -----------------------------------------------------------------------
+    # Legacy: attn_pairwise (deprecated — use attention_biases: "lorentz_scalar")
+    # If enabled and attention_biases is "none", automatically maps to
+    # lorentz_scalar with features=[m2, deltaR].
+    # -----------------------------------------------------------------------
     attn_pairwise:
       enabled: false
       features: [m2, deltaR]
       hidden_dim: 8
       per_head: false
-      per_layer: false    # Placeholder for future per-layer bias
+      per_layer: false
 
-    # Standard Model interaction prior (placeholder; implementation in separate PR)
-    interaction_prior:
-      enabled: false
-
-    # Tokenizer (optional pre-embedding transformation)
+    # Tokenizer
     tokenizer:
       name: raw           # "identity", "raw", "binned", or "pretrained"
-      id_embed_dim: 8     # Dimension for ID embedding in identity tokenizer (only for "identity")
-      pid_mode: learned   # PID embedding mode: "learned", "one_hot", or "fixed_random" (only for "identity")
+      id_embed_dim: 8
+      pid_mode: learned
       # For "binned": vocab_size will be inferred from data (typically 886)
       # For "pretrained": checkpoint_path and model_type must be specified

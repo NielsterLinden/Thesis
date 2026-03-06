@@ -2,7 +2,7 @@
 """Migrate legacy experiment directory with numbered subdirectories to new structure.
 
 Usage:
-    python scripts/migrate_legacy_runs.py /path/to/old/experiment/dir/
+    python scripts/one_off/migrate_legacy_runs.py /path/to/old/experiment/dir/
 """
 
 from __future__ import annotations

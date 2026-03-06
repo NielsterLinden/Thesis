@@ -1,0 +1,49 @@
+# @package _global_
+# 4t vs background — inductive bias data-scaling study
+# Tests Li et al. (2024) central claim: physics biases act as an inductive bias,
+# most beneficial at small data sizes. The gap between biased and unbiased models
+# should narrow as training data increases.
+#
+# NOTE: baseline and lorentz_scalar curves come from experiments 1 and 2
+# (mean over 3 seeds at each size). This experiment adds the remaining two curves:
+#   - sm_interaction alone at 3 sizes (direct single-module scaling)
+#   - lorentz + typepair + sm at 3 sizes (best expected combo)
+# Sweep: 2 configs x 3 model sizes x 1 seed = 6 jobs
+#
+# NOTE: single-seed scaling curves are only suggestive. If sm_interaction shows
+# strong scaling behavior (gap narrows/widens meaningfully), re-run with 3 seeds.
+
+meta:
+  goal: "classification"
+
+experiment:
+  name: "4tbg_physics_data_scaling"
+
+hydra:
+  mode: MULTIRUN
+  job:
+    chdir: true
+    name: ${experiment.name}
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweeper:
+    params:
+      +classifier/model_size: s200k,s600k,s1500k
+      classifier.trainer.seed: 42
+      classifier.model.attention_biases: "sm_interaction,lorentz_scalar+typepair_kinematic+sm_interaction"
+      classifier.model.bias_config.sm_interaction.mode: running_coupling
+      classifier.model.tokenizer.name: raw
+      classifier.model.positional: sinusoidal
+      classifier.model.pooling: cls
+      classifier.model.norm.policy: post
+      classifier.trainer.epochs: 50
+
+data:
+  classifier:
+    signal_vs_background:
+      signal: 1
+      background: [2, 3, 4, 5]
+    selected_labels: null

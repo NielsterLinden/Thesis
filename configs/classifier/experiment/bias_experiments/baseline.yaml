@@ -1,0 +1,37 @@
+# @package _global_
+# 4t vs background — baseline (no physics bias)
+# Sweep: 3 model sizes x 3 seeds = 9 jobs
+
+meta:
+  goal: "classification"
+
+experiment:
+  name: "4tbg_physics_baseline"
+
+hydra:
+  mode: MULTIRUN
+  job:
+    chdir: true
+    name: ${experiment.name}
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweeper:
+    params:
+      +classifier/model_size: s200k,s600k,s1500k
+      classifier.trainer.seed: 42,123,314
+      classifier.model.attention_biases: none
+      classifier.model.tokenizer.name: raw
+      classifier.model.positional: sinusoidal
+      classifier.model.pooling: cls
+      classifier.model.norm.policy: post
+      classifier.trainer.epochs: 50
+
+data:
+  classifier:
+    signal_vs_background:
+      signal: 1
+      background: [2, 3, 4, 5]
+    selected_labels: null

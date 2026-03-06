@@ -7,16 +7,16 @@ get null + needs_review=True.
 
 Usage:
     # Dry run (recommended first)
-    python scripts/backfill_meta.py --runs-dir /path/to/runs --dry-run
+    python scripts/one_off/backfill_meta.py --runs-dir /path/to/runs --dry-run
 
     # Backfill all runs
-    python scripts/backfill_meta.py --runs-dir /path/to/runs
+    python scripts/one_off/backfill_meta.py --runs-dir /path/to/runs
 
     # Apply manual overrides from facts/meta_override.json
-    python scripts/backfill_meta.py --runs-dir /path/to/runs --apply-overrides
+    python scripts/one_off/backfill_meta.py --runs-dir /path/to/runs --apply-overrides
 
     # Generate report only (no writes)
-    python scripts/backfill_meta.py --runs-dir /path/to/runs --report-only
+    python scripts/one_off/backfill_meta.py --runs-dir /path/to/runs --report-only
 """
 
 from __future__ import annotations
@@ -30,8 +30,8 @@ from typing import Any
 
 import yaml
 
-# Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+# Add src to path for imports (scripts/one_off/ -> project root)
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from thesis_ml.facts.meta import (
     PROCESS_ID_NAMES,

@@ -6,16 +6,16 @@ considered complete and usable for report generation.
 
 Usage:
     # Check specific experiment runs
-    python scripts/check_run_completeness.py \
+    python scripts/check/check_run_completeness.py \
         --base-dir /data/atlas/users/nterlind/outputs/runs \
         --pattern "run_20260211-093121_exp_binning_vs_direct_test_job*"
 
     # Check all runs in a directory
-    python scripts/check_run_completeness.py \
+    python scripts/check/check_run_completeness.py \
         --base-dir /data/atlas/users/nterlind/outputs/runs
 
     # Verbose output with details per run
-    python scripts/check_run_completeness.py \
+    python scripts/check/check_run_completeness.py \
         --base-dir /data/atlas/users/nterlind/outputs/runs \
         --pattern "run_*_exp_binning_vs_direct*" \
         --verbose
@@ -76,7 +76,7 @@ def check_run_completeness(run_dir: Path, verbose: bool = False) -> RunStatus:
     error_message = None
 
     if verbose:
-        logger.info(f"Checking: {run_dir.name}")
+        logger.info("Checking: %s", run_dir.name)
 
     # Check 1: Hydra config
     hydra_config = run_dir / ".hydra" / "config.yaml"
@@ -107,7 +107,7 @@ def check_run_completeness(run_dir: Path, verbose: bool = False) -> RunStatus:
                 if "epoch" in df.columns:
                     num_epochs = df["epoch"].max() + 1  # epochs are 0-indexed
                 if verbose:
-                    logger.info(f"  ✓ scalars.csv ({len(df)} rows, {num_epochs} epochs)")
+                    logger.info("  ✓ scalars.csv (%d rows, %s epochs)", len(df), num_epochs)
             else:
                 missing_items.append("scalars.csv (empty)")
                 if verbose:
@@ -116,7 +116,7 @@ def check_run_completeness(run_dir: Path, verbose: bool = False) -> RunStatus:
             error_message = f"Error reading scalars.csv: {e}"
             missing_items.append("scalars.csv (corrupt)")
             if verbose:
-                logger.error(f"  ❌ Error reading scalars.csv: {e}")
+                logger.error("  ❌ Error reading scalars.csv: %s", e)
 
     # Check 3: Events JSONL
     events_jsonl = run_dir / "facts" / "events.jsonl"
@@ -147,7 +147,7 @@ def check_run_completeness(run_dir: Path, verbose: bool = False) -> RunStatus:
         except Exception as e:
             error_message = f"Error reading events.jsonl: {e}"
             if verbose:
-                logger.error(f"  ❌ Error reading events.jsonl: {e}")
+                logger.error("  ❌ Error reading events.jsonl: %s", e)
 
     # Check 4: Checkpoint files
     checkpoint_files = [
@@ -160,7 +160,7 @@ def check_run_completeness(run_dir: Path, verbose: bool = False) -> RunStatus:
     if has_checkpoint:
         found_checkpoints = [ckpt.name for ckpt in checkpoint_files if ckpt.exists()]
         if verbose:
-            logger.info(f"  ✓ Checkpoints: {', '.join(found_checkpoints)}")
+            logger.info("  ✓ Checkpoints: %s", ", ".join(found_checkpoints))
     else:
         missing_items.append("checkpoint files (.pt)")
         if verbose:
@@ -173,7 +173,7 @@ def check_run_completeness(run_dir: Path, verbose: bool = False) -> RunStatus:
         if is_complete:
             logger.info("  ✅ Run is COMPLETE")
         else:
-            logger.warning(f"  ⚠️  Run is INCOMPLETE (missing: {', '.join(missing_items)})")
+            logger.warning("  ⚠️  Run is INCOMPLETE (missing: %s)", ", ".join(missing_items))
 
     return RunStatus(
         run_dir=run_dir,
@@ -211,17 +211,17 @@ def check_multiple_runs(
         List of status objects for each run
     """
     if not base_dir.exists():
-        logger.error(f"Base directory does not exist: {base_dir}")
+        logger.error("Base directory does not exist: %s", base_dir)
         return []
 
     # Find all matching run directories
     run_dirs = sorted(base_dir.glob(pattern))
 
     if not run_dirs:
-        logger.warning(f"No runs found matching pattern '{pattern}' in {base_dir}")
+        logger.warning("No runs found matching pattern '%s' in %s", pattern, base_dir)
         return []
 
-    logger.info(f"Found {len(run_dirs)} runs matching '{pattern}'")
+    logger.info("Found %d runs matching '%s'", len(run_dirs), pattern)
     logger.info("")
 
     statuses = []
@@ -256,18 +256,18 @@ def print_summary(statuses: list[RunStatus]) -> None:
     logger.info("=" * 80)
     logger.info("SUMMARY")
     logger.info("=" * 80)
-    logger.info(f"Total runs checked: {len(statuses)}")
-    logger.info(f"Complete runs: {len(complete)} ({100 * len(complete) / len(statuses):.1f}%)")
-    logger.info(f"Incomplete runs: {len(incomplete)} ({100 * len(incomplete) / len(statuses):.1f}%)")
+    logger.info("Total runs checked: %d", len(statuses))
+    logger.info("Complete runs: %d (%.1f%%)", len(complete), 100 * len(complete) / len(statuses))
+    logger.info("Incomplete runs: %d (%.1f%%)", len(incomplete), 100 * len(incomplete) / len(statuses))
     logger.info("")
 
     if incomplete:
         logger.info("INCOMPLETE RUNS:")
         for status in incomplete:
-            logger.info(f"  - {status.run_dir.name}")
-            logger.info(f"    Missing: {', '.join(status.missing_items)}")
+            logger.info("  - %s", status.run_dir.name)
+            logger.info("    Missing: %s", ", ".join(status.missing_items))
             if status.error_message:
-                logger.info(f"    Error: {status.error_message}")
+                logger.info("    Error: %s", status.error_message)
 
     logger.info("")
 
@@ -279,20 +279,20 @@ def print_summary(statuses: list[RunStatus]) -> None:
     has_ckpt = sum(1 for s in statuses if s.has_checkpoint)
 
     logger.info("COMPONENT STATISTICS:")
-    logger.info(f"  Hydra config:     {has_config}/{len(statuses)} ({100 * has_config / len(statuses):.1f}%)")
-    logger.info(f"  Scalars CSV:      {has_scalars}/{len(statuses)} ({100 * has_scalars / len(statuses):.1f}%)")
-    logger.info(f"  Events JSONL:     {has_events}/{len(statuses)} ({100 * has_events / len(statuses):.1f}%)")
-    logger.info(f"  on_train_end:     {has_train_end}/{len(statuses)} ({100 * has_train_end / len(statuses):.1f}%)")
-    logger.info(f"  Checkpoint:       {has_ckpt}/{len(statuses)} ({100 * has_ckpt / len(statuses):.1f}%)")
+    logger.info("  Hydra config:     %d/%d (%.1f%%)", has_config, len(statuses), 100 * has_config / len(statuses))
+    logger.info("  Scalars CSV:      %d/%d (%.1f%%)", has_scalars, len(statuses), 100 * has_scalars / len(statuses))
+    logger.info("  Events JSONL:     %d/%d (%.1f%%)", has_events, len(statuses), 100 * has_events / len(statuses))
+    logger.info("  on_train_end:     %d/%d (%.1f%%)", has_train_end, len(statuses), 100 * has_train_end / len(statuses))
+    logger.info("  Checkpoint:       %d/%d (%.1f%%)", has_ckpt, len(statuses), 100 * has_ckpt / len(statuses))
 
     # Epoch statistics
     epochs = [s.num_epochs for s in statuses if s.num_epochs is not None]
     if epochs:
         logger.info("")
         logger.info("EPOCH STATISTICS:")
-        logger.info(f"  Min epochs: {min(epochs)}")
-        logger.info(f"  Max epochs: {max(epochs)}")
-        logger.info(f"  Mean epochs: {sum(epochs) / len(epochs):.1f}")
+        logger.info("  Min epochs: %s", min(epochs))
+        logger.info("  Max epochs: %s", max(epochs))
+        logger.info("  Mean epochs: %.1f", sum(epochs) / len(epochs))
 
 
 def main():
@@ -333,7 +333,7 @@ def main():
     # Exit with error code if any runs are incomplete
     incomplete_count = sum(1 for s in statuses if not s.is_complete)
     if incomplete_count > 0:
-        logger.warning(f"⚠️  {incomplete_count} incomplete runs found")
+        logger.warning("⚠️  %d incomplete runs found", incomplete_count)
         return 1
     else:
         logger.info("✅ All runs are complete!")

@@ -1,0 +1,54 @@
+# @package _global_
+# 4t vs background — learned vs fixed physics (interpretability)
+# Central question: can the network discover SM interaction structure from data?
+#
+# CMD 1 — typepair_kinematic variants (3 init x 2 freeze x 2 seeds = 12 jobs):
+#   init_from_physics: none     | freeze_table: false — fully learned from scratch
+#   init_from_physics: binary   | freeze_table: false — SM init, then fine-tuned
+#   init_from_physics: fixed_coupling | freeze_table: false — SM coupling init, fine-tuned
+#   init_from_physics: none     | freeze_table: true  — frozen random mask (noise baseline)
+#   init_from_physics: binary   | freeze_table: true  — fixed binary mask (inductive bias only)
+#   init_from_physics: fixed_coupling | freeze_table: true — fixed SM values (inductive bias only)
+#
+# CMD 2 — sm_interaction comparison (1 mode x 2 seeds = 2 jobs):
+#   mode: running_coupling — fixed SM prior with energy-dependent couplings
+#   This is the key comparison: does learning from scratch (row 1) converge to
+#   something resembling the SM matrix? Extract and visualize learned tables post-training.
+#
+# Total: 14 jobs (2 commands)
+
+meta:
+  goal: "classification"
+
+experiment:
+  name: "4tbg_physics_interpretability"
+
+hydra:
+  mode: MULTIRUN
+  job:
+    chdir: true
+    name: ${experiment.name}
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweeper:
+    params:
+      +classifier/model_size: s600k
+      classifier.trainer.seed: 42,123
+      classifier.model.attention_biases: typepair_kinematic
+      classifier.model.bias_config.typepair_kinematic.init_from_physics: "none,binary,fixed_coupling"
+      classifier.model.bias_config.typepair_kinematic.freeze_table: "false,true"
+      classifier.model.tokenizer.name: raw
+      classifier.model.positional: sinusoidal
+      classifier.model.pooling: cls
+      classifier.model.norm.policy: post
+      classifier.trainer.epochs: 50
+
+data:
+  classifier:
+    signal_vs_background:
+      signal: 1
+      background: [2, 3, 4, 5]
+    selected_labels: null

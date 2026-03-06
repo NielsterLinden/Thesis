@@ -1,0 +1,50 @@
+# @package _global_
+# 4t vs background — module combination synergy test
+# Tests whether physics bias modules are additive, synergistic, or redundant.
+# All runs at s600k, sm_interaction always uses running_coupling.
+#
+# Rows covered in this config (pure attention_biases, 4 combos x 3 seeds = 12 jobs):
+#   1. lorentz_scalar + typepair_kinematic      — Does learned type-pair add to Lorentz?
+#   2. lorentz_scalar + sm_interaction          — Does fixed SM prior add to Lorentz?
+#   3. typepair_kinematic + sm_interaction      — Learned vs fixed type-pair: complement or compete?
+#   4. lorentz_scalar + typepair_kinematic + sm — Full Builtjes-style stack
+#
+# Additional rows requiring pre-encoder flags (run via CLI overrides, see README):
+#   5. lorentz_scalar + nodewise_mass           — Li et al.'s nodewise patch on top of pairwise
+#   6. lorentz_scalar + sm_interaction + mia_blocks — Does MIA add once SM strengths are given?
+#   7. lorentz_scalar + typepair_kinematic + sm + nodewise_mass — Nodewise on full stack
+
+meta:
+  goal: "classification"
+
+experiment:
+  name: "4tbg_physics_combinations"
+
+hydra:
+  mode: MULTIRUN
+  job:
+    chdir: true
+    name: ${experiment.name}
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweeper:
+    params:
+      +classifier/model_size: s600k
+      classifier.trainer.seed: 42,123,314
+      classifier.model.attention_biases: "lorentz_scalar+typepair_kinematic,lorentz_scalar+sm_interaction,typepair_kinematic+sm_interaction,lorentz_scalar+typepair_kinematic+sm_interaction"
+      classifier.model.bias_config.sm_interaction.mode: running_coupling
+      classifier.model.tokenizer.name: raw
+      classifier.model.positional: sinusoidal
+      classifier.model.pooling: cls
+      classifier.model.norm.policy: post
+      classifier.trainer.epochs: 50
+
+data:
+  classifier:
+    signal_vs_background:
+      signal: 1
+      background: [2, 3, 4, 5]
+    selected_labels: null

@@ -3,14 +3,14 @@
 Automatically updates imports from old structure to new structure.
 
 Usage:
-    python scripts/refactor_imports.py
+    python scripts/one_off/refactor_imports.py
 """
 
 import re
 from pathlib import Path
 
-# Repo root
-ROOT = Path(__file__).resolve().parents[1]
+# Repo root (scripts/one_off/ -> project root)
+ROOT = Path(__file__).resolve().parents[2]
 
 # Import mappings: old pattern → new replacement
 IMPORT_MAPPINGS = {

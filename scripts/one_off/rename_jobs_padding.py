@@ -1,5 +1,9 @@
 #!/usr/bin/env python
-"""Rename job folders to use 3-digit zero-padding (job0 -> job000)."""
+"""Rename job folders to use 3-digit zero-padding (job0 -> job000).
+
+Usage:
+    python scripts/one_off/rename_jobs_padding.py --runs-dir outputs/runs --execute
+"""
 
 import argparse
 import logging

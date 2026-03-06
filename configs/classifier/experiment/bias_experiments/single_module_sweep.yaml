@@ -1,0 +1,56 @@
+# @package _global_
+# 4t vs background — single-module sweep (attention-bias type modules)
+# Tests typepair_kinematic and sm_interaction in isolation.
+# Sweep: 2 modules x 3 seeds = 6 jobs
+#
+# NOTE: nodewise_mass and mia_blocks (pre-encoder type) are NOT attention_biases
+# and cannot be swept here. Run them with explicit CLI overrides:
+#
+#   nodewise_mass alone (3 jobs):
+#     condor_submit ... -append 'arguments = env=stoomboot loop=transformer_classifier
+#       classifier/experiment=bias_experiments/single_module_sweep
+#       classifier.model.attention_biases=none
+#       classifier.model.nodewise_mass.enabled=true
+#       classifier.trainer.seed="42,123,314" --multirun'
+#
+#   mia_blocks alone (3 jobs):
+#     condor_submit ... -append 'arguments = env=stoomboot loop=transformer_classifier
+#       classifier/experiment=bias_experiments/single_module_sweep
+#       classifier.model.attention_biases=none
+#       classifier.model.mia_blocks.enabled=true
+#       classifier.trainer.seed="42,123,314" --multirun'
+
+meta:
+  goal: "classification"
+
+experiment:
+  name: "4tbg_physics_single_module"
+
+hydra:
+  mode: MULTIRUN
+  job:
+    chdir: true
+    name: ${experiment.name}
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweeper:
+    params:
+      +classifier/model_size: s600k
+      classifier.trainer.seed: 42,123,314
+      classifier.model.attention_biases: "typepair_kinematic,sm_interaction"
+      classifier.model.bias_config.sm_interaction.mode: running_coupling
+      classifier.model.tokenizer.name: raw
+      classifier.model.positional: sinusoidal
+      classifier.model.pooling: cls
+      classifier.model.norm.policy: post
+      classifier.trainer.epochs: 50
+
+data:
+  classifier:
+    signal_vs_background:
+      signal: 1
+      background: [2, 3, 4, 5]
+    selected_labels: null

@@ -6,22 +6,22 @@ including codebook utilization, reconstruction quality, and perplexity.
 
 Usage:
     # Evaluate VQ-VAE from a run directory
-    python scripts/evaluate_vq_vae.py \
+    python scripts/one_off/evaluate_vq_vae.py \
         --run-dir /data/atlas/users/nterlind/outputs/runs/run_YYYYMMDD-HHMMSS_vq
 
     # Evaluate with specific checkpoint
-    python scripts/evaluate_vq_vae.py \
+    python scripts/one_off/evaluate_vq_vae.py \
         --checkpoint /data/atlas/users/nterlind/checkpoints/vq_4tops_best.pt \
         --config /data/atlas/users/nterlind/outputs/runs/run_YYYYMMDD-HHMMSS_vq/.hydra/config.yaml
 
     # With inference on test set
-    python scripts/evaluate_vq_vae.py \
+    python scripts/one_off/evaluate_vq_vae.py \
         --run-dir /data/atlas/users/nterlind/outputs/runs/run_YYYYMMDD-HHMMSS_vq \
         --run-inference \
         --num-batches 20
 
     # Save detailed analysis
-    python scripts/evaluate_vq_vae.py \
+    python scripts/one_off/evaluate_vq_vae.py \
         --run-dir /data/atlas/users/nterlind/outputs/runs/run_YYYYMMDD-HHMMSS_vq \
         --output-dir vq_analysis \
         --save-figures

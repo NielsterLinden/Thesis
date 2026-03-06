@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 
 import h5py
 import numpy as np
@@ -7,14 +8,15 @@ from hydra import compose, initialize
 
 logger = logging.getLogger(__name__)
 
+CONFIGS_DIR = Path(__file__).resolve().parent.parent.parent / "configs"
+
 
 def main() -> int:
     logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 
     try:
         load_dotenv()
-        # Load the same Hydra config as training without changing cwd
-        initialize(config_path="../configs", version_base="1.3")
+        initialize(config_path=str(CONFIGS_DIR), version_base="1.3")
         cfg = compose(config_name="config")
     except Exception as e:
         logger.error("Failed to compose Hydra config: %s", e)
@@ -37,7 +39,7 @@ def main() -> int:
 
     T = int(cfg.data.n_tokens)
 
-    def min_max_ids(X: np.ndarray):
+    def min_max_ids(X):
         ids = X[:, :T].astype(np.int64).ravel()
         return int(ids.min()), int(ids.max())
 

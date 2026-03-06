@@ -2,7 +2,7 @@
 """Create Ambre-style binned H5 dataset from raw 4tops data.
 
 Run interactively on HPC:
-  python scripts/create_binned_dataset.py \\
+  python scripts/one_off/create_binned_dataset.py \\
     --input /data/atlas/users/nterlind/datasets/4tops_splitted.h5 \\
     --output /data/atlas/users/nterlind/datasets/4tops_5bins_ours.h5 \\
     --n-bins 5
@@ -17,10 +17,11 @@ from pathlib import Path
 import h5py
 import numpy as np
 
-# Add project root for imports
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+# Add project root for imports (scripts/one_off/ -> project root)
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+SRC_DIR = PROJECT_ROOT / "src"
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
 
 from thesis_ml.data.binning import AmbreBinning  # noqa: E402
 

@@ -1,0 +1,52 @@
+# @package _global_
+# 4t vs background — Lorentz feature analysis
+# Tests the symmetry hierarchy from Li et al. (2024), Table I.
+# Sweep: 7 feature combinations x 1 seed = 7 jobs
+#
+# Symmetry levels of each feature set:
+#   [m2]                         — full Lorentz invariant (all 6 subsymmetries)
+#   [deltaR]                     — z-t boost, x-y rotation, approx y-z rotation
+#   [deltaR_ptw]                 — above + approx x-t boost (Li et al. novel)
+#   [m2, deltaR]                 — ParT standard (Qu et al. 2022)
+#   [log_kt, z, deltaR, log_m2]  — MIParT standard (Wu et al. 2025)
+#   [m2, deltaR, log_m2, log_kt, z]         — extended
+#   [m2, deltaR, log_m2, log_kt, z, deltaR_ptw] — all unique features
+#
+# NOTE: dot is excluded (dot = m2/2 in the massless limit; redundant).
+# NOTE: single-seed results are exploratory. Re-run top-2 and bottom-2
+# configs with 3 seeds before building thesis conclusions on them.
+
+meta:
+  goal: "classification"
+
+experiment:
+  name: "4tbg_physics_lorentz_features"
+
+hydra:
+  mode: MULTIRUN
+  job:
+    chdir: true
+    name: ${experiment.name}
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweeper:
+    params:
+      +classifier/model_size: s600k
+      classifier.trainer.seed: 42
+      classifier.model.attention_biases: lorentz_scalar
+      classifier.model.bias_config.lorentz_scalar.features: "[m2],[deltaR],[deltaR_ptw],[m2,deltaR],[log_kt,z,deltaR,log_m2],[m2,deltaR,log_m2,log_kt,z],[m2,deltaR,log_m2,log_kt,z,deltaR_ptw]"
+      classifier.model.tokenizer.name: raw
+      classifier.model.positional: sinusoidal
+      classifier.model.pooling: cls
+      classifier.model.norm.policy: post
+      classifier.trainer.epochs: 50
+
+data:
+  classifier:
+    signal_vs_background:
+      signal: 1
+      background: [2, 3, 4, 5]
+    selected_labels: null

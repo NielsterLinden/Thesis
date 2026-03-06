@@ -23,3 +23,4 @@ thesis-report --config-name compare_tokenizers inputs.sweep_dir=outputs/multirun
 - **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — System design, configs, data flow, Facts
 - **[docs/COMMANDS.md](docs/COMMANDS.md)** — Training, reports, HPC (interactive + Condor)
 - **[docs/SCRIPTS.md](docs/SCRIPTS.md)** — Script reference
+- **[docs/ENV_AND_DATA.md](docs/ENV_AND_DATA.md)** — Data and output paths (local vs HPC)

@@ -1,0 +1,32 @@
+# @package _global_
+# Pre-defined evaluation slices for interpretable validation metrics.
+#
+# Use in analysis scripts to report AUROC / accuracy per slice.
+# Particle IDs: 0=pad, 1=jet, 2=b-jet, 3=e+, 4=e-, 5=mu+, 6=mu-, 7=photon
+
+classifier:
+  eval_slices:
+    # Jet multiplicity bins (count of id in [1, 2])
+    n_jets:
+      bins: [0, 2, 4, 6, 8, 18]   # [0,2), [2,4), [4,6), [6,8), [8,18]
+      labels: ["0-1", "2-3", "4-5", "6-7", "8+"]
+
+    # b-jet multiplicity (count of id == 2)
+    n_bjets:
+      bins: [0, 1, 2, 3, 8]
+      labels: ["0", "1", "2", "3+"]
+
+    # Lepton channel proxy (count of id in [3,4,5,6])
+    n_leptons:
+      bins: [0, 1, 2, 8]
+      labels: ["0", "1", "2+"]
+
+    # HT = sum of Pt over all objects (GeV)
+    ht:
+      bins: [0, 200, 400, 600, 1000, 5000]
+      labels: ["0-200", "200-400", "400-600", "600-1000", "1000+"]
+
+    # MET (GeV) — from globals[:, 0]
+    met:
+      bins: [0, 50, 100, 150, 200, 500]
+      labels: ["0-50", "50-100", "100-150", "150-200", "200+"]
