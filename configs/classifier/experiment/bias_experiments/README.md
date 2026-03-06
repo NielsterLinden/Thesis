@@ -48,23 +48,13 @@ Each test job takes ~1 min. Total: 91 test jobs.
 ### Exp 1 — baseline
 
 ```bash
-condor_submit hpc/stoomboot/train.sub \
-  -append 'arguments = env=stoomboot loop=transformer_classifier \
-  classifier/experiment=bias_experiments/baseline \
-  experiment.name=4tbg_physics_baseline_test \
-  classifier.trainer.epochs=1 data.limit_samples=500 \
-  logging.use_wandb=false --multirun'
+condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot loop=transformer_classifier classifier/experiment=bias_experiments/baseline experiment.name=4tbg_physics_baseline_test classifier.trainer.epochs=1 data.limit_samples=500 logging.use_wandb=false --multirun'
 ```
 
 ### Exp 2 — part (ParT reference)
 
 ```bash
-condor_submit hpc/stoomboot/train.sub \
-  -append 'arguments = env=stoomboot loop=transformer_classifier \
-  classifier/experiment=bias_experiments/part \
-  experiment.name=4tbg_physics_part_test \
-  classifier.trainer.epochs=1 data.limit_samples=500 \
-  logging.use_wandb=false --multirun'
+condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot loop=transformer_classifier classifier/experiment=bias_experiments/part experiment.name=4tbg_physics_part_test classifier.trainer.epochs=1 data.limit_samples=500 logging.use_wandb=false --multirun'
 ```
 
 ### Exp 3 — single_module_sweep
@@ -72,62 +62,31 @@ condor_submit hpc/stoomboot/train.sub \
 **3a — typepair + sm (6 jobs):**
 
 ```bash
-condor_submit hpc/stoomboot/train.sub \
-  -append 'arguments = env=stoomboot loop=transformer_classifier \
-  classifier/experiment=bias_experiments/single_module_sweep \
-  experiment.name=4tbg_physics_single_module_test \
-  classifier.trainer.epochs=1 data.limit_samples=500 \
-  logging.use_wandb=false --multirun'
+condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot loop=transformer_classifier classifier/experiment=bias_experiments/single_module_sweep experiment.name=4tbg_physics_single_module_test classifier.trainer.epochs=1 data.limit_samples=500 logging.use_wandb=false --multirun'
 ```
 
 **3b — nodewise_mass alone (3 jobs):**
 
 ```bash
-condor_submit hpc/stoomboot/train.sub \
-  -append 'arguments = env=stoomboot loop=transformer_classifier \
-  classifier/experiment=bias_experiments/single_module_sweep \
-  experiment.name=4tbg_physics_single_module_test \
-  classifier.model.attention_biases=none \
-  classifier.model.nodewise_mass.enabled=true \
-  classifier.trainer.seed="42,123,314" \
-  classifier.trainer.epochs=1 data.limit_samples=500 \
-  logging.use_wandb=false --multirun'
+condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot loop=transformer_classifier classifier/experiment=bias_experiments/single_module_sweep experiment.name=4tbg_physics_single_module_test classifier.model.attention_biases=none classifier.model.nodewise_mass.enabled=true classifier.trainer.seed=42,123,314 classifier.trainer.epochs=1 data.limit_samples=500 logging.use_wandb=false --multirun'
 ```
 
 **3c — mia_blocks alone (3 jobs):**
 
 ```bash
-condor_submit hpc/stoomboot/train.sub \
-  -append 'arguments = env=stoomboot loop=transformer_classifier \
-  classifier/experiment=bias_experiments/single_module_sweep \
-  experiment.name=4tbg_physics_single_module_test \
-  classifier.model.attention_biases=none \
-  classifier.model.mia_blocks.enabled=true \
-  classifier.trainer.seed="42,123,314" \
-  classifier.trainer.epochs=1 data.limit_samples=500 \
-  logging.use_wandb=false --multirun'
+condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot loop=transformer_classifier classifier/experiment=bias_experiments/single_module_sweep experiment.name=4tbg_physics_single_module_test classifier.model.attention_biases=none classifier.model.mia_blocks.enabled=true classifier.trainer.seed=42,123,314 classifier.trainer.epochs=1 data.limit_samples=500 logging.use_wandb=false --multirun'
 ```
 
 ### Exp 4 — lorentz_features
 
 ```bash
-condor_submit hpc/stoomboot/train.sub \
-  -append 'arguments = env=stoomboot loop=transformer_classifier \
-  classifier/experiment=bias_experiments/lorentz_features \
-  experiment.name=4tbg_physics_lorentz_features_test \
-  classifier.trainer.epochs=1 data.limit_samples=500 \
-  logging.use_wandb=false --multirun'
+condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot loop=transformer_classifier classifier/experiment=bias_experiments/lorentz_features experiment.name=4tbg_physics_lorentz_features_test classifier.trainer.epochs=1 data.limit_samples=500 logging.use_wandb=false --multirun'
 ```
 
 ### Exp 5 — sm_progression
 
 ```bash
-condor_submit hpc/stoomboot/train.sub \
-  -append 'arguments = env=stoomboot loop=transformer_classifier \
-  classifier/experiment=bias_experiments/sm_progression \
-  experiment.name=4tbg_physics_sm_progression_test \
-  classifier.trainer.epochs=1 data.limit_samples=500 \
-  logging.use_wandb=false --multirun'
+condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot loop=transformer_classifier classifier/experiment=bias_experiments/sm_progression experiment.name=4tbg_physics_sm_progression_test classifier.trainer.epochs=1 data.limit_samples=500 logging.use_wandb=false --multirun'
 ```
 
 ### Exp 6 — module_combinations
@@ -135,65 +94,31 @@ condor_submit hpc/stoomboot/train.sub \
 **6a — pure attention_biases rows (12 jobs):**
 
 ```bash
-condor_submit hpc/stoomboot/train.sub \
-  -append 'arguments = env=stoomboot loop=transformer_classifier \
-  classifier/experiment=bias_experiments/module_combinations \
-  experiment.name=4tbg_physics_combinations_test \
-  classifier.trainer.epochs=1 data.limit_samples=500 \
-  logging.use_wandb=false --multirun'
+condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot loop=transformer_classifier classifier/experiment=bias_experiments/module_combinations experiment.name=4tbg_physics_combinations_test classifier.trainer.epochs=1 data.limit_samples=500 logging.use_wandb=false --multirun'
 ```
 
 **6b — lorentz + nodewise_mass (3 jobs):**
 
 ```bash
-condor_submit hpc/stoomboot/train.sub \
-  -append 'arguments = env=stoomboot loop=transformer_classifier \
-  classifier/experiment=bias_experiments/module_combinations \
-  experiment.name=4tbg_physics_combinations_test \
-  classifier.model.attention_biases=lorentz_scalar \
-  classifier.model.nodewise_mass.enabled=true \
-  classifier.trainer.seed="42,123,314" \
-  classifier.trainer.epochs=1 data.limit_samples=500 \
-  logging.use_wandb=false --multirun'
+condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot loop=transformer_classifier classifier/experiment=bias_experiments/module_combinations experiment.name=4tbg_physics_combinations_test classifier.model.attention_biases=lorentz_scalar classifier.model.nodewise_mass.enabled=true classifier.trainer.seed=42,123,314 classifier.trainer.epochs=1 data.limit_samples=500 logging.use_wandb=false --multirun'
 ```
 
 **6c — lorentz + sm_interaction + mia_blocks (3 jobs):**
 
 ```bash
-condor_submit hpc/stoomboot/train.sub \
-  -append 'arguments = env=stoomboot loop=transformer_classifier \
-  classifier/experiment=bias_experiments/module_combinations \
-  experiment.name=4tbg_physics_combinations_test \
-  classifier.model.attention_biases=lorentz_scalar+sm_interaction \
-  classifier.model.mia_blocks.enabled=true \
-  classifier.trainer.seed="42,123,314" \
-  classifier.trainer.epochs=1 data.limit_samples=500 \
-  logging.use_wandb=false --multirun'
+condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot loop=transformer_classifier classifier/experiment=bias_experiments/module_combinations experiment.name=4tbg_physics_combinations_test classifier.model.attention_biases=lorentz_scalar+sm_interaction classifier.model.mia_blocks.enabled=true classifier.trainer.seed=42,123,314 classifier.trainer.epochs=1 data.limit_samples=500 logging.use_wandb=false --multirun'
 ```
 
 **6d — lorentz + typepair + sm + nodewise_mass (3 jobs):**
 
 ```bash
-condor_submit hpc/stoomboot/train.sub \
-  -append 'arguments = env=stoomboot loop=transformer_classifier \
-  classifier/experiment=bias_experiments/module_combinations \
-  experiment.name=4tbg_physics_combinations_test \
-  classifier.model.attention_biases=lorentz_scalar+typepair_kinematic+sm_interaction \
-  classifier.model.nodewise_mass.enabled=true \
-  classifier.trainer.seed="42,123,314" \
-  classifier.trainer.epochs=1 data.limit_samples=500 \
-  logging.use_wandb=false --multirun'
+condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot loop=transformer_classifier classifier/experiment=bias_experiments/module_combinations experiment.name=4tbg_physics_combinations_test classifier.model.attention_biases=lorentz_scalar+typepair_kinematic+sm_interaction classifier.model.nodewise_mass.enabled=true classifier.trainer.seed=42,123,314 classifier.trainer.epochs=1 data.limit_samples=500 logging.use_wandb=false --multirun'
 ```
 
 ### Exp 7 — data_scaling
 
 ```bash
-condor_submit hpc/stoomboot/train.sub \
-  -append 'arguments = env=stoomboot loop=transformer_classifier \
-  classifier/experiment=bias_experiments/data_scaling \
-  experiment.name=4tbg_physics_data_scaling_test \
-  classifier.trainer.epochs=1 data.limit_samples=500 \
-  logging.use_wandb=false --multirun'
+condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot loop=transformer_classifier classifier/experiment=bias_experiments/data_scaling experiment.name=4tbg_physics_data_scaling_test classifier.trainer.epochs=1 data.limit_samples=500 logging.use_wandb=false --multirun'
 ```
 
 ### Exp 8 — interpretability
@@ -201,26 +126,13 @@ condor_submit hpc/stoomboot/train.sub \
 **8a — typepair init × freeze variants (12 jobs):**
 
 ```bash
-condor_submit hpc/stoomboot/train.sub \
-  -append 'arguments = env=stoomboot loop=transformer_classifier \
-  classifier/experiment=bias_experiments/interpretability \
-  experiment.name=4tbg_physics_interpretability_test \
-  classifier.trainer.epochs=1 data.limit_samples=500 \
-  logging.use_wandb=false --multirun'
+condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot loop=transformer_classifier classifier/experiment=bias_experiments/interpretability experiment.name=4tbg_physics_interpretability_test classifier.trainer.epochs=1 data.limit_samples=500 logging.use_wandb=false --multirun'
 ```
 
 **8b — sm_interaction comparison (2 jobs):**
 
 ```bash
-condor_submit hpc/stoomboot/train.sub \
-  -append 'arguments = env=stoomboot loop=transformer_classifier \
-  classifier/experiment=bias_experiments/interpretability \
-  experiment.name=4tbg_physics_interpretability_test \
-  classifier.model.attention_biases=sm_interaction \
-  classifier.model.bias_config.sm_interaction.mode=running_coupling \
-  classifier.trainer.seed="42,123" \
-  classifier.trainer.epochs=1 data.limit_samples=500 \
-  logging.use_wandb=false --multirun'
+condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot loop=transformer_classifier classifier/experiment=bias_experiments/interpretability experiment.name=4tbg_physics_interpretability_test classifier.model.attention_biases=sm_interaction classifier.model.bias_config.sm_interaction.mode=running_coupling classifier.trainer.seed=42,123 classifier.trainer.epochs=1 data.limit_samples=500 logging.use_wandb=false --multirun'
 ```
 
 ### Exp 9 — met_treatment
@@ -228,27 +140,13 @@ condor_submit hpc/stoomboot/train.sub \
 **9a — pairwise control vs MET-tokens (2 jobs):**
 
 ```bash
-condor_submit hpc/stoomboot/train.sub \
-  -append 'arguments = env=stoomboot loop=transformer_classifier \
-  classifier/experiment=bias_experiments/met_treatment \
-  experiment.name=4tbg_physics_met_treatment_test \
-  "classifier.globals.include_met=false,true" \
-  classifier.trainer.epochs=1 data.limit_samples=500 \
-  logging.use_wandb=false --multirun'
+condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot loop=transformer_classifier classifier/experiment=bias_experiments/met_treatment experiment.name=4tbg_physics_met_treatment_test classifier.globals.include_met=false,true classifier.trainer.epochs=1 data.limit_samples=500 logging.use_wandb=false --multirun'
 ```
 
 **9b — MET attention modulation modes (2 jobs):**
 
 ```bash
-condor_submit hpc/stoomboot/train.sub \
-  -append 'arguments = env=stoomboot loop=transformer_classifier \
-  classifier/experiment=bias_experiments/met_treatment \
-  experiment.name=4tbg_physics_met_treatment_test \
-  classifier.globals.include_met=true \
-  classifier.model.attention_biases=lorentz_scalar+global_conditioned \
-  "classifier.model.bias_config.global_conditioned.mode=global_scale,met_direction" \
-  classifier.trainer.epochs=1 data.limit_samples=500 \
-  logging.use_wandb=false --multirun'
+condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot loop=transformer_classifier classifier/experiment=bias_experiments/met_treatment experiment.name=4tbg_physics_met_treatment_test classifier.globals.include_met=true classifier.model.attention_biases=lorentz_scalar+global_conditioned classifier.model.bias_config.global_conditioned.mode=global_scale,met_direction classifier.trainer.epochs=1 data.limit_samples=500 logging.use_wandb=false --multirun'
 ```
 
 ---
@@ -260,151 +158,97 @@ Remove `_test` suffix, remove `data.limit_samples`, and change `epochs` back to 
 ### Exp 1 — baseline (9 jobs)
 
 ```bash
-condor_submit hpc/stoomboot/train.sub \
-  -append 'arguments = env=stoomboot loop=transformer_classifier \
-  classifier/experiment=bias_experiments/baseline --multirun'
+condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot loop=transformer_classifier classifier/experiment=bias_experiments/baseline --multirun'
 ```
 
 ### Exp 2 — part (9 jobs)
 
 ```bash
-condor_submit hpc/stoomboot/train.sub \
-  -append 'arguments = env=stoomboot loop=transformer_classifier \
-  classifier/experiment=bias_experiments/part --multirun'
+condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot loop=transformer_classifier classifier/experiment=bias_experiments/part --multirun'
 ```
 
 ### Exp 3a — single_module (typepair+sm, 6 jobs)
 
 ```bash
-condor_submit hpc/stoomboot/train.sub \
-  -append 'arguments = env=stoomboot loop=transformer_classifier \
-  classifier/experiment=bias_experiments/single_module_sweep --multirun'
+condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot loop=transformer_classifier classifier/experiment=bias_experiments/single_module_sweep --multirun'
 ```
 
 ### Exp 3b — single_module (nodewise_mass, 3 jobs)
 
 ```bash
-condor_submit hpc/stoomboot/train.sub \
-  -append 'arguments = env=stoomboot loop=transformer_classifier \
-  classifier/experiment=bias_experiments/single_module_sweep \
-  classifier.model.attention_biases=none \
-  classifier.model.nodewise_mass.enabled=true \
-  classifier.trainer.seed="42,123,314" --multirun'
+condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot loop=transformer_classifier classifier/experiment=bias_experiments/single_module_sweep classifier.model.attention_biases=none classifier.model.nodewise_mass.enabled=true classifier.trainer.seed=42,123,314 --multirun'
 ```
 
 ### Exp 3c — single_module (mia_blocks, 3 jobs)
 
 ```bash
-condor_submit hpc/stoomboot/train.sub \
-  -append 'arguments = env=stoomboot loop=transformer_classifier \
-  classifier/experiment=bias_experiments/single_module_sweep \
-  classifier.model.attention_biases=none \
-  classifier.model.mia_blocks.enabled=true \
-  classifier.trainer.seed="42,123,314" --multirun'
+condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot loop=transformer_classifier classifier/experiment=bias_experiments/single_module_sweep classifier.model.attention_biases=none classifier.model.mia_blocks.enabled=true classifier.trainer.seed=42,123,314 --multirun'
 ```
 
 ### Exp 4 — lorentz_features (7 jobs)
 
 ```bash
-condor_submit hpc/stoomboot/train.sub \
-  -append 'arguments = env=stoomboot loop=transformer_classifier \
-  classifier/experiment=bias_experiments/lorentz_features --multirun'
+condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot loop=transformer_classifier classifier/experiment=bias_experiments/lorentz_features --multirun'
 ```
 
 ### Exp 5 — sm_progression (9 jobs)
 
 ```bash
-condor_submit hpc/stoomboot/train.sub \
-  -append 'arguments = env=stoomboot loop=transformer_classifier \
-  classifier/experiment=bias_experiments/sm_progression --multirun'
+condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot loop=transformer_classifier classifier/experiment=bias_experiments/sm_progression --multirun'
 ```
 
 ### Exp 6a — module_combinations (pure attention_biases, 12 jobs)
 
 ```bash
-condor_submit hpc/stoomboot/train.sub \
-  -append 'arguments = env=stoomboot loop=transformer_classifier \
-  classifier/experiment=bias_experiments/module_combinations --multirun'
+condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot loop=transformer_classifier classifier/experiment=bias_experiments/module_combinations --multirun'
 ```
 
 ### Exp 6b — module_combinations (lorentz+nodewise_mass, 3 jobs)
 
 ```bash
-condor_submit hpc/stoomboot/train.sub \
-  -append 'arguments = env=stoomboot loop=transformer_classifier \
-  classifier/experiment=bias_experiments/module_combinations \
-  classifier.model.attention_biases=lorentz_scalar \
-  classifier.model.nodewise_mass.enabled=true \
-  classifier.trainer.seed="42,123,314" --multirun'
+condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot loop=transformer_classifier classifier/experiment=bias_experiments/module_combinations classifier.model.attention_biases=lorentz_scalar classifier.model.nodewise_mass.enabled=true classifier.trainer.seed=42,123,314 --multirun'
 ```
 
 ### Exp 6c — module_combinations (lorentz+sm+mia_blocks, 3 jobs)
 
 ```bash
-condor_submit hpc/stoomboot/train.sub \
-  -append 'arguments = env=stoomboot loop=transformer_classifier \
-  classifier/experiment=bias_experiments/module_combinations \
-  classifier.model.attention_biases=lorentz_scalar+sm_interaction \
-  classifier.model.mia_blocks.enabled=true \
-  classifier.trainer.seed="42,123,314" --multirun'
+condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot loop=transformer_classifier classifier/experiment=bias_experiments/module_combinations classifier.model.attention_biases=lorentz_scalar+sm_interaction classifier.model.mia_blocks.enabled=true classifier.trainer.seed=42,123,314 --multirun'
 ```
 
 ### Exp 6d — module_combinations (lorentz+typepair+sm+nodewise_mass, 3 jobs)
 
 ```bash
-condor_submit hpc/stoomboot/train.sub \
-  -append 'arguments = env=stoomboot loop=transformer_classifier \
-  classifier/experiment=bias_experiments/module_combinations \
-  classifier.model.attention_biases=lorentz_scalar+typepair_kinematic+sm_interaction \
-  classifier.model.nodewise_mass.enabled=true \
-  classifier.trainer.seed="42,123,314" --multirun'
+condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot loop=transformer_classifier classifier/experiment=bias_experiments/module_combinations classifier.model.attention_biases=lorentz_scalar+typepair_kinematic+sm_interaction classifier.model.nodewise_mass.enabled=true classifier.trainer.seed=42,123,314 --multirun'
 ```
 
 ### Exp 7 — data_scaling (6 jobs)
 
 ```bash
-condor_submit hpc/stoomboot/train.sub \
-  -append 'arguments = env=stoomboot loop=transformer_classifier \
-  classifier/experiment=bias_experiments/data_scaling --multirun'
+condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot loop=transformer_classifier classifier/experiment=bias_experiments/data_scaling --multirun'
 ```
 
 ### Exp 8a — interpretability typepair variants (12 jobs)
 
 ```bash
-condor_submit hpc/stoomboot/train.sub \
-  -append 'arguments = env=stoomboot loop=transformer_classifier \
-  classifier/experiment=bias_experiments/interpretability --multirun'
+condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot loop=transformer_classifier classifier/experiment=bias_experiments/interpretability --multirun'
 ```
 
 ### Exp 8b — interpretability sm_interaction comparison (2 jobs)
 
 ```bash
-condor_submit hpc/stoomboot/train.sub \
-  -append 'arguments = env=stoomboot loop=transformer_classifier \
-  classifier/experiment=bias_experiments/interpretability \
-  classifier.model.attention_biases=sm_interaction \
-  classifier.model.bias_config.sm_interaction.mode=running_coupling \
-  classifier.trainer.seed="42,123" --multirun'
+condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot loop=transformer_classifier classifier/experiment=bias_experiments/interpretability classifier.model.attention_biases=sm_interaction classifier.model.bias_config.sm_interaction.mode=running_coupling classifier.trainer.seed=42,123 --multirun'
 ```
 
 ### Exp 9a — met_treatment control vs MET-tokens (2 jobs)
 
 ```bash
-condor_submit hpc/stoomboot/train.sub \
-  -append 'arguments = env=stoomboot loop=transformer_classifier \
-  classifier/experiment=bias_experiments/met_treatment \
-  "classifier.globals.include_met=false,true" --multirun'
+condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot loop=transformer_classifier classifier/experiment=bias_experiments/met_treatment classifier.globals.include_met=false,true --multirun'
 ```
 
 ### Exp 9b — met_treatment MET modulation modes (2 jobs)
 
 ```bash
-condor_submit hpc/stoomboot/train.sub \
-  -append 'arguments = env=stoomboot loop=transformer_classifier \
-  classifier/experiment=bias_experiments/met_treatment \
-  classifier.globals.include_met=true \
-  classifier.model.attention_biases=lorentz_scalar+global_conditioned \
-  "classifier.model.bias_config.global_conditioned.mode=global_scale,met_direction" --multirun'
+condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot loop=transformer_classifier classifier/experiment=bias_experiments/met_treatment classifier.globals.include_met=true classifier.model.attention_biases=lorentz_scalar+global_conditioned classifier.model.bias_config.global_conditioned.mode=global_scale,met_direction --multirun'
 ```
 
 ---
@@ -416,11 +260,7 @@ condor_submit hpc/stoomboot/train.sub \
 After initial results, identify top-2 and bottom-2 performing feature configs. Re-run each with seeds 42, 123, 314:
 
 ```bash
-condor_submit hpc/stoomboot/train.sub \
-  -append 'arguments = env=stoomboot loop=transformer_classifier \
-  classifier/experiment=bias_experiments/lorentz_features \
-  "classifier.model.bias_config.lorentz_scalar.features=[m2, deltaR],[log_kt,z,deltaR,log_m2]" \
-  classifier.trainer.seed="42,123,314" --multirun'
+condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot loop=transformer_classifier classifier/experiment=bias_experiments/lorentz_features classifier.model.bias_config.lorentz_scalar.features=[m2,deltaR],[log_kt,z,deltaR,log_m2] classifier.trainer.seed=42,123,314 --multirun'
 ```
 
 (Replace feature lists with actual top-2/bottom-2 after inspection.)
@@ -428,10 +268,7 @@ condor_submit hpc/stoomboot/train.sub \
 ### Exp 7 — data_scaling with 3 seeds (if scaling behavior is strong)
 
 ```bash
-condor_submit hpc/stoomboot/train.sub \
-  -append 'arguments = env=stoomboot loop=transformer_classifier \
-  classifier/experiment=bias_experiments/data_scaling \
-  classifier.trainer.seed="42,123,314" --multirun'
+condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot loop=transformer_classifier classifier/experiment=bias_experiments/data_scaling classifier.trainer.seed=42,123,314 --multirun'
 ```
 
 ### Exp 9 — met_treatment improving configs with 3 seeds
@@ -439,13 +276,7 @@ condor_submit hpc/stoomboot/train.sub \
 If config 3 or 4 shows improvement over config 2:
 
 ```bash
-condor_submit hpc/stoomboot/train.sub \
-  -append 'arguments = env=stoomboot loop=transformer_classifier \
-  classifier/experiment=bias_experiments/met_treatment \
-  classifier.globals.include_met=true \
-  classifier.model.attention_biases=lorentz_scalar+global_conditioned \
-  classifier.model.bias_config.global_conditioned.mode=met_direction \
-  classifier.trainer.seed="42,123,314" --multirun'
+condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot loop=transformer_classifier classifier/experiment=bias_experiments/met_treatment classifier.globals.include_met=true classifier.model.attention_biases=lorentz_scalar+global_conditioned classifier.model.bias_config.global_conditioned.mode=met_direction classifier.trainer.seed=42,123,314 --multirun'
 ```
 
 (Replace `mode` with whichever config improved.)

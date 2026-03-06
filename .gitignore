@@ -6,6 +6,9 @@ nul
 .vscode/
 .idea/
 .cursor/
+.cursorrules
+CLAUDE.md
+
 
 # Python
 __pycache__/

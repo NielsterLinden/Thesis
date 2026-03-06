@@ -1,0 +1,38 @@
+# @package _global_
+# 4t vs background — MET treatment (include_met and global_conditioned mode)
+# 4 jobs total: 9a include_met=false,true (2) + 9b global_conditioned mode=global_scale,met_direction (2).
+# Submit via two condor commands; CLI overrides drive multirun.
+
+meta:
+  goal: "classification"
+
+experiment:
+  name: "4tbg_physics_met_treatment"
+
+hydra:
+  mode: MULTIRUN
+  job:
+    chdir: true
+    name: ${experiment.name}
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweeper:
+    params:
+      +classifier/model_size: s600k
+      classifier.trainer.seed: 42
+      classifier.model.attention_biases: none
+      classifier.model.tokenizer.name: raw
+      classifier.model.positional: sinusoidal
+      classifier.model.pooling: cls
+      classifier.model.norm.policy: post
+      classifier.trainer.epochs: 50
+
+data:
+  classifier:
+    signal_vs_background:
+      signal: 1
+      background: [2, 3, 4, 5]
+    selected_labels: null
