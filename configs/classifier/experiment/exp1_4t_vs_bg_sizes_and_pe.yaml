@@ -36,7 +36,7 @@ hydra:
       classifier.model.tokenizer.name: identity
       classifier.model.tokenizer.id_embed_dim: 8
       # Pooling and normalization
-      classifier.model.pooling: cls
+      classifier.model.head.pooling: cls
       classifier.model.norm.policy: post
       # Training basics
       classifier.trainer.epochs: 50

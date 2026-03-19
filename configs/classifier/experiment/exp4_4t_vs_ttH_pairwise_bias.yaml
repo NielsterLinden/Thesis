@@ -30,7 +30,7 @@ hydra:
       classifier.model.positional_space: model
       classifier.model.tokenizer.name: identity
       classifier.model.tokenizer.id_embed_dim: 8
-      classifier.model.pooling: cls
+      classifier.model.head.pooling: cls
       classifier.trainer.epochs: 50
 
 # 4t vs ttH (binary)

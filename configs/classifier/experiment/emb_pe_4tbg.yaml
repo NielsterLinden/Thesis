@@ -43,7 +43,7 @@ hydra:
       +classifier/pos_variant: none,sinusoidal_full,sinusoidal_cont,learned_full,learned_cont,rotary
 
       # Pooling and normalization (fixed)
-      classifier.model.pooling: cls
+      classifier.model.head.pooling: cls
       classifier.model.norm.policy: post
 
       # Training (default 50 epochs, override on CLI for dry runs)

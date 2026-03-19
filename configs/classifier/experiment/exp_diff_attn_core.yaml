@@ -36,7 +36,7 @@ hydra:
       classifier.model.attention_biases: none
       classifier.model.tokenizer.name: raw
       classifier.model.positional: sinusoidal
-      classifier.model.pooling: cls
+      classifier.model.head.pooling: cls
 
       # Seed/epochs policy:
       # - Local scout: override seed/epochs via CLI (e.g. seed=42, epochs=2)

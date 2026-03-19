@@ -32,7 +32,7 @@ hydra:
       classifier.model.tokenizer.name: identity
       classifier.model.tokenizer.id_embed_dim: 8
       # Pooling
-      classifier.model.pooling: cls
+      classifier.model.head.pooling: cls
       # Training basics
       classifier.trainer.epochs: 50
 

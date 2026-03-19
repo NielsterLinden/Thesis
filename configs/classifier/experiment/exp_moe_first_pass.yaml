@@ -36,7 +36,7 @@ hydra:
       classifier.model.attention_biases: none
       classifier.model.tokenizer.name: raw
       classifier.model.positional: sinusoidal
-      classifier.model.pooling: cls
+      classifier.model.head.pooling: cls
 
       # Seeds and epochs
       classifier.trainer.epochs: 50

@@ -27,7 +27,7 @@ hydra:
       classifier.model.bias_config.lorentz_scalar.features: "[m2, deltaR]"
       classifier.model.tokenizer.name: raw
       classifier.model.positional: sinusoidal
-      classifier.model.pooling: cls
+      classifier.model.head.pooling: cls
       classifier.model.norm.policy: post
       classifier.trainer.epochs: 50
 

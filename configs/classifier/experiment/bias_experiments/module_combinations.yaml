@@ -38,7 +38,7 @@ hydra:
       classifier.model.bias_config.sm_interaction.mode: running_coupling
       classifier.model.tokenizer.name: raw
       classifier.model.positional: sinusoidal
-      classifier.model.pooling: cls
+      classifier.model.head.pooling: cls
       classifier.model.norm.policy: post
       classifier.trainer.epochs: 50
 

@@ -24,7 +24,7 @@ hydra:
     params:
       classifier.model.norm.policy: pre,post
       classifier.model.positional: none,sinusoidal
-      classifier.model.pooling: cls
+      classifier.model.head.pooling: cls
       classifier.model.dropout: 0.3  # Add dropout regularization
       classifier.trainer.weight_decay: 0.01,0.1  # Add weight decay regularization
       classifier.trainer.epochs: 50  # Partial run for testing
