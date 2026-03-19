@@ -1,0 +1,50 @@
+# @package _global_
+
+# MoE First-Pass Sweep (24 runs)
+# 2 x 2 x 2 x 3 = 24 grid points:
+#   top_k:         1, 2
+#   routing_level: token, event
+#   scope:         head, middle_blocks
+#   seed:          42, 123, 7
+
+meta:
+  goal: "classification"
+
+experiment:
+  name: "moe_first_pass"
+
+hydra:
+  mode: MULTIRUN
+  job:
+    chdir: true
+    name: ${experiment.name}_job
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweeper:
+    params:
+      # MoE axes
+      classifier.model.moe.enabled: true
+      classifier.model.moe.top_k: 1,2
+      classifier.model.moe.routing_level: token,event
+      classifier.model.moe.scope: head,middle_blocks
+
+      # Fixed architecture (matching existing baseline experiments)
+      +classifier/model_size: s200k
+      classifier.model.attention_biases: none
+      classifier.model.tokenizer.name: raw
+      classifier.model.positional: sinusoidal
+      classifier.model.pooling: cls
+
+      # Seeds and epochs
+      classifier.trainer.epochs: 50
+      classifier.trainer.seed: 42,123,7
+
+data:
+  classifier:
+    signal_vs_background:
+      signal: 1
+      background: [2, 3, 4, 5]
+    selected_labels: null

@@ -1,14 +1,33 @@
 from __future__ import annotations
 
+from typing import Any
+
 import torch
 import torch.nn as nn
 from omegaconf import DictConfig
 
-from thesis_ml.architectures.transformer_classifier.modules.attention import MultiHeadAttention
+from thesis_ml.architectures.transformer_classifier.modules.attention import (
+    DifferentialAttention,
+    MultiHeadAttention,
+    build_norm,
+)
+from thesis_ml.architectures.transformer_classifier.modules.ffn import build_ffn
 
 
 class TransformerEncoderBlock(nn.Module):
-    """Single transformer encoder block with attention and MLP."""
+    """Single transformer encoder block with attention and MLP.
+
+    Normalization is controlled by four independent axes:
+
+    - **Axis A** (``norm_policy``): WHERE norms are placed — ``pre`` / ``post``
+      / ``normformer``.
+    - **Axis B** (``block_norm_type``): WHICH norm module is used at block
+      level — ``layernorm`` / ``rmsnorm``.
+    - **Axis C** (``attention_norm``): attention-internal per-head norm —
+      ``none`` / ``layernorm`` / ``rmsnorm``.  Passed to the attention module.
+    - **Axis D**: NormFormer extras (``head_scales``, ``norm_attn_out``,
+      ``norm_mlp_mid``) — activated when ``norm_policy="normformer"``.
+    """
 
     def __init__(
         self,
@@ -17,126 +36,153 @@ class TransformerEncoderBlock(nn.Module):
         mlp_dim: int,
         dropout: float = 0.1,
         norm_policy: str = "post",
+        block_norm_type: str = "layernorm",
         rotary_emb: nn.Module | None = None,
         causal_attention: bool = False,
+        attention_type: str = "standard",
+        attention_norm: str = "none",
+        diff_bias_mode: str = "shared",
+        layer_idx: int = 0,
+        moe_cfg: dict[str, Any] | None = None,
+        use_cls_token: bool = True,
+        ffn_type: str = "standard",
+        kan_cfg: dict[str, Any] | None = None,
     ):
         """Initialize encoder block.
 
         Parameters
         ----------
         dim : int
-            Model dimension
+            Model dimension.
         num_heads : int
-            Number of attention heads
+            Number of attention heads.
         mlp_dim : int
-            MLP hidden dimension
+            MLP hidden dimension.
         dropout : float
-            Dropout rate
+            Dropout rate.
         norm_policy : str
-            Normalization policy: "pre", "post", or "normformer"
+            Axis A — normalization policy: ``"pre"``, ``"post"``, or
+            ``"normformer"``.
+        block_norm_type : str
+            Axis B — block norm type: ``"layernorm"`` or ``"rmsnorm"``.
         rotary_emb : nn.Module | None
-            Optional RotaryEmbedding module for rotary positional encoding.
-            Shared across all encoder blocks.
+            Optional ``RotaryEmbedding``, shared across all encoder blocks.
         causal_attention : bool
-            If True, apply causal (lower-triangular) attention mask so position i
-            cannot attend to positions j > i.
+            If True, apply causal (lower-triangular) attention mask.
+        attention_type : str
+            ``"standard"`` or ``"differential"``.
+        attention_norm : str
+            Axis C — attention-internal norm: ``"none"``, ``"layernorm"``,
+            or ``"rmsnorm"``.
+        diff_bias_mode : str
+            Bias mode for differential attention: ``"none"`` / ``"shared"``
+            / ``"split"``.  Ignored for standard attention.
+        layer_idx : int
+            Zero-based layer index (used for depth-dependent lambda init
+            in differential attention).
+        moe_cfg : dict | None
+            MoE config dict.  ``None`` or ``{"enabled": False}`` selects
+            the standard FFN.
+        use_cls_token : bool
+            Whether the model prepends a CLS token (needed by MoE for
+            event-level routing).
+        ffn_type : str
+            ``"standard"`` | ``"kan"``.  MoE is activated via *moe_cfg*
+            and takes priority when enabled.
+        kan_cfg : dict | None
+            Global KAN hyperparameters (used when ``ffn_type="kan"``).
         """
         super().__init__()
         self.norm_policy = norm_policy
         self.causal_attention = causal_attention
 
-        # Head-wise scaling for NormFormer (only used when norm_policy == "normformer")
+        # NormFormer head-wise scaling (Axis D)
         head_scales = None
         if norm_policy == "normformer":
             head_scales = nn.Parameter(torch.ones(num_heads))
 
-        # Multi-head self-attention (custom implementation to support head scaling and RoPE)
-        self.attention = MultiHeadAttention(
-            embed_dim=dim,
-            num_heads=num_heads,
+        # Attention module selection
+        if attention_type == "differential":
+            self.attention = DifferentialAttention(
+                embed_dim=dim,
+                num_heads=num_heads,
+                dropout=dropout,
+                batch_first=True,
+                head_scales=head_scales,
+                rotary_emb=rotary_emb,
+                attention_norm=attention_norm,
+                layer_idx=layer_idx,
+                diff_bias_mode=diff_bias_mode,
+            )
+        else:
+            self.attention = MultiHeadAttention(
+                embed_dim=dim,
+                num_heads=num_heads,
+                dropout=dropout,
+                batch_first=True,
+                head_scales=head_scales,
+                rotary_emb=rotary_emb,
+                attention_norm=attention_norm,
+            )
+
+        # FFN (config-driven: StandardFFN, MoEFFN, or KANFFN via build_ffn)
+        self.ffn = build_ffn(
+            dim=dim,
+            mlp_dim=mlp_dim,
             dropout=dropout,
-            batch_first=True,  # Use [B, T, D] format
-            head_scales=head_scales,
-            rotary_emb=rotary_emb,
+            norm_policy=norm_policy,
+            block_norm_type=block_norm_type,
+            moe_cfg=moe_cfg,
+            use_cls_token=use_cls_token,
+            ffn_type=ffn_type,
+            kan_cfg=kan_cfg,
         )
 
-        # MLP structure depends on normalization policy
-        if norm_policy == "normformer":
-            # For NormFormer: need to insert LayerNorm after first linear
-            self.mlp_fc1 = nn.Linear(dim, mlp_dim)
-            self.norm_mlp_mid = nn.LayerNorm(mlp_dim)
-            self.activation = nn.GELU()
-            self.dropout_mlp = nn.Dropout(dropout)
-            self.mlp_fc2 = nn.Linear(mlp_dim, dim)
-            self.mlp = None  # Not used for NormFormer
-        else:
-            # For pre/post norm: use Sequential as before
-            self.mlp = nn.Sequential(
-                nn.Linear(dim, mlp_dim),
-                nn.GELU(),
-                nn.Dropout(dropout),
-                nn.Linear(mlp_dim, dim),
-                nn.Dropout(dropout),
-            )
-            # Not used for pre/post norm
-            self.mlp_fc1 = None
-            self.norm_mlp_mid = None
-            self.activation = None
-            self.dropout_mlp = None
-            self.mlp_fc2 = None
+        # Block-level norms (Axis B)
+        self.norm1 = build_norm(block_norm_type, dim)
+        self.norm2 = build_norm(block_norm_type, dim)
 
-        # Layer normalization
-        self.norm1 = nn.LayerNorm(dim)
-        self.norm2 = nn.LayerNorm(dim)
-
-        # Additional LayerNorm after attention for NormFormer
+        # NormFormer extra norm after attention output (Axis B + D)
         if norm_policy == "normformer":
-            self.norm_attn_out = nn.LayerNorm(dim)
+            self.norm_attn_out = build_norm(block_norm_type, dim)
         else:
             self.norm_attn_out = None
 
-        # Dropout for residual connections
         self.dropout = nn.Dropout(dropout)
 
     def forward(
         self,
         x: torch.Tensor,
         mask: torch.Tensor | None = None,
-        attention_bias: torch.Tensor | None = None,
+        attention_bias: torch.Tensor | tuple[torch.Tensor, torch.Tensor] | None = None,
     ) -> torch.Tensor:
         """Forward pass.
 
         Parameters
         ----------
         x : torch.Tensor
-            Input tensor [B, T, D]
+            Input tensor ``[B, T, D]``.
         mask : torch.Tensor, optional
-            Attention mask [B, T] (True=valid, False=padding)
-            Will be converted to key_padding_mask format
-        attention_bias : torch.Tensor, optional
-            Additive bias for attention logits [B, T, T] or [B, num_heads, T, T].
+            ``[B, T]`` (``True=valid``, ``False=padding``).
+        attention_bias : Tensor | tuple[Tensor, Tensor] | None
+            Additive bias for attention logits.
 
         Returns
         -------
         torch.Tensor
-            Output tensor [B, T, D]
+            Output tensor ``[B, T, D]``.
         """
-        # Convert mask to key_padding_mask format
-        # Loader provides mask with True=valid, False=padding
-        # Attention expects key_padding_mask with True=pad, False=valid
-        key_padding_mask = None
-        if mask is not None:
-            key_padding_mask = ~mask  # [B, T] (True=pad, False=valid)
+        # Convert mask: loader uses True=valid; attention expects True=pad
+        key_padding_mask = ~mask if mask is not None else None
 
-        # Causal mask: [T, T], True = mask out (position i cannot attend to j when j > i)
+        # Causal mask
         attn_mask = None
         if self.causal_attention:
             T = x.size(1)
             attn_mask = torch.triu(torch.ones(T, T, device=x.device, dtype=torch.bool), diagonal=1)
 
-        # Attention block
+        # ---- Attention block ----
         if self.norm_policy == "pre":
-            # Pre-norm: LayerNorm before attention
             x_norm = self.norm1(x)
             attn_out, _ = self.attention(
                 x_norm,
@@ -148,7 +194,6 @@ class TransformerEncoderBlock(nn.Module):
             )
             x = x + self.dropout(attn_out)
         elif self.norm_policy == "post":
-            # Post-norm: LayerNorm after attention
             attn_out, _ = self.attention(
                 x,
                 x,
@@ -159,7 +204,6 @@ class TransformerEncoderBlock(nn.Module):
             )
             x = self.norm1(x + self.dropout(attn_out))
         elif self.norm_policy == "normformer":
-            # NormFormer: Pre-norm before attention, then norm after attention
             x_norm = self.norm1(x)
             attn_out, _ = self.attention(
                 x_norm,
@@ -169,31 +213,16 @@ class TransformerEncoderBlock(nn.Module):
                 attn_mask=attn_mask,
                 attention_bias=attention_bias,
             )
-            attn_out = self.norm_attn_out(attn_out)  # LayerNorm after attention
+            attn_out = self.norm_attn_out(attn_out)
             x = x + self.dropout(attn_out)
         else:
             raise ValueError(f"Unknown norm_policy: {self.norm_policy}")
 
-        # MLP block
-        if self.norm_policy == "pre":
-            # Pre-norm: LayerNorm before MLP
-            x_norm = self.norm2(x)
-            mlp_out = self.mlp(x_norm)
-            x = x + mlp_out
+        # ---- FFN block ----
+        if self.norm_policy in ("pre", "normformer"):
+            x = x + self.ffn(self.norm2(x), mask=mask)
         elif self.norm_policy == "post":
-            # Post-norm: LayerNorm after MLP
-            mlp_out = self.mlp(x)
-            x = self.norm2(x + mlp_out)
-        elif self.norm_policy == "normformer":
-            # NormFormer: Pre-norm before MLP, then norm after first linear
-            x_norm = self.norm2(x)
-            mlp_hidden = self.mlp_fc1(x_norm)  # First linear
-            mlp_hidden = self.norm_mlp_mid(mlp_hidden)  # LayerNorm after first linear
-            mlp_hidden = self.activation(mlp_hidden)  # GELU
-            mlp_hidden = self.dropout_mlp(mlp_hidden)
-            mlp_out = self.mlp_fc2(mlp_hidden)  # Second linear
-            mlp_out = self.dropout(mlp_out)
-            x = x + mlp_out
+            x = self.norm2(x + self.ffn(x, mask=mask))
         else:
             raise ValueError(f"Unknown norm_policy: {self.norm_policy}")
 
@@ -211,37 +240,51 @@ class TransformerEncoder(nn.Module):
         mlp_dim: int,
         dropout: float = 0.1,
         norm_policy: str = "post",
+        block_norm_type: str = "layernorm",
         rotary_emb: nn.Module | None = None,
         causal_attention: bool = False,
+        attention_type: str = "standard",
+        attention_norm: str = "none",
+        diff_bias_mode: str = "shared",
+        moe_cfg: dict[str, Any] | None = None,
+        use_cls_token: bool = True,
+        ffn_type: str = "standard",
+        kan_cfg: dict[str, Any] | None = None,
     ):
         """Initialize encoder stack.
 
         Parameters
         ----------
-        dim : int
-            Model dimension
-        depth : int
-            Number of encoder blocks
-        num_heads : int
-            Number of attention heads
-        mlp_dim : int
-            MLP hidden dimension
-        dropout : float
-            Dropout rate
+        dim, depth, num_heads, mlp_dim, dropout
+            Standard transformer hyper-parameters.
         norm_policy : str
-            Normalization policy: "pre", "post", or "normformer"
+            Axis A — ``"pre"`` / ``"post"`` / ``"normformer"``.
+        block_norm_type : str
+            Axis B — ``"layernorm"`` / ``"rmsnorm"``.
         rotary_emb : nn.Module | None
-            Optional RotaryEmbedding module for rotary positional encoding.
-            Shared across all encoder blocks.
+            Shared ``RotaryEmbedding``.
         causal_attention : bool
-            If True, apply causal attention mask in each block.
+            Causal mask in each block.
+        attention_type : str
+            ``"standard"`` or ``"differential"``.
+        attention_norm : str
+            Axis C — ``"none"`` / ``"layernorm"`` / ``"rmsnorm"``.
+        diff_bias_mode : str
+            Bias mode for differential attention.
+        moe_cfg : dict | None
+            MoE configuration.  Scope determines which blocks get MoE.
+        use_cls_token : bool
+            Whether the model uses a CLS token (for event-level routing).
+        ffn_type : str
+            ``"standard"`` | ``"kan"``.
+        kan_cfg : dict | None
+            Global KAN hyperparameters.
         """
         super().__init__()
-
-        # Store rotary embedding (shared across blocks, not owned by encoder)
         self.rotary_emb = rotary_emb
 
-        # Stack encoder blocks
+        moe_block_indices = _compute_moe_block_indices(depth, moe_cfg)
+
         self.blocks = nn.ModuleList(
             [
                 TransformerEncoderBlock(
@@ -250,10 +293,19 @@ class TransformerEncoder(nn.Module):
                     mlp_dim=mlp_dim,
                     dropout=dropout,
                     norm_policy=norm_policy,
+                    block_norm_type=block_norm_type,
                     rotary_emb=rotary_emb,
                     causal_attention=causal_attention,
+                    attention_type=attention_type,
+                    attention_norm=attention_norm,
+                    diff_bias_mode=diff_bias_mode,
+                    layer_idx=i,
+                    moe_cfg=moe_cfg if i in moe_block_indices else None,
+                    use_cls_token=use_cls_token,
+                    ffn_type=ffn_type,
+                    kan_cfg=kan_cfg,
                 )
-                for _ in range(depth)
+                for i in range(depth)
             ]
         )
 
@@ -261,56 +313,96 @@ class TransformerEncoder(nn.Module):
         self,
         x: torch.Tensor,
         mask: torch.Tensor | None = None,
-        attention_bias: torch.Tensor | None = None,
+        attention_bias: torch.Tensor | tuple[torch.Tensor, torch.Tensor] | None = None,
     ) -> torch.Tensor:
         """Forward pass through all encoder blocks.
 
         Parameters
         ----------
         x : torch.Tensor
-            Input tensor [B, T, D]
+            Input tensor ``[B, T, D]``.
         mask : torch.Tensor, optional
-            Attention mask [B, T] (True=valid, False=padding)
-        attention_bias : torch.Tensor, optional
+            ``[B, T]`` (``True=valid``, ``False=padding``).
+        attention_bias : Tensor | tuple[Tensor, Tensor] | None
             Additive bias for attention logits; shared across all blocks.
 
         Returns
         -------
         torch.Tensor
-            Output tensor [B, T, D]
+            Output tensor ``[B, T, D]``.
         """
         for block in self.blocks:
             x = block(x, mask=mask, attention_bias=attention_bias)
         return x
 
 
+def _compute_moe_block_indices(depth: int, moe_cfg: dict[str, Any] | None) -> set[int]:
+    """Return the set of block indices that should use MoE FFN.
+
+    Parameters
+    ----------
+    depth : int
+        Total number of encoder blocks.
+    moe_cfg : dict | None
+        MoE config.  Relevant key: ``scope``.
+
+    Returns
+    -------
+    set[int]
+        Block indices (0-based) that should receive MoE.
+    """
+    if not moe_cfg or not moe_cfg.get("enabled", False):
+        return set()
+
+    scope = moe_cfg.get("scope", "all_blocks")
+
+    if scope == "all_blocks":
+        return set(range(depth))
+
+    if scope == "middle_blocks":
+        if depth <= 2:
+            return set()
+        num_middle = max(1, depth // 3)
+        start = (depth - num_middle) // 2
+        return set(range(start, start + num_middle))
+
+    # head_only or unknown scope: no encoder blocks get MoE
+    return set()
+
+
 def build_transformer_encoder(
     cfg: DictConfig,
     dim: int,
     rotary_emb: nn.Module | None = None,
+    moe_cfg: dict[str, Any] | None = None,
+    use_cls_token: bool = True,
+    ffn_type: str = "standard",
+    kan_cfg: dict[str, Any] | None = None,
 ) -> nn.Module:
-    """Build transformer encoder stack.
+    """Build transformer encoder stack from Hydra config.
 
-    Parameters
-    ----------
-    cfg : DictConfig
-        Configuration with classifier.model.* keys (depth, heads, mlp_dim, dropout, norm.policy)
-    dim : int
-        Model dimension
-    rotary_emb : nn.Module | None
-        Optional RotaryEmbedding module for rotary positional encoding.
-
-    Returns
-    -------
-    nn.Module
-        Transformer encoder stack with specified depth and normalization policy
+    Reads:
+    - ``classifier.model.depth``, ``heads``, ``mlp_dim``, ``dropout``
+    - ``classifier.model.norm.policy`` (Axis A)
+    - ``classifier.model.norm.type`` (Axis B, default ``"layernorm"``)
+    - ``classifier.model.attention.type`` (default ``"standard"``)
+    - ``classifier.model.attention.norm`` (Axis C, default ``"none"``)
+    - ``classifier.model.attention.diff_bias_mode`` (default ``"shared"``)
+    - ``classifier.model.causal_attention``
     """
-    depth = cfg.classifier.model.depth
-    num_heads = cfg.classifier.model.heads
-    mlp_dim = cfg.classifier.model.mlp_dim
-    dropout = cfg.classifier.model.get("dropout", 0.1)
-    norm_policy = cfg.classifier.model.norm.get("policy", "post")
-    causal_attention = cfg.classifier.model.get("causal_attention", False)
+    model_cfg = cfg.classifier.model
+    depth = model_cfg.depth
+    num_heads = model_cfg.heads
+    mlp_dim = model_cfg.mlp_dim
+    dropout = model_cfg.get("dropout", 0.1)
+    norm_policy = model_cfg.norm.get("policy", "post")
+    block_norm_type = model_cfg.norm.get("type", "layernorm")
+    causal_attention = model_cfg.get("causal_attention", False)
+
+    attn_cfg = model_cfg.get("attention", {})
+    attention_type = attn_cfg.get("type", "standard")
+    attention_norm = attn_cfg.get("norm", "none")
+    diff_bias_mode = attn_cfg.get("diff_bias_mode", "shared")
 
     return TransformerEncoder(
         dim=dim,
@@ -319,6 +411,14 @@ def build_transformer_encoder(
         mlp_dim=mlp_dim,
         dropout=dropout,
         norm_policy=norm_policy,
+        block_norm_type=block_norm_type,
         rotary_emb=rotary_emb,
         causal_attention=causal_attention,
+        attention_type=attention_type,
+        attention_norm=attention_norm,
+        diff_bias_mode=diff_bias_mode,
+        moe_cfg=moe_cfg,
+        use_cls_token=use_cls_token,
+        ffn_type=ffn_type,
+        kan_cfg=kan_cfg,
     )

@@ -183,6 +183,27 @@ def extract_wandb_config(cfg: dict[str, Any], source_location: str = "live") -> 
     # === Causal attention ===
     wc["model/causal_attention"] = _safe_get(cfg, "classifier.model.causal_attention")
 
+    # === Mixture-of-Experts ===
+    wc["moe/enabled"] = _safe_get(cfg, "classifier.model.moe.enabled")
+    wc["moe/num_experts"] = _safe_get(cfg, "classifier.model.moe.num_experts")
+    wc["moe/top_k"] = _safe_get(cfg, "classifier.model.moe.top_k")
+    wc["moe/routing_level"] = _safe_get(cfg, "classifier.model.moe.routing_level")
+    wc["moe/scope"] = _safe_get(cfg, "classifier.model.moe.scope")
+    wc["moe/lb_weight"] = _safe_get(cfg, "classifier.model.moe.load_balance_loss_weight")
+    wc["moe/noisy_gating"] = _safe_get(cfg, "classifier.model.moe.noisy_gating")
+
+    # === Kolmogorov-Arnold Networks ===
+    wc["head/type"] = _safe_get(cfg, "classifier.model.head.type")
+    wc["ffn/type"] = _safe_get(cfg, "classifier.model.ffn.type")
+    wc["ffn/kan_variant"] = _safe_get(cfg, "classifier.model.ffn.kan.variant")
+    wc["kan/grid_size"] = _safe_get(cfg, "classifier.model.kan.grid_size")
+    wc["kan/spline_order"] = _safe_get(cfg, "classifier.model.kan.spline_order")
+    wc["kan/grid_range"] = str(_safe_get(cfg, "classifier.model.kan.grid_range")) if _safe_get(cfg, "classifier.model.kan.grid_range") else None
+    wc["kan/spline_reg_weight"] = _safe_get(cfg, "classifier.model.kan.spline_regularization_weight")
+    wc["kan/grid_update_freq"] = _safe_get(cfg, "classifier.model.kan.grid_update_freq")
+    wc["kan/bias_lorentz_mlp_type"] = _safe_get(cfg, "classifier.model.bias_config.lorentz_scalar.mlp_type")
+    wc["kan/bias_global_mlp_type"] = _safe_get(cfg, "classifier.model.bias_config.global_conditioned.mlp_type")
+
     # === Training Hyperparameters ===
     wc["training/lr"] = _safe_get(cfg, "classifier.trainer.lr") or _safe_get(cfg, "trainer.lr")
     wc["training/weight_decay"] = _safe_get(cfg, "classifier.trainer.weight_decay") or _safe_get(cfg, "trainer.weight_decay")
@@ -553,6 +574,8 @@ def init_wandb(cfg: DictConfig, model: Any = None) -> Any:
         wandb.define_metric("val/*", step_metric="epoch")
         wandb.define_metric("test/*", step_metric="epoch")
         wandb.define_metric("perf/*", step_metric="epoch")
+        wandb.define_metric("moe/*", step_metric="epoch")
+        wandb.define_metric("kan/*", step_metric="epoch")
 
         # Optional model watching (gradients/parameters)
         if model is not None and wandb_cfg.get("watch_model", False):

@@ -39,7 +39,10 @@ tags:
 enable_tags: []  # e.g., ["core"]
 
 # Weights & Biases (W&B) integration
-# Enable via logging=wandb_online or logging=wandb_offline presets
+# Default: ON (runs will log to W&B unless you explicitly disable it).
+# Control via:
+# - presets: logging=wandb_online / logging=wandb_offline
+# - or explicit overrides: logging.use_wandb=true|false, logging.wandb.mode=online|offline
 use_wandb: true
 wandb:
   project: "thesis-ml"

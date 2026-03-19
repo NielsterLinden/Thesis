@@ -1,0 +1,58 @@
+# @package _global_
+
+# KAN Bias MLP Sweep (9 runs)
+# 3 x 3 = 9 grid points:
+#   bias config:  standard lorentz, KAN lorentz, KAN lorentz+global
+#   seed:         42, 123, 7
+#
+# Purpose: does replacing low-dimensional physics-bias MLPs with KAN
+#   improve attention bias learning?  Narrowly scoped to LorentzScalarBias
+#   and GlobalConditionedBias (the cleanest low-dim mappings).
+
+meta:
+  goal: "classification"
+
+experiment:
+  name: "kan_bias"
+
+hydra:
+  mode: MULTIRUN
+  job:
+    chdir: true
+    name: ${experiment.name}_job
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweeper:
+    params:
+      # Bias axes
+      # Group 1: standard MLP lorentz_scalar
+      # Group 2: KAN lorentz_scalar
+      # Group 3: KAN lorentz_scalar + KAN global_conditioned
+      classifier.model.attention_biases: lorentz_scalar,lorentz_scalar,lorentz_scalar+global_conditioned
+      classifier.model.bias_config.lorentz_scalar.mlp_type: standard,kan,kan
+      classifier.model.bias_config.global_conditioned.mlp_type: standard,standard,kan
+
+      # Need MET for global_conditioned
+      classifier.globals.include_met: false,false,true
+
+      # Fixed architecture (matching existing baseline experiments)
+      +classifier/model_size: s200k
+      classifier.model.tokenizer.name: raw
+      classifier.model.positional: sinusoidal
+      classifier.model.head.pooling: cls
+      classifier.model.head.type: linear
+      classifier.model.ffn.type: standard
+
+      # Seeds and epochs
+      classifier.trainer.epochs: 50
+      classifier.trainer.seed: 42,123,7
+
+data:
+  classifier:
+    signal_vs_background:
+      signal: 1
+      background: [2, 3, 4, 5]
+    selected_labels: null

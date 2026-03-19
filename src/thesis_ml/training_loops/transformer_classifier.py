@@ -12,6 +12,14 @@ from omegaconf import DictConfig, OmegaConf
 from sklearn.metrics import f1_score, roc_auc_score
 
 from thesis_ml.architectures.transformer_classifier.base import build_from_config
+from thesis_ml.architectures.transformer_classifier.modules.ffn.moe import (
+    collect_moe_aux_loss,
+    collect_moe_routing_stats,
+)
+from thesis_ml.architectures.transformer_classifier.modules.kan import (
+    collect_kan_spline_loss,
+    update_all_kan_grids,
+)
 from thesis_ml.architectures.transformer_classifier.modules.tokenizers.identity import IdentityTokenizer
 from thesis_ml.data.h5_loader import make_classification_dataloaders
 from thesis_ml.facts import append_jsonl_event, append_scalars_csv, build_event_payload, build_meta, write_meta
@@ -255,7 +263,18 @@ def _train_one_epoch(
     all_logits = []
     all_labels = []
     total_loss = 0.0
+    total_moe_aux = 0.0
+    total_kan_reg = 0.0
     num_batches = 0
+
+    # MoE config
+    moe_cfg = cfg.classifier.model.get("moe", {})
+    moe_enabled = moe_cfg.get("enabled", False) if moe_cfg else False
+    moe_lb_weight = moe_cfg.get("load_balance_loss_weight", 0.01) if moe_enabled else 0.0
+
+    # KAN spline regularization config (own namespace, separate from MoE)
+    kan_cfg = cfg.classifier.model.get("kan", {})
+    kan_reg_weight = float(kan_cfg.get("spline_regularization_weight", 0.0)) if kan_cfg else 0.0
 
     # AMP setup
     use_amp = cfg.classifier.trainer.get("use_amp", False)
@@ -293,6 +312,20 @@ def _train_one_epoch(
         # Loss
         loss = criterion(logits, label)
 
+        # MoE auxiliary loss
+        if moe_enabled:
+            moe_aux = collect_moe_aux_loss(model)
+            if moe_aux.item() > 0:
+                loss = loss + moe_lb_weight * moe_aux
+            total_moe_aux += moe_aux.item()
+
+        # KAN spline regularization (smoothness prior — separate from MoE)
+        if kan_reg_weight > 0:
+            kan_reg = collect_kan_spline_loss(model)
+            if kan_reg.item() > 0:
+                loss = loss + kan_reg_weight * kan_reg
+            total_kan_reg += kan_reg.item()
+
         # Backward
         if scaler is not None:
             scaler.scale(loss).backward()
@@ -325,7 +358,19 @@ def _train_one_epoch(
     avg_loss = total_loss / num_batches if num_batches > 0 else 0.0
     metrics = _compute_metrics_epoch(all_logits, all_labels, n_classes)
 
-    return {"loss": avg_loss, **metrics}
+    result: dict[str, float | None] = {"loss": avg_loss, **metrics}
+
+    # MoE diagnostics (only when enabled)
+    if moe_enabled and num_batches > 0:
+        result["moe_aux_loss"] = total_moe_aux / num_batches
+        routing_stats = collect_moe_routing_stats(model)
+        result["moe_expert_utilization"] = routing_stats["mean_utilization"]
+
+    # KAN diagnostics (only when regularisation is active)
+    if kan_reg_weight > 0 and num_batches > 0:
+        result["kan_spline_reg"] = total_kan_reg / num_batches
+
+    return result
 
 
 def _validate_one_epoch(
@@ -364,7 +409,17 @@ def _validate_one_epoch(
     all_logits = []
     all_labels = []
     total_loss = 0.0
+    total_moe_aux = 0.0
+    total_kan_reg = 0.0
     num_batches = 0
+
+    # MoE config
+    moe_cfg = cfg.classifier.model.get("moe", {})
+    moe_enabled = moe_cfg.get("enabled", False) if moe_cfg else False
+
+    # KAN spline regularization (for logging only, not for loss)
+    kan_cfg = cfg.classifier.model.get("kan", {})
+    kan_reg_weight = float(kan_cfg.get("spline_regularization_weight", 0.0)) if kan_cfg else 0.0
 
     # AMP setup
     use_amp = cfg.classifier.trainer.get("use_amp", False)
@@ -395,6 +450,16 @@ def _validate_one_epoch(
             # Loss
             loss = criterion(logits, label)
 
+            # MoE auxiliary loss (logged, not backpropagated)
+            if moe_enabled:
+                moe_aux = collect_moe_aux_loss(model)
+                total_moe_aux += moe_aux.item()
+
+            # KAN spline regularization (logged, not backpropagated)
+            if kan_reg_weight > 0:
+                kan_reg = collect_kan_spline_loss(model)
+                total_kan_reg += kan_reg.item()
+
             # Accumulate
             total_loss += loss.item()
             num_batches += 1
@@ -405,7 +470,17 @@ def _validate_one_epoch(
     avg_loss = total_loss / num_batches if num_batches > 0 else 0.0
     metrics = _compute_metrics_epoch(all_logits, all_labels, n_classes)
 
-    return {"loss": avg_loss, **metrics}
+    result: dict[str, float | None] = {"loss": avg_loss, **metrics}
+
+    if moe_enabled and num_batches > 0:
+        result["moe_aux_loss"] = total_moe_aux / num_batches
+        routing_stats = collect_moe_routing_stats(model)
+        result["moe_expert_utilization"] = routing_stats["mean_utilization"]
+
+    if kan_reg_weight > 0 and num_batches > 0:
+        result["kan_spline_reg"] = total_kan_reg / num_batches
+
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -702,6 +777,10 @@ def train(cfg: DictConfig) -> dict:
     # PID schedule config
     log_pid = cfg.classifier.trainer.get("log_pid_embeddings", False)
 
+    # KAN grid update frequency (0 = never)
+    _kan_cfg = cfg.classifier.model.get("kan", {})
+    kan_grid_freq = int(_kan_cfg.get("grid_update_freq", 0)) if _kan_cfg else 0
+
     for epoch in range(cfg.classifier.trainer.epochs):
         epoch_start = time.time()
 
@@ -710,6 +789,15 @@ def train(cfg: DictConfig) -> dict:
 
         # Train
         train_metrics = _train_one_epoch(model, train_dl, opt, criterion, device, cfg, meta["n_classes"], warmup_scheduler)
+
+        # ── KAN grid update (adapt B-spline knots to data distribution) ──
+        if kan_grid_freq > 0 and (epoch + 1) % kan_grid_freq == 0:
+            try:
+                sample_batch = next(iter(train_dl))
+                sample_x = sample_batch[0].to(device) if len(sample_batch) == 5 else sample_batch[0].to(device).float()
+                update_all_kan_grids(model, sample_x)
+            except Exception:
+                pass
         histories["train_loss"].append(train_metrics["loss"])
         histories["train_acc"].append(train_metrics["acc"])
         histories["train_f1"].append(train_metrics["f1"])
@@ -808,17 +896,25 @@ def train(cfg: DictConfig) -> dict:
             # Use last valid AUROC if current is None
             val_auroc_for_facts = last_valid_auroc if val_metrics["auroc"] is None else val_metrics["auroc"]
 
+            facts_metrics: dict[str, Any] = {
+                "acc": val_metrics["acc"],
+                "f1": val_metrics["f1"],
+                "auroc": val_auroc_for_facts,
+            }
+            if "moe_aux_loss" in train_metrics:
+                facts_metrics["moe_aux_loss"] = train_metrics["moe_aux_loss"]
+            if "moe_expert_utilization" in train_metrics:
+                facts_metrics["moe_expert_utilization"] = train_metrics["moe_expert_utilization"]
+            if "kan_spline_reg" in train_metrics:
+                facts_metrics["kan_spline_reg"] = train_metrics["kan_spline_reg"]
+
             payload = build_event_payload(
                 moment="on_epoch_end",
                 run_dir=outdir,
                 epoch=epoch,
                 train_loss=train_metrics["loss"],
                 val_loss=val_metrics["loss"],
-                metrics={
-                    "acc": val_metrics["acc"],
-                    "f1": val_metrics["f1"],
-                    "auroc": val_auroc_for_facts,
-                },
+                metrics=facts_metrics,
                 histories=histories,
                 epoch_time_s=epoch_time,
                 cfg=cfg,
@@ -830,11 +926,7 @@ def train(cfg: DictConfig) -> dict:
                 split="val",
                 train_loss=train_metrics["loss"],
                 val_loss=val_metrics["loss"],
-                metrics={
-                    "acc": val_metrics["acc"],
-                    "f1": val_metrics["f1"],
-                    "auroc": val_auroc_for_facts,
-                },
+                metrics=facts_metrics,
                 epoch_time_s=epoch_time,
                 throughput=None,
                 max_memory_mib=None,
@@ -843,21 +935,35 @@ def train(cfg: DictConfig) -> dict:
 
         # W&B logging (alongside Facts, not replacing)
         val_auroc_for_wandb = last_valid_auroc if val_metrics["auroc"] is None else val_metrics["auroc"]
-        log_metrics(
-            wandb_run,
-            {
-                "epoch": epoch,
-                "train/loss": float(train_metrics["loss"]),
-                "train/acc": float(train_metrics["acc"]),
-                "train/f1": float(train_metrics["f1"]),
-                "val/loss": float(val_metrics["loss"]),
-                "val/acc": float(val_metrics["acc"]),
-                "val/f1": float(val_metrics["f1"]),
-                "val/auroc": float(val_auroc_for_wandb) if val_auroc_for_wandb is not None else None,
-                "perf/epoch_time_s": float(epoch_time),
-            },
-            step=epoch,
-        )
+        wandb_payload: dict[str, Any] = {
+            "epoch": epoch,
+            "train/loss": float(train_metrics["loss"]),
+            "train/acc": float(train_metrics["acc"]),
+            "train/f1": float(train_metrics["f1"]),
+            "val/loss": float(val_metrics["loss"]),
+            "val/acc": float(val_metrics["acc"]),
+            "val/f1": float(val_metrics["f1"]),
+            "val/auroc": float(val_auroc_for_wandb) if val_auroc_for_wandb is not None else None,
+            "perf/epoch_time_s": float(epoch_time),
+        }
+
+        # MoE diagnostics
+        if "moe_aux_loss" in train_metrics:
+            wandb_payload["moe/train_aux_loss"] = float(train_metrics["moe_aux_loss"])
+        if "moe_aux_loss" in val_metrics:
+            wandb_payload["moe/val_aux_loss"] = float(val_metrics["moe_aux_loss"])
+        if "moe_expert_utilization" in train_metrics:
+            wandb_payload["moe/train_expert_utilization"] = float(train_metrics["moe_expert_utilization"])
+        if "moe_expert_utilization" in val_metrics:
+            wandb_payload["moe/val_expert_utilization"] = float(val_metrics["moe_expert_utilization"])
+
+        # KAN diagnostics (own namespace, separate from MoE)
+        if "kan_spline_reg" in train_metrics:
+            wandb_payload["kan/train_spline_reg"] = float(train_metrics["kan_spline_reg"])
+        if "kan_spline_reg" in val_metrics:
+            wandb_payload["kan/val_spline_reg"] = float(val_metrics["kan_spline_reg"])
+
+        log_metrics(wandb_run, wandb_payload, step=epoch)
 
         # ── PID embedding geometry logging ──
         if log_pid:

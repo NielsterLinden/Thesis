@@ -5,6 +5,8 @@ Sources: ParT (Qu et al. 2022), Li et al. (2024), Wu et al. MIParT (2025).
 
 from __future__ import annotations
 
+from typing import Any
+
 import torch
 import torch.nn as nn
 
@@ -15,7 +17,7 @@ class LorentzScalarBias(nn.Module):
     """Physics-informed pairwise attention bias from Lorentz-scalar features.
 
     Computes a configurable set of pairwise features from four-momentum data
-    and maps them to an additive attention bias via a pointwise MLP.
+    and maps them to an additive attention bias via a pointwise MLP (or KAN).
 
     Feature hierarchy (Li et al. 2024):
       Full Lorentz scalars  : m2, dot, log_m2          (require E, C=4)
@@ -38,6 +40,8 @@ class LorentzScalarBias(nn.Module):
         num_heads: int = 1,
         per_head: bool = False,
         sparse_gating: bool = False,
+        mlp_type: str = "standard",
+        kan_cfg: dict[str, Any] | None = None,
     ):
         super().__init__()
         unknown = set(features) - VALID_FEATURES
@@ -56,13 +60,19 @@ class LorentzScalarBias(nn.Module):
         else:
             self._has_mlp = True
             out_dim = num_heads if per_head else 1
-            self.mlp = nn.Sequential(
-                nn.Linear(F, hidden_dim),
-                nn.GELU(),
-                nn.Linear(hidden_dim, out_dim),
+
+            from thesis_ml.architectures.transformer_classifier.modules.kan.utils import (
+                build_bias_mlp,
             )
-            nn.init.zeros_(self.mlp[-1].weight)
-            nn.init.zeros_(self.mlp[-1].bias)
+
+            self.mlp = build_bias_mlp(F, hidden_dim, out_dim, mlp_type=mlp_type, kan_cfg=kan_cfg)
+
+            # Zero-init last layer for stable init (standard path only;
+            # KAN uses its own init and gate=0 already ensures zero output)
+            if mlp_type == "standard":
+                nn.init.zeros_(self.mlp[-1].weight)
+                nn.init.zeros_(self.mlp[-1].bias)
+
             if sparse_gating:
                 self.feature_gates = nn.Parameter(torch.zeros(F))
             else:

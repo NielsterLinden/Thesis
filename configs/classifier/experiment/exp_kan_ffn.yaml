@@ -1,0 +1,52 @@
+# @package _global_
+
+# KAN FFN Sweep (12 runs)
+# 4 x 3 = 12 grid points:
+#   ffn config:  standard, kan-hybrid-all, kan-hybrid-middle, kan-bottleneck-all
+#   seed:        42, 123, 7
+#
+# Purpose: main architectural experiment — does KAN FFN improve over standard
+#   MLP in the encoder?  Hybrid is the practical default, bottleneck the
+#   efficient alternative.
+
+meta:
+  goal: "classification"
+
+experiment:
+  name: "kan_ffn"
+
+hydra:
+  mode: MULTIRUN
+  job:
+    chdir: true
+    name: ${experiment.name}_job
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweeper:
+    params:
+      # FFN type axis
+      # standard, kan-hybrid, kan-hybrid, kan-bottleneck
+      classifier.model.ffn.type: standard,kan,kan,kan
+      classifier.model.ffn.kan.variant: hybrid,hybrid,hybrid,bottleneck
+
+      # Fixed architecture (matching existing baseline experiments)
+      +classifier/model_size: s200k
+      classifier.model.attention_biases: none
+      classifier.model.tokenizer.name: raw
+      classifier.model.positional: sinusoidal
+      classifier.model.head.pooling: cls
+      classifier.model.head.type: linear
+
+      # Seeds and epochs
+      classifier.trainer.epochs: 50
+      classifier.trainer.seed: 42,123,7
+
+data:
+  classifier:
+    signal_vs_background:
+      signal: 1
+      background: [2, 3, 4, 5]
+    selected_labels: null

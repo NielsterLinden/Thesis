@@ -1,0 +1,49 @@
+# @package _global_
+
+# Differential Attention – Block Norm Interaction (Sweep B)
+# Grid over attention.type, attention.norm, and block norm type with
+# norm.policy fixed to pre. Includes the standard baseline as one point.
+
+meta:
+  goal: "classification"
+
+experiment:
+  name: "diff_attn_blocknorm_test"
+
+hydra:
+  mode: MULTIRUN
+  job:
+    chdir: true
+    name: ${experiment.name}_job
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweeper:
+    params:
+      # Core axes
+      classifier.model.attention.type: standard,differential
+      classifier.model.attention.norm: none,rmsnorm
+      classifier.model.norm.policy: pre
+      classifier.model.norm.type: layernorm,rmsnorm
+
+      # Keep diff_bias_mode fixed in the main study
+      classifier.model.attention.diff_bias_mode: shared
+
+      # Task and architecture settings (mirroring baseline)
+      +classifier/model_size: s200k
+      classifier.model.attention_biases: none
+      classifier.model.tokenizer.name: raw
+      classifier.model.positional: sinusoidal
+      classifier.model.pooling: cls
+
+      classifier.trainer.epochs: 50
+      classifier.trainer.seed: 42
+
+data:
+  classifier:
+    signal_vs_background:
+      signal: 1
+      background: [2, 3, 4, 5]
+    selected_labels: null

@@ -14,9 +14,10 @@ classifier:
     mlp_dim: 1024         # MLP hidden dimension (typically 4x dim)
     dropout: 0.1          # Dropout rate
 
-    # Normalization policy
+    # Normalization
     norm:
-      policy: pre         # "pre", "post", or "normformer" normalization
+      policy: pre         # Axis A: "pre", "post", or "normformer" (WHERE norms are placed)
+      type: layernorm     # Axis B: "layernorm" or "rmsnorm" (WHICH norm module at block level)
 
     # Positional encoding
     positional: sinusoidal  # "none", "sinusoidal", "learned", or "rotary"
@@ -32,11 +33,30 @@ classifier:
     rotary:
       base: 10000.0
 
+    # Attention module configuration
+    attention:
+      type: standard          # "standard" or "differential"
+      norm: none              # Axis C: "none", "layernorm", or "rmsnorm" (attention-internal)
+      diff_bias_mode: shared  # "none", "shared", or "split" (differential attention only)
+
     # Causal attention
     causal_attention: false
 
-    # Pooling strategy
-    pooling: cls          # "cls" or "mean"
+    # -----------------------------------------------------------------------
+    # Classifier head
+    # -----------------------------------------------------------------------
+    head:
+      type: linear            # "linear" | "kan" | "moe"
+      pooling: cls            # "cls", "mean", or "max"
+
+    # -----------------------------------------------------------------------
+    # Feed-forward network type
+    # -----------------------------------------------------------------------
+    ffn:
+      type: standard          # "standard" | "kan"  (MoE via moe.enabled for now)
+      kan:
+        variant: hybrid       # "hybrid" (default) | "bottleneck" | "pure" (experimental)
+        bottleneck_dim: null   # Only for bottleneck variant (null = mlp_dim // 4)
 
     # -----------------------------------------------------------------------
     # Shared pairwise feature backbone (compute F_ij once for all modules)
@@ -84,6 +104,7 @@ classifier:
         hidden_dim: 8             # pointwise MLP hidden dim
         per_head: false           # false → shared bias broadcast across heads
         sparse_gating: false      # true: per-feature sigmoid gates for learned importance
+        mlp_type: standard        # "standard" | "kan" — uses global kan.* hyperparams
 
       # Module 2 — Type-Pair Kinematic Bias
       # Source: Novel, inspired by Builtjes et al. (2025)
@@ -105,6 +126,7 @@ classifier:
       global_conditioned:
         global_dim: 16             # hidden dim for globals MLP
         mode: global_scale         # global_scale | met_direction
+        mlp_type: standard         # "standard" | "kan" — uses global kan.* hyperparams
 
     # -----------------------------------------------------------------------
     # Nodewise-mass embedding patch (applied to x before the encoder)
@@ -141,6 +163,30 @@ classifier:
       hidden_dim: 8
       per_head: false
       per_layer: false
+
+    # -----------------------------------------------------------------------
+    # Kolmogorov-Arnold Network (KAN) shared hyperparameters
+    # Used by head.type=kan, ffn.type=kan, and bias mlp_type=kan.
+    # -----------------------------------------------------------------------
+    kan:
+      grid_size: 5              # B-spline grid intervals
+      spline_order: 3           # B-spline polynomial degree
+      grid_range: [-2, 2]       # Input range for B-spline grid
+      spline_regularization_weight: 0.0  # Smoothness penalty (0 = disabled)
+      grid_update_freq: 0       # Adapt grid every N epochs (0 = never)
+
+    # -----------------------------------------------------------------------
+    # Mixture-of-Experts (MoE) FFN replacement
+    # When enabled, replaces standard FFN with sparse MoE in selected blocks.
+    # -----------------------------------------------------------------------
+    moe:
+      enabled: false                    # Master switch (false = standard FFN)
+      num_experts: 4                    # Number of expert FFNs
+      top_k: 1                          # Experts selected per routing (1, 2, or 3)
+      routing_level: token              # "token" (per-token) or "event" (CLS-based)
+      scope: all_blocks                 # "head" | "middle_blocks" | "all_blocks"
+      load_balance_loss_weight: 0.01    # Weight for auxiliary load-balancing loss
+      noisy_gating: false               # Add learnable noise to router logits during training
 
     # Tokenizer
     tokenizer:

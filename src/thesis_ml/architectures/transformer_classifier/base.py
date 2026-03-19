@@ -337,14 +337,20 @@ def build_from_config(cfg: DictConfig, meta: Mapping[str, Any]) -> nn.Module:
     extra_tokens = int(use_cls_token) + num_met_tokens
     max_seq_length_model = seq_len_tokens + extra_tokens if positional_space == "model" else seq_len_tokens
 
+    # Attention config
+    attn_cfg = model_cfg.get("attention", {})
+    attention_type = str(attn_cfg.get("type", "standard"))
+
     rotary_emb = None
     pos_enc = None
     pos_enc_for_embedding = None
 
     if pos_enc_name == "rotary":
         head_dim = dim // num_heads
+        # Differential attention applies RoPE to sub-heads (head_dim // 2)
+        rotary_head_dim = head_dim // 2 if attention_type == "differential" else head_dim
         rotary_base = model_cfg.get("rotary", {}).get("base", 10000.0)
-        rotary_emb = RotaryEmbedding(head_dim=head_dim, base=rotary_base)
+        rotary_emb = RotaryEmbedding(head_dim=rotary_head_dim, base=rotary_base)
     elif pos_enc_name != "none":
         if positional_space == "token":
             pos_enc_for_embedding = get_positional_encoding(
@@ -358,9 +364,39 @@ def build_from_config(cfg: DictConfig, meta: Mapping[str, Any]) -> nn.Module:
             pos_enc = get_positional_encoding(pos_enc_name, dim, max_seq_length_model)
             pos_enc_for_embedding = None
 
+    # MoE config (resolve to plain dict for downstream modules)
+    moe_raw = model_cfg.get("moe", {})
+    if moe_raw and moe_raw.get("enabled", False):
+        from omegaconf import OmegaConf
+
+        moe_cfg: dict | None = OmegaConf.to_container(moe_raw, resolve=True)
+    else:
+        moe_cfg = None
+
+    # KAN config (resolve to plain dict for downstream modules)
+    kan_raw = model_cfg.get("kan", {})
+    if kan_raw:
+        from omegaconf import OmegaConf
+
+        kan_cfg: dict | None = OmegaConf.to_container(kan_raw, resolve=True)
+    else:
+        kan_cfg = None
+
+    # FFN type
+    ffn_cfg = model_cfg.get("ffn", {})
+    ffn_type = str(ffn_cfg.get("type", "standard"))
+
     embedding = build_input_embedding(cfg, meta, pos_enc=pos_enc_for_embedding)
-    encoder = build_transformer_encoder(cfg, dim, rotary_emb=rotary_emb)
-    head = build_classifier_head(cfg, dim, n_classes)
+    encoder = build_transformer_encoder(
+        cfg,
+        dim,
+        rotary_emb=rotary_emb,
+        moe_cfg=moe_cfg,
+        use_cls_token=use_cls_token,
+        ffn_type=ffn_type,
+        kan_cfg=kan_cfg,
+    )
+    head = build_classifier_head(cfg, dim, n_classes, moe_cfg=moe_cfg, kan_cfg=kan_cfg)
 
     # -----------------------------------------------------------------
     # Physics-informed modules
@@ -376,6 +412,7 @@ def build_from_config(cfg: DictConfig, meta: Mapping[str, Any]) -> nn.Module:
             cont_dim=cont_dim,
             use_cls=use_cls_token,
             num_met_tokens=num_met_tokens,
+            kan_cfg=kan_cfg,
         )
 
     # Shared pairwise feature backbone (compute F_ij once for MIA + bias modules)

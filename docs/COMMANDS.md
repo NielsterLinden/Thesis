@@ -74,6 +74,31 @@ thesis-train env=local loop=ae phase1.trainer.epochs=20
 thesis-train env=local loop=ae phase1/experiment=compare_latent_spaces
 ```
 
+### WandB on/off (logging)
+
+- **Default:** `logging=default` has W&B **enabled** (`logging.use_wandb=true`), so runs are logged to W&B by default.
+- **Disable W&B** (e.g. local smoke tests):
+
+  ```bash
+  thesis-train env=local logging=default logging.use_wandb=false ...
+  ```
+
+- **Force W&B online** (typical HPC run):
+
+  ```bash
+  thesis-train env=stoomboot logging=wandb_online ...
+  # or equivalently
+  thesis-train env=stoomboot logging=default logging.use_wandb=true logging.wandb.mode=online ...
+  ```
+
+- **Force W&B offline** (log locally, sync later):
+
+  ```bash
+  thesis-train env=stoomboot logging=wandb_offline ...
+  # or equivalently
+  thesis-train env=stoomboot logging=default logging.use_wandb=true logging.wandb.mode=offline ...
+  ```
+
 ### 2.3 Training on HPC
 
 #### 2.3.1 Interactive

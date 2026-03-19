@@ -92,6 +92,8 @@ class GlobalConditionedBias(nn.Module):
         cont_dim: int,
         global_dim: int = 16,
         mode: str = "global_scale",
+        mlp_type: str = "standard",
+        kan_cfg: dict | None = None,
     ):
         super().__init__()
         if mode not in ("global_scale", "met_direction"):
@@ -100,12 +102,16 @@ class GlobalConditionedBias(nn.Module):
         self.num_heads = num_heads
         self.cont_dim = cont_dim
 
-        if mode == "global_scale":
-            self.mlp = nn.Sequential(nn.Linear(2, global_dim), nn.GELU(), nn.Linear(global_dim, num_heads))
-        else:
-            self.mlp = nn.Sequential(nn.Linear(5, global_dim), nn.GELU(), nn.Linear(global_dim, num_heads))
-        nn.init.zeros_(self.mlp[-1].weight)
-        nn.init.zeros_(self.mlp[-1].bias)
+        from thesis_ml.architectures.transformer_classifier.modules.kan.utils import (
+            build_bias_mlp,
+        )
+
+        in_dim = 2 if mode == "global_scale" else 5
+        self.mlp = build_bias_mlp(in_dim, global_dim, num_heads, mlp_type=mlp_type, kan_cfg=kan_cfg)
+
+        if mlp_type == "standard":
+            nn.init.zeros_(self.mlp[-1].weight)
+            nn.init.zeros_(self.mlp[-1].bias)
 
         self.gate = nn.Parameter(torch.zeros(1))
 
@@ -270,6 +276,7 @@ def build_bias_composer(
     cont_dim: int,
     use_cls: bool,
     num_met_tokens: int,
+    kan_cfg: dict | None = None,
 ) -> BiasComposer | None:
     """Build a BiasComposer from Hydra config.
 
@@ -294,6 +301,9 @@ def build_bias_composer(
         Whether a CLS token is prepended.
     num_met_tokens : int
         Number of MET tokens appended (0 or 2).
+    kan_cfg : dict | None
+        Global KAN hyperparameters.  Passed to bias modules when their
+        ``mlp_type`` is ``"kan"``.
 
     Returns
     -------
@@ -338,6 +348,7 @@ def build_bias_composer(
         hidden_dim = int(c.get("hidden_dim", ap.get("hidden_dim", 8)))
         per_head = bool(c.get("per_head", ap.get("per_head", False)))
         sparse_gating = bool(c.get("sparse_gating", False))
+        ls_mlp_type = str(c.get("mlp_type", "standard"))
         modules["lorentz_scalar"] = LorentzScalarBias(
             features=features,
             cont_dim=cont_dim,
@@ -345,6 +356,8 @@ def build_bias_composer(
             num_heads=num_heads,
             per_head=per_head,
             sparse_gating=sparse_gating,
+            mlp_type=ls_mlp_type,
+            kan_cfg=kan_cfg,
         )
 
     # TypePairKinematicBias
@@ -374,11 +387,14 @@ def build_bias_composer(
     global_conditioner: GlobalConditionedBias | None = None
     if "global_conditioned" in enabled:
         c = bias_cfg.get("global_conditioned", {})
+        gc_mlp_type = str(c.get("mlp_type", "standard"))
         global_conditioner = GlobalConditionedBias(
             num_heads=num_heads,
             cont_dim=cont_dim,
             global_dim=int(c.get("global_dim", 16)),
             mode=str(c.get("mode", "global_scale")),
+            mlp_type=gc_mlp_type,
+            kan_cfg=kan_cfg,
         )
 
     if not modules and global_conditioner is None:
