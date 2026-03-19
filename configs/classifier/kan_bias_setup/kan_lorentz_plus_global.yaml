@@ -1,0 +1,11 @@
+# KAN LorentzScalarBias + KAN GlobalConditionedBias
+classifier:
+  model:
+    attention_biases: lorentz_scalar+global_conditioned
+    bias_config:
+      lorentz_scalar:
+        mlp_type: kan
+      global_conditioned:
+        mlp_type: kan
+  globals:
+    include_met: true

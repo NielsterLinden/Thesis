@@ -1,0 +1,8 @@
+# KAN FFN hybrid (currently same as kan_hybrid_all; scope can be refined later)
+classifier:
+  model:
+    ffn:
+      type: kan
+      kan:
+        variant: hybrid
+        bottleneck_dim: null

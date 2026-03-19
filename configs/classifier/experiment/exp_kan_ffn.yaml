@@ -27,10 +27,8 @@ hydra:
     subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
   sweeper:
     params:
-      # FFN type axis
-      # standard, kan-hybrid, kan-hybrid, kan-bottleneck
-      classifier.model.ffn.type: standard,kan,kan,kan
-      classifier.model.ffn.kan.variant: hybrid,hybrid,hybrid,bottleneck
+      # FFN setup axis (4 modes, mapped via classifier/kan_ffn_setup group)
+      +classifier/kan_ffn_setup: standard,kan_hybrid_all,kan_hybrid_middle,kan_bottleneck_all
 
       # Fixed architecture (matching existing baseline experiments)
       +classifier/model_size: s200k

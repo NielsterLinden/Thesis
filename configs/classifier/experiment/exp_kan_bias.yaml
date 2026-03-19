@@ -27,16 +27,8 @@ hydra:
     subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
   sweeper:
     params:
-      # Bias axes
-      # Group 1: standard MLP lorentz_scalar
-      # Group 2: KAN lorentz_scalar
-      # Group 3: KAN lorentz_scalar + KAN global_conditioned
-      classifier.model.attention_biases: lorentz_scalar,lorentz_scalar,lorentz_scalar+global_conditioned
-      classifier.model.bias_config.lorentz_scalar.mlp_type: standard,kan,kan
-      classifier.model.bias_config.global_conditioned.mlp_type: standard,standard,kan
-
-      # Need MET for global_conditioned
-      classifier.globals.include_met: false,false,true
+      # Bias setup axis (3 modes, mapped via classifier/kan_bias_setup group)
+      +classifier/kan_bias_setup: baseline_lorentz,kan_lorentz,kan_lorentz_plus_global
 
       # Fixed architecture (matching existing baseline experiments)
       +classifier/model_size: s200k

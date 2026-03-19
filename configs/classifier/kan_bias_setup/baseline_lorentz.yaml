@@ -1,0 +1,11 @@
+# Baseline: lorentz_scalar bias only, standard MLPs
+classifier:
+  model:
+    attention_biases: lorentz_scalar
+    bias_config:
+      lorentz_scalar:
+        mlp_type: standard
+      global_conditioned:
+        mlp_type: standard
+  globals:
+    include_met: false

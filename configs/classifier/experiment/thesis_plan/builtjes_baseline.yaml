@@ -1,0 +1,76 @@
+# @package _global_
+# Builtjes et al. (2025) baseline reproduction — arXiv:2211.05143v4
+#
+# Three model variants × 5 seeds = 15 jobs total:
+#   ParT        (no pairwise)         attention_biases=none
+#   ParT_int    (m_ij + ΔR)           attention_biases=lorentz_scalar
+#   ParT_int.SM (+ SM running coupl.) attention_biases=lorentz_scalar+sm_interaction
+#
+# Target AUC from their Table 7 (240k training, 4t vs background):
+#   ParT        ~0.84
+#   ParT_int    ~0.86
+#   ParT_int.SM ~0.87
+#
+# ── Architecture deviations from Builtjes Table 16 ────────────────────────
+# | Their setting              | Our approximation          | Notes         |
+# | embed_dims=[128,512,128]   | dim=128, mlp_dim=512       | fixed width   |
+# | pair_embed_dims=[64,64,64] | lorentz_scalar.hidden_dim=64 | 64 hidden   |
+# | fc_params=[(64,0.1),(256,0.1),(64,0.1)] | default head  | small diff    |
+# | MET → direct FCN input     | include_met=true (tokens)  | see note below|
+# ──────────────────────────────────────────────────────────────────────────
+# MET NOTE: Builtjes feed MET+METφ directly to the FCN alongside the CLS
+# output (a separate head input path). Our architecture does NOT have this
+# path — ClassifierHead.forward() has no globals argument. With include_met=true,
+# MET and METφ are instead appended as extra encoder tokens [CLS|p1..p18|MET|METφ],
+# so the CLS token attends to them through the standard encoder self-attention.
+# This is architecturally different but is the closest available approximation.
+
+meta:
+  goal: "classification"
+
+experiment:
+  name: "builtjes_baseline"
+
+hydra:
+  mode: MULTIRUN
+  job:
+    chdir: true
+    name: ${experiment.name}
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweeper:
+    params:
+      # Model size: dim=128, depth=8, heads=8, mlp_dim=512 (Builtjes Table 16)
+      +classifier/model_size: builtjes
+      # 5 seeds for statistical robustness
+      classifier.trainer.seed: "42,123,314,7,99"
+      # Three ParT variants (innermost loop for clean grouping in W&B)
+      classifier.model.attention_biases: "none,lorentz_scalar,lorentz_scalar+sm_interaction"
+      # Pairwise MLP: hidden_dim=64 matches their pair_embed_dims=[64,64,64]
+      classifier.model.bias_config.lorentz_scalar.hidden_dim: 64
+      # Pairwise features: m_ij and ΔR (their ParT_int setup)
+      classifier.model.bias_config.lorentz_scalar.features: "[m2, deltaR]"
+      # SM mode: running_coupling (only active when lorentz_scalar+sm_interaction selected)
+      classifier.model.bias_config.sm_interaction.mode: running_coupling
+      # Standard ParT setup (post-norm, CLS pooling, sinusoidal PE, raw tokens)
+      classifier.model.tokenizer.name: raw
+      classifier.model.positional: sinusoidal
+      classifier.model.pooling: cls
+      classifier.model.norm.policy: post
+      # MET as encoder tokens (closest approximation to their direct FCN input)
+      classifier.globals.include_met: true
+      # Training hyperparameters from Builtjes Table 16
+      classifier.trainer.lr: 1e-3
+      classifier.trainer.batch_size: 512
+      classifier.trainer.warmup_steps: 0
+      classifier.trainer.epochs: 50
+
+data:
+  classifier:
+    signal_vs_background:
+      signal: 1
+      background: [2, 3, 4, 5]
+    selected_labels: null

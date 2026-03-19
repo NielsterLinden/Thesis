@@ -1,0 +1,5 @@
+# Baseline FFN: standard two-layer MLP
+classifier:
+  model:
+    ffn:
+      type: standard

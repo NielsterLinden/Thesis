@@ -1,0 +1,15 @@
+# @package _global_
+# Builtjes et al. (2025) architecture match: dim=128, depth=8, heads=8, mlp_dim=512
+#
+# Their paper uses embed_dims=[128, 512, 128] with variable-width layers
+# (a bottleneck structure: project up to 512, back down to 128).
+# Our encoder uses a fixed-width transformer, so we approximate by setting
+# mlp_dim=512 (the FFN hidden dim) while keeping dim=128 throughout.
+# Compare to s1m (dim=128, depth=8, mlp_dim=256): this doubles the FFN width.
+
+classifier:
+  model:
+    dim: 128
+    depth: 8
+    heads: 8
+    mlp_dim: 512

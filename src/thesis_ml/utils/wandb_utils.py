@@ -164,8 +164,14 @@ def extract_wandb_config(cfg: dict[str, Any], source_location: str = "live") -> 
         wc["pos_enc/dim_mask"] = str(dim_mask) if isinstance(dim_mask, list) else dim_mask
     wc["pos_enc/rotary_base"] = _safe_get(cfg, "classifier.model.rotary.base")
 
-    # === Normalization ===
+    # === Normalization (all axes) ===
     wc["norm/policy"] = _safe_get(cfg, "classifier.model.norm.policy")
+    wc["norm/type"] = _safe_get(cfg, "classifier.model.norm.type")
+
+    # === Attention (all axes) ===
+    wc["attention/type"] = _safe_get(cfg, "classifier.model.attention.type")
+    wc["attention/norm"] = _safe_get(cfg, "classifier.model.attention.norm")
+    wc["attention/diff_bias_mode"] = _safe_get(cfg, "classifier.model.attention.diff_bias_mode")
 
     # === Tokenizer ===
     tok = _safe_get(cfg, "classifier.model.tokenizer") or _safe_get(cfg, "classifier.tokenizer") or _safe_get(cfg, "tokenizer")
@@ -177,8 +183,8 @@ def extract_wandb_config(cfg: dict[str, Any], source_location: str = "live") -> 
     elif tok:
         wc["tokenizer/type"] = tok
 
-    # === Pooling ===
-    wc["pooling/type"] = _safe_get(cfg, "classifier.model.pooling")
+    # === Pooling (canonical single key; head.pooling takes priority over legacy top-level) ===
+    wc["pooling/type"] = _safe_get(cfg, "classifier.model.head.pooling") or _safe_get(cfg, "classifier.model.pooling")
 
     # === Causal attention ===
     wc["model/causal_attention"] = _safe_get(cfg, "classifier.model.causal_attention")
@@ -222,6 +228,38 @@ def extract_wandb_config(cfg: dict[str, Any], source_location: str = "live") -> 
     # === Early Stopping ===
     wc["early_stop/enabled"] = _safe_get(cfg, "classifier.trainer.early_stopping.enabled")
     wc["early_stop/patience"] = _safe_get(cfg, "classifier.trainer.early_stopping.patience")
+
+    # === Physics-Informed Attention Biases ===
+    wc["bias/selector"] = _safe_get(cfg, "classifier.model.attention_biases")
+    wc["bias/sm_mode"] = _safe_get(cfg, "classifier.model.bias_config.sm_interaction.mode")
+    wc["bias/lorentz_features"] = str(_safe_get(cfg, "classifier.model.bias_config.lorentz_scalar.features")) if _safe_get(cfg, "classifier.model.bias_config.lorentz_scalar.features") else None
+    wc["bias/lorentz_per_head"] = _safe_get(cfg, "classifier.model.bias_config.lorentz_scalar.per_head")
+    wc["bias/lorentz_sparse_gating"] = _safe_get(cfg, "classifier.model.bias_config.lorentz_scalar.sparse_gating")
+    wc["bias/typepair_init"] = _safe_get(cfg, "classifier.model.bias_config.typepair_kinematic.init_from_physics")
+    wc["bias/typepair_freeze"] = _safe_get(cfg, "classifier.model.bias_config.typepair_kinematic.freeze_table")
+    wc["bias/typepair_kinematic_gate"] = _safe_get(cfg, "classifier.model.bias_config.typepair_kinematic.kinematic_gate")
+    wc["bias/global_mode"] = _safe_get(cfg, "classifier.model.bias_config.global_conditioned.mode")
+
+    # === Pre-encoder modules ===
+    wc["nodewise_mass/enabled"] = _safe_get(cfg, "classifier.model.nodewise_mass.enabled")
+    wc["nodewise_mass/k_values"] = str(_safe_get(cfg, "classifier.model.nodewise_mass.k_values")) if _safe_get(cfg, "classifier.model.nodewise_mass.k_values") else None
+    wc["mia/enabled"] = _safe_get(cfg, "classifier.model.mia_blocks.enabled")
+    wc["mia/num_blocks"] = _safe_get(cfg, "classifier.model.mia_blocks.num_blocks")
+    wc["mia/placement"] = _safe_get(cfg, "classifier.model.mia_blocks.placement")
+
+    # === MET treatment ===
+    wc["globals/include_met"] = _safe_get(cfg, "classifier.globals.include_met")
+
+    # === Data treatment ===
+    wc["data/cont_features"] = str(_safe_get(cfg, "data.cont_features")) if _safe_get(cfg, "data.cont_features") else None
+    wc["data/shuffle_tokens"] = _safe_get(cfg, "data.shuffle_tokens")
+    wc["data/sort_tokens_by"] = _safe_get(cfg, "data.sort_tokens_by")
+
+    # === Model size label (derived) ===
+    _dim_sz = _safe_get(cfg, "classifier.model.dim")
+    _depth_sz = _safe_get(cfg, "classifier.model.depth")
+    if _dim_sz is not None and _depth_sz is not None:
+        wc["model/size_key"] = f"d{_dim_sz}_L{_depth_sz}"
 
     # === Autoencoder (Phase 1) ===
     if _safe_get(cfg, "phase1"):
@@ -576,6 +614,10 @@ def init_wandb(cfg: DictConfig, model: Any = None) -> Any:
         wandb.define_metric("perf/*", step_metric="epoch")
         wandb.define_metric("moe/*", step_metric="epoch")
         wandb.define_metric("kan/*", step_metric="epoch")
+        wandb.define_metric("pid/*", step_metric="epoch")
+        wandb.define_metric("bias/*", step_metric="epoch")
+        wandb.define_metric("nodewise/*", step_metric="epoch")
+        wandb.define_metric("mia/*", step_metric="epoch")
 
         # Optional model watching (gradients/parameters)
         if model is not None and wandb_cfg.get("watch_model", False):
