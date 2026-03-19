@@ -58,7 +58,7 @@ hydra:
       # Standard ParT setup (post-norm, CLS pooling, sinusoidal PE, raw tokens)
       classifier.model.tokenizer.name: raw
       classifier.model.positional: sinusoidal
-      classifier.model.pooling: cls
+      classifier.model.head.pooling: cls
       classifier.model.norm.policy: post
       # MET as encoder tokens (closest approximation to their direct FCN input)
       classifier.globals.include_met: true
