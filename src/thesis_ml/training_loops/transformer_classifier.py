@@ -4,7 +4,7 @@ import logging
 import os
 import time
 from collections.abc import Mapping
-from contextlib import nullcontext
+from contextlib import nullcontext, suppress
 from pathlib import Path
 from typing import Any
 
@@ -42,6 +42,21 @@ from thesis_ml.utils.interpretability import (
 )
 from thesis_ml.utils.seed import set_all_seeds
 from thesis_ml.utils.wandb_utils import finish_wandb, init_wandb, log_artifact, log_metrics
+
+
+def _prefer_file_system_tensor_sharing() -> None:
+    """Use file-backed tensor sharing so DataLoader workers need fewer open FDs.
+
+    Default 'file_descriptor' sharing plus W&B/Hydra can hit ``ulimit -n`` on
+    shared login nodes and during long in-process Hydra multiruns.
+    """
+    mp = torch.multiprocessing
+    with suppress(Exception):
+        if mp.get_sharing_strategy() == "file_system":
+            return
+    with suppress(RuntimeError):
+        mp.set_sharing_strategy("file_system")
+
 
 SUPPORTED_PLOT_FAMILIES = {"losses", "metrics"}
 
@@ -665,6 +680,7 @@ def train(cfg: DictConfig) -> dict:
     """
     # Reproducibility
     set_all_seeds(cfg.classifier.trainer.seed)
+    _prefer_file_system_tensor_sharing()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Data

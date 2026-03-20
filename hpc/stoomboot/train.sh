@@ -2,6 +2,9 @@
 set -exo pipefail
 
 echo "=== Stoomboot Thesis ML Training Job ==="
+# DataLoader workers + W&B open many FDs; default login/batch limits are often too low.
+ulimit -n 8192 2>/dev/null || ulimit -n 4096 2>/dev/null || true
+echo "ulimit -n: $(ulimit -n)"
 echo "Job started at: $(date)"
 echo "Running on node: $(hostname)"
 echo "Working directory: $(pwd)"

@@ -20,6 +20,8 @@ Data input locations and output storage for local vs HPC (Stoomboot at Nikhef).
 - Conda env: `/data/atlas/users/nterlind/venvs/thesis-ml`
 - Logs: `/data/atlas/users/nterlind/logs/` (stderr, stdlog, stdout from Condor)
 
+**Login node / long multiruns:** if you see `RuntimeError: Too many open files` from PyTorch DataLoader, raise the shell limit before training (e.g. `ulimit -n 8192`) or pass `data.num_workers=0`. Condor jobs run `hpc/stoomboot/train.sh`, which bumps `ulimit -n` when the scheduler allows it.
+
 ## Local Layout
 
 **Data input:** `C:/Users/niels/Projects/Thesis-Code/Data`
