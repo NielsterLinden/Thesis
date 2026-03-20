@@ -1,0 +1,73 @@
+# @package _global_
+# Orthogonal sweep — Batch B (Groups 7–12, 16). CLI supplies sweeps per README.
+# Baseline: s200k-scale model, identity tokenizer, 4t vs background, full data.
+
+meta:
+  goal: "classification"
+
+experiment:
+  name: "OrthogonalSweep_B"
+
+hydra:
+  mode: MULTIRUN
+  job:
+    chdir: true
+    name: ${experiment.name}
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweeper:
+    params: {}
+
+classifier:
+  globals:
+    include_met: false
+  trainer:
+    epochs: 50
+    lr: 0.0001
+    weight_decay: 0.01
+    batch_size: 64
+    warmup_steps: 0
+    seed: 42
+  model:
+    dim: 64
+    depth: 6
+    heads: 8
+    mlp_dim: 128
+    hidden_sizes: [448, 384]
+    dropout: 0.1
+    norm:
+      policy: post
+      type: layernorm
+    positional: none
+    positional_space: model
+    attention:
+      type: standard
+      norm: none
+      diff_bias_mode: shared
+    ffn:
+      type: standard
+    head:
+      type: linear
+      pooling: cls
+    causal_attention: false
+    attention_biases: none
+    nodewise_mass:
+      enabled: false
+    mia_blocks:
+      enabled: false
+    moe:
+      enabled: false
+    tokenizer:
+      name: identity
+      pid_mode: learned
+      id_embed_dim: 8
+
+data:
+  classifier:
+    signal_vs_background:
+      signal: 1
+      background: [2, 3, 4, 5]
+    selected_labels: null
