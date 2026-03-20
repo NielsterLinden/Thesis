@@ -632,6 +632,7 @@ def init_wandb(cfg: DictConfig, model: Any = None) -> Any:
         wandb.define_metric("bias/*", step_metric="epoch")
         wandb.define_metric("nodewise/*", step_metric="epoch")
         wandb.define_metric("mia/*", step_metric="epoch")
+        wandb.define_metric("grad/*", step_metric="epoch")
 
         # Optional model watching (gradients/parameters)
         if model is not None and wandb_cfg.get("watch_model", False):

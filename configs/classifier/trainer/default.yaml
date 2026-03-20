@@ -42,3 +42,12 @@ classifier:
       patience: 20
       min_delta: 0.0
       restore_best_weights: true
+
+    # Interpretability (transformer loop only; heavy artifacts)
+    interpretability:
+      enabled: false
+      save_attention_maps: false
+      save_kan_splines: false
+      save_moe_routing: false
+      save_gradient_norms: false
+      checkpoint_epochs: [0, 10, 50]

@@ -155,7 +155,9 @@ class TransformerEncoderBlock(nn.Module):
         x: torch.Tensor,
         mask: torch.Tensor | None = None,
         attention_bias: torch.Tensor | tuple[torch.Tensor, torch.Tensor] | None = None,
-    ) -> torch.Tensor:
+        *,
+        capture_attention: bool = False,
+    ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor | None]:
         """Forward pass.
 
         Parameters
@@ -166,11 +168,15 @@ class TransformerEncoderBlock(nn.Module):
             ``[B, T]`` (``True=valid``, ``False=padding``).
         attention_bias : Tensor | tuple[Tensor, Tensor] | None
             Additive bias for attention logits.
+        capture_attention : bool
+            If True, pass ``need_weights=True`` to attention and return
+            ``(x_out, attn_weights)`` with weights ``[B, H, T, T]``.
 
         Returns
         -------
-        torch.Tensor
-            Output tensor ``[B, T, D]``.
+        torch.Tensor | tuple
+            Output tensor ``[B, T, D]``, or ``(tensor, attn_weights)`` when
+            ``capture_attention`` is True.
         """
         # Convert mask: loader uses True=valid; attention expects True=pad
         key_padding_mask = ~mask if mask is not None else None
@@ -181,38 +187,49 @@ class TransformerEncoderBlock(nn.Module):
             T = x.size(1)
             attn_mask = torch.triu(torch.ones(T, T, device=x.device, dtype=torch.bool), diagonal=1)
 
+        attn_weights_out: torch.Tensor | None = None
+
         # ---- Attention block ----
         if self.norm_policy == "pre":
             x_norm = self.norm1(x)
-            attn_out, _ = self.attention(
+            attn_out, aw = self.attention(
                 x_norm,
                 x_norm,
                 x_norm,
                 key_padding_mask=key_padding_mask,
+                need_weights=capture_attention,
                 attn_mask=attn_mask,
                 attention_bias=attention_bias,
             )
+            if capture_attention:
+                attn_weights_out = aw
             x = x + self.dropout(attn_out)
         elif self.norm_policy == "post":
-            attn_out, _ = self.attention(
+            attn_out, aw = self.attention(
                 x,
                 x,
                 x,
                 key_padding_mask=key_padding_mask,
+                need_weights=capture_attention,
                 attn_mask=attn_mask,
                 attention_bias=attention_bias,
             )
+            if capture_attention:
+                attn_weights_out = aw
             x = self.norm1(x + self.dropout(attn_out))
         elif self.norm_policy == "normformer":
             x_norm = self.norm1(x)
-            attn_out, _ = self.attention(
+            attn_out, aw = self.attention(
                 x_norm,
                 x_norm,
                 x_norm,
                 key_padding_mask=key_padding_mask,
+                need_weights=capture_attention,
                 attn_mask=attn_mask,
                 attention_bias=attention_bias,
             )
+            if capture_attention:
+                attn_weights_out = aw
             attn_out = self.norm_attn_out(attn_out)
             x = x + self.dropout(attn_out)
         else:
@@ -226,6 +243,8 @@ class TransformerEncoderBlock(nn.Module):
         else:
             raise ValueError(f"Unknown norm_policy: {self.norm_policy}")
 
+        if capture_attention:
+            return x, attn_weights_out
         return x
 
 
@@ -314,7 +333,9 @@ class TransformerEncoder(nn.Module):
         x: torch.Tensor,
         mask: torch.Tensor | None = None,
         attention_bias: torch.Tensor | tuple[torch.Tensor, torch.Tensor] | None = None,
-    ) -> torch.Tensor:
+        *,
+        capture_attention: bool = False,
+    ) -> torch.Tensor | tuple[torch.Tensor, list[torch.Tensor | None]]:
         """Forward pass through all encoder blocks.
 
         Parameters
@@ -325,12 +346,25 @@ class TransformerEncoder(nn.Module):
             ``[B, T]`` (``True=valid``, ``False=padding``).
         attention_bias : Tensor | tuple[Tensor, Tensor] | None
             Additive bias for attention logits; shared across all blocks.
+        capture_attention : bool
+            If True, return ``(x, list of per-layer attention weights)``.
 
         Returns
         -------
-        torch.Tensor
-            Output tensor ``[B, T, D]``.
+        torch.Tensor | tuple
+            Output ``[B, T, D]``, or ``(x, weights)`` when capturing.
         """
+        if capture_attention:
+            weights: list[torch.Tensor | None] = []
+            for block in self.blocks:
+                out = block(x, mask=mask, attention_bias=attention_bias, capture_attention=True)
+                if isinstance(out, tuple):
+                    x, w = out
+                    weights.append(w)
+                else:
+                    x = out
+                    weights.append(None)
+            return x, weights
         for block in self.blocks:
             x = block(x, mask=mask, attention_bias=attention_bias)
         return x

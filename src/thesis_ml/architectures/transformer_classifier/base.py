@@ -107,23 +107,25 @@ class TransformerClassifier(nn.Module):
     # Forward
     # ------------------------------------------------------------------
 
-    def forward(self, *args, mask: torch.Tensor | None = None) -> torch.Tensor:
-        """Forward pass.
-
-        Parameters
-        ----------
-        *args
-            Raw format: ``(tokens_cont [B, T, C], tokens_id [B, T])``
-            Raw with globals: ``(tokens_cont, tokens_id, globals_ [B, 2])``
-            Binned format: ``(integer_tokens [B, T],)``
-        mask : torch.Tensor, optional
-            [B, T] True=valid, False=padding.  Extended internally after
-            embedding to cover CLS/MET tokens.
+    def prepare_encoder_inputs(
+        self,
+        *args: Any,
+        mask: torch.Tensor | None = None,
+    ) -> tuple[
+        torch.Tensor,
+        torch.Tensor | None,
+        torch.Tensor | tuple[torch.Tensor, torch.Tensor] | None,
+        bool,
+        torch.Tensor | None,
+        torch.Tensor | None,
+        Any,
+    ]:
+        """Run embedding through bias/MIA prep; returns tensors fed to ``self.encoder``.
 
         Returns
         -------
-        torch.Tensor
-            Logits [B, n_classes].
+        x, mask, attention_bias, is_raw, tokens_cont, tokens_id, globals_
+            ``tokens_id`` and ``globals_`` are only meaningful when ``is_raw``.
         """
         # -----------------------------------------------------------------
         # 1. Parse inputs and run embedding
@@ -158,7 +160,7 @@ class TransformerClassifier(nn.Module):
         #    mask after embedding: [B, T_full] where T_full = T + cls + n_met
         #    Layout: [CLS | p1...pT | MET | METphi]
         # -----------------------------------------------------------------
-        attention_bias: torch.Tensor | None = None
+        attention_bias: torch.Tensor | tuple[torch.Tensor, torch.Tensor] | None = None
 
         if is_raw and tokens_cont is not None:
             T_phys = tokens_cont.size(1)
@@ -244,8 +246,30 @@ class TransformerClassifier(nn.Module):
                         legacy_bias = padded
                     attention_bias = legacy_bias
 
+        return x, mask, attention_bias, is_raw, tokens_cont, tokens_id, globals_
+
+    def forward(self, *args, mask: torch.Tensor | None = None) -> torch.Tensor:
+        """Forward pass.
+
+        Parameters
+        ----------
+        *args
+            Raw format: ``(tokens_cont [B, T, C], tokens_id [B, T])``
+            Raw with globals: ``(tokens_cont, tokens_id, globals_ [B, 2])``
+            Binned format: ``(integer_tokens [B, T],)``
+        mask : torch.Tensor, optional
+            [B, T] True=valid, False=padding.  Extended internally after
+            embedding to cover CLS/MET tokens.
+
+        Returns
+        -------
+        torch.Tensor
+            Logits [B, n_classes].
+        """
+        x, mask, attention_bias, is_raw, tokens_cont, tokens_id, globals_ = self.prepare_encoder_inputs(*args, mask=mask)
+
         # -----------------------------------------------------------------
-        # 8. Encode and classify
+        # Encode and classify
         # -----------------------------------------------------------------
         x = self.encoder(x, mask=mask, attention_bias=attention_bias)
 

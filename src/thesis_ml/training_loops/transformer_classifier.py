@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 import time
 from collections.abc import Mapping
@@ -33,6 +34,12 @@ from thesis_ml.facts import (
 )
 from thesis_ml.monitoring.orchestrator import handle_event
 from thesis_ml.utils import TrainingProgressShower
+from thesis_ml.utils.interpretability import (
+    compute_gradient_norms,
+    log_attention_maps,
+    log_kan_splines,
+    log_moe_routing,
+)
 from thesis_ml.utils.seed import set_all_seeds
 from thesis_ml.utils.wandb_utils import finish_wandb, init_wandb, log_artifact, log_metrics
 
@@ -227,32 +234,16 @@ def _train_one_epoch(
     cfg: DictConfig,
     n_classes: int,
     scheduler: torch.optim.lr_scheduler._LRScheduler | None = None,
-) -> dict[str, float | None]:
+    *,
+    log_grad_norms_last_batch: bool = False,
+) -> tuple[dict[str, float | None], dict[str, float], dict[str, float]]:
     """Train for one epoch.
-
-    Parameters
-    ----------
-    model : torch.nn.Module
-        Model to train
-    loader : torch.utils.data.DataLoader
-        Training data loader
-    optimizer : torch.optim.Optimizer
-        Optimizer
-    criterion : torch.nn.Module
-        Loss function
-    device : torch.device
-        Device to run on
-    cfg : DictConfig
-        Configuration
-    n_classes : int
-        Number of classes
-    scheduler : torch.optim.lr_scheduler._LRScheduler, optional
-        Learning rate scheduler (for warmup)
 
     Returns
     -------
-    dict[str, float | None]
-        Dictionary with keys: loss, acc, f1, auroc (auroc may be None)
+    metrics_dict, timing_dict, grad_norm_dict
+        ``timing_dict`` has ``data_time_s``, ``train_time_s``, ``n_samples``.
+        ``grad_norm_dict`` is non-empty only when ``log_grad_norms_last_batch``.
     """
     model.train()
 
@@ -263,6 +254,11 @@ def _train_one_epoch(
     total_moe_aux = 0.0
     total_kan_reg = 0.0
     num_batches = 0
+
+    data_time_s = 0.0
+    train_time_s = 0.0
+    n_samples = 0
+    grad_norm_dict: dict[str, float] = {}
 
     # MoE config
     moe_cfg = cfg.classifier.model.get("moe", {})
@@ -282,8 +278,14 @@ def _train_one_epoch(
         scaler = None
         autocast_ctx = nullcontext()
 
+    num_batches_total = len(loader)
+    t_wait = time.perf_counter()
+
     # Loop batches
-    for batch in loader:
+    for batch_idx, batch in enumerate(loader):
+        data_time_s += time.perf_counter() - t_wait
+        t_comp = time.perf_counter()
+
         optimizer.zero_grad()
 
         # Explicit batch unpacking
@@ -323,6 +325,7 @@ def _train_one_epoch(
                 loss = loss + kan_reg_weight * kan_reg
             total_kan_reg += kan_reg.item()
 
+        is_last = batch_idx == num_batches_total - 1
         # Backward
         if scaler is not None:
             scaler.scale(loss).backward()
@@ -331,6 +334,8 @@ def _train_one_epoch(
                 model.parameters(),
                 cfg.classifier.trainer.get("grad_clip", 1.0),
             )
+            if log_grad_norms_last_batch and is_last:
+                grad_norm_dict = compute_gradient_norms(model)
             scaler.step(optimizer)
             scaler.update()
         else:
@@ -339,6 +344,8 @@ def _train_one_epoch(
                 model.parameters(),
                 cfg.classifier.trainer.get("grad_clip", 1.0),
             )
+            if log_grad_norms_last_batch and is_last:
+                grad_norm_dict = compute_gradient_norms(model)
             optimizer.step()
 
         # Scheduler step (for warmup)
@@ -350,6 +357,10 @@ def _train_one_epoch(
         num_batches += 1
         all_logits.append(logits.detach().cpu())
         all_labels.append(label.cpu())
+        n_samples += int(label.size(0))
+
+        train_time_s += time.perf_counter() - t_comp
+        t_wait = time.perf_counter()
 
     # Compute metrics
     avg_loss = total_loss / num_batches if num_batches > 0 else 0.0
@@ -367,7 +378,8 @@ def _train_one_epoch(
     if kan_reg_weight > 0 and num_batches > 0:
         result["kan_spline_reg"] = total_kan_reg / num_batches
 
-    return result
+    timing = {"data_time_s": data_time_s, "train_time_s": train_time_s, "n_samples": float(n_samples)}
+    return result, timing, grad_norm_dict
 
 
 def _validate_one_epoch(
@@ -665,10 +677,9 @@ def train(cfg: DictConfig) -> dict:
     # Model assembly
     model = build_from_config(cfg, meta).to(device)
 
-    # Basic diagnostics for dry runs: parameter count and input sequence length
+    # Basic diagnostics: parameter count and input sequence length
+    total_params = sum(p.numel() for p in model.parameters())
     try:
-        total_params = sum(p.numel() for p in model.parameters())
-        # Peek one batch to infer effective sequence length
         first_batch = next(iter(train_dl))
         if len(first_batch) == 5:  # raw format
             tokens_cont, tokens_id, globals, mask, _ = first_batch
@@ -677,16 +688,13 @@ def train(cfg: DictConfig) -> dict:
             integer_tokens, globals_ints, mask, _ = first_batch
             seq_len = int(integer_tokens.shape[1])
     except Exception:
-        total_params = None
         seq_len = None
 
     # Initialize W&B (returns None if disabled or on error - training continues normally)
     wandb_run = init_wandb(cfg, model=model)
 
     # Log basic diagnostics once
-    diag_metrics = {}
-    if total_params is not None:
-        diag_metrics["model/num_parameters"] = float(total_params)
+    diag_metrics = {"model/num_parameters": float(total_params)}
     if seq_len is not None:
         diag_metrics["data/seq_length_tokens"] = float(seq_len)
     if diag_metrics:
@@ -740,15 +748,11 @@ def train(cfg: DictConfig) -> dict:
             facts_meta = build_meta(cfg)
             write_meta(facts_meta, Path(outdir) / "facts" / "meta.json")
         except Exception as e:
-            import logging
-
             logging.getLogger(__name__).warning("[meta] Could not write meta.json: %s", e)
 
         try:
             write_axes(build_axes_metadata(cfg), Path(outdir) / "facts" / "axes.json")
         except Exception as e:
-            import logging
-
             logging.getLogger(__name__).warning("[axes] Could not write axes.json: %s", e)
 
     # Training loop
@@ -785,14 +789,30 @@ def train(cfg: DictConfig) -> dict:
     _kan_cfg = cfg.classifier.model.get("kan", {})
     kan_grid_freq = int(_kan_cfg.get("grid_update_freq", 0)) if _kan_cfg else 0
 
+    interp_cfg = cfg.classifier.trainer.get("interpretability", {})
+    interp_enabled = bool(interp_cfg.get("enabled", False))
+    ckpt_interp_epochs = set(interp_cfg.get("checkpoint_epochs", []))
+
     for epoch in range(cfg.classifier.trainer.epochs):
-        epoch_start = time.time()
+        epoch_wall_start = time.perf_counter()
+        if device.type == "cuda":
+            torch.cuda.reset_peak_memory_stats(device)
 
         # ── PID phase transition (warmup_fixed / frozen_backbone) ──
         opt = _handle_pid_phase_transition(model, cfg, epoch, opt, wandb_run, outdir, device)
 
         # Train
-        train_metrics = _train_one_epoch(model, train_dl, opt, criterion, device, cfg, meta["n_classes"], warmup_scheduler)
+        train_metrics, train_timing, grad_norm_dict = _train_one_epoch(
+            model,
+            train_dl,
+            opt,
+            criterion,
+            device,
+            cfg,
+            meta["n_classes"],
+            warmup_scheduler,
+            log_grad_norms_last_batch=interp_enabled and bool(interp_cfg.get("save_gradient_norms", False)),
+        )
 
         # ── KAN grid update (adapt B-spline knots to data distribution) ──
         if kan_grid_freq > 0 and (epoch + 1) % kan_grid_freq == 0:
@@ -811,7 +831,9 @@ def train(cfg: DictConfig) -> dict:
         histories["train_auroc"].append(last_valid_auroc if train_metrics["auroc"] is None else train_metrics["auroc"])
 
         # Validate
+        val_t0 = time.perf_counter()
         val_metrics = _validate_one_epoch(model, val_dl, criterion, device, cfg, meta["n_classes"])
+        eval_time_s = time.perf_counter() - val_t0
         histories["val_loss"].append(val_metrics["loss"])
         histories["val_acc"].append(val_metrics["acc"])
         histories["val_f1"].append(val_metrics["f1"])
@@ -820,7 +842,13 @@ def train(cfg: DictConfig) -> dict:
             last_valid_auroc = val_metrics["auroc"]
         histories["val_auroc"].append(last_valid_auroc if val_metrics["auroc"] is None else val_metrics["auroc"])
 
-        epoch_time = time.time() - epoch_start
+        epoch_time = time.perf_counter() - epoch_wall_start
+        train_time_s = float(train_timing["train_time_s"])
+        data_time_s = float(train_timing["data_time_s"])
+        n_samp = float(train_timing["n_samples"])
+        throughput_sps = n_samp / train_time_s if train_time_s > 1e-9 else 0.0
+        max_mem_mib = float(torch.cuda.max_memory_allocated(device)) / (1024.0**2) if device.type == "cuda" else None
+        lr_current = float(opt.param_groups[0]["lr"])
         global_step += len(train_dl)
 
         # Checkpointing (comprehensive)
@@ -856,26 +884,43 @@ def train(cfg: DictConfig) -> dict:
                         },
                         "config": OmegaConf.to_container(cfg, resolve=True),
                     }
-                torch.save(checkpoint, os.path.join(outdir, "best_val.pt"))
+                    torch.save(checkpoint, os.path.join(outdir, "best_val.pt"))
 
-                # Create symlink
-                model_path = os.path.join(outdir, "model.pt")
-                if os.path.exists(model_path):
-                    os.remove(model_path)
-                try:
-                    os.symlink("best_val.pt", model_path)
-                except OSError:
-                    import shutil
+                    # Create symlink
+                    model_path = os.path.join(outdir, "model.pt")
+                    if os.path.exists(model_path):
+                        os.remove(model_path)
+                    try:
+                        os.symlink("best_val.pt", model_path)
+                    except OSError:
+                        import shutil
 
-                    shutil.copy2(os.path.join(outdir, "best_val.pt"), model_path)
+                        shutil.copy2(os.path.join(outdir, "best_val.pt"), model_path)
 
-                # Save per-event scores and CLS embeddings on validation split for downstream analysis
-                try:
-                    _save_split_scores_and_embeddings(model, val_dl, device, outdir, split="val")
-                except Exception as e:
-                    import warnings
+                    # Save per-event scores and CLS embeddings on validation split for downstream analysis
+                    try:
+                        _save_split_scores_and_embeddings(model, val_dl, device, outdir, split="val")
+                    except Exception as e:
+                        import warnings
 
-                    warnings.warn(f"Failed to save validation scores/embeddings: {e}", stacklevel=2)
+                        warnings.warn(f"Failed to save validation scores/embeddings: {e}", stacklevel=2)
+
+                    if interp_enabled:
+                        if interp_cfg.get("save_attention_maps", False):
+                            try:
+                                log_attention_maps(model, val_dl, device, outdir, epoch, filename_suffix="best")
+                            except Exception as e:
+                                logging.getLogger(__name__).warning("[interpretability] attention (best): %s", e)
+                        if interp_cfg.get("save_kan_splines", False):
+                            try:
+                                log_kan_splines(model, outdir, epoch, filename_suffix="best")
+                            except Exception as e:
+                                logging.getLogger(__name__).warning("[interpretability] KAN (best): %s", e)
+                        if interp_cfg.get("save_moe_routing", False):
+                            try:
+                                log_moe_routing(model, val_dl, device, outdir, epoch, filename_suffix="best")
+                            except Exception as e:
+                                logging.getLogger(__name__).warning("[interpretability] MoE routing (best): %s", e)
 
         # Early stopping check
         if early_stopping_enabled:
@@ -921,6 +966,8 @@ def train(cfg: DictConfig) -> dict:
                 metrics=facts_metrics,
                 histories=histories,
                 epoch_time_s=epoch_time,
+                throughput=float(throughput_sps),
+                max_memory_mib=max_mem_mib,
                 cfg=cfg,
             )
             append_jsonl_event(str(outdir), payload)
@@ -932,8 +979,8 @@ def train(cfg: DictConfig) -> dict:
                 val_loss=val_metrics["loss"],
                 metrics=facts_metrics,
                 epoch_time_s=epoch_time,
-                throughput=None,
-                max_memory_mib=None,
+                throughput=float(throughput_sps),
+                max_memory_mib=max_mem_mib,
             )
             handle_event(cfg.logging, SUPPORTED_PLOT_FAMILIES, "on_epoch_end", payload)
 
@@ -949,7 +996,16 @@ def train(cfg: DictConfig) -> dict:
             "val/f1": float(val_metrics["f1"]),
             "val/auroc": float(val_auroc_for_wandb) if val_auroc_for_wandb is not None else None,
             "perf/epoch_time_s": float(epoch_time),
+            "perf/epoch_total_s": float(epoch_time),
+            "perf/train_time_s": train_time_s,
+            "perf/data_time_s": data_time_s,
+            "perf/eval_time_s": float(eval_time_s),
+            "perf/throughput_samples_sec": float(throughput_sps),
+            "training/lr_current": lr_current,
         }
+        if max_mem_mib is not None:
+            wandb_payload["perf/max_memory_mib"] = max_mem_mib
+        wandb_payload.update(grad_norm_dict)
 
         # MoE diagnostics
         if "moe_aux_loss" in train_metrics:
@@ -968,6 +1024,23 @@ def train(cfg: DictConfig) -> dict:
             wandb_payload["kan/val_spline_reg"] = float(val_metrics["kan_spline_reg"])
 
         log_metrics(wandb_run, wandb_payload, step=epoch)
+
+        if interp_enabled and outdir and epoch in ckpt_interp_epochs:
+            if interp_cfg.get("save_attention_maps", False):
+                try:
+                    log_attention_maps(model, val_dl, device, outdir, epoch, filename_suffix=str(epoch))
+                except Exception as e:
+                    logging.getLogger(__name__).warning("[interpretability] attention (ckpt): %s", e)
+            if interp_cfg.get("save_kan_splines", False):
+                try:
+                    log_kan_splines(model, outdir, epoch, filename_suffix=str(epoch))
+                except Exception as e:
+                    logging.getLogger(__name__).warning("[interpretability] KAN (ckpt): %s", e)
+            if interp_cfg.get("save_moe_routing", False):
+                try:
+                    log_moe_routing(model, val_dl, device, outdir, epoch, filename_suffix=str(epoch))
+                except Exception as e:
+                    logging.getLogger(__name__).warning("[interpretability] MoE (ckpt): %s", e)
 
         # ── PID embedding geometry logging ──
         if log_pid:
@@ -1011,6 +1084,23 @@ def train(cfg: DictConfig) -> dict:
             import warnings
 
             warnings.warn(f"Failed to save test scores/embeddings: {e}", stacklevel=2)
+
+        if interp_enabled and outdir:
+            if interp_cfg.get("save_attention_maps", False):
+                try:
+                    log_attention_maps(model, val_dl, device, outdir, epoch, filename_suffix="final")
+                except Exception as e:
+                    logging.getLogger(__name__).warning("[interpretability] attention (final): %s", e)
+            if interp_cfg.get("save_kan_splines", False):
+                try:
+                    log_kan_splines(model, outdir, epoch, filename_suffix="final")
+                except Exception as e:
+                    logging.getLogger(__name__).warning("[interpretability] KAN (final): %s", e)
+            if interp_cfg.get("save_moe_routing", False):
+                try:
+                    log_moe_routing(model, val_dl, device, outdir, epoch, filename_suffix="final")
+                except Exception as e:
+                    logging.getLogger(__name__).warning("[interpretability] MoE (final): %s", e)
 
         payload_end = build_event_payload(
             moment="on_train_end",

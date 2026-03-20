@@ -187,14 +187,17 @@ def _train_one_epoch(
     cfg: DictConfig,
     n_classes: int,
     scheduler: torch.optim.lr_scheduler._LRScheduler | None = None,
-) -> dict[str, float | None]:
-    """Train for one epoch."""
+) -> tuple[dict[str, float | None], dict[str, float]]:
+    """Train for one epoch. Returns (metrics, timing) with data/train times and sample count."""
     model.train()
 
     all_logits = []
     all_labels = []
     total_loss = 0.0
     num_batches = 0
+    data_time_s = 0.0
+    train_time_s = 0.0
+    n_samples = 0
 
     use_amp = cfg.classifier.trainer.get("use_amp", False)
     if use_amp and device.type == "cuda":
@@ -204,7 +207,11 @@ def _train_one_epoch(
         scaler = None
         autocast_ctx = nullcontext()
 
+    t_wait = time.perf_counter()
     for batch in loader:
+        data_time_s += time.perf_counter() - t_wait
+        t_comp = time.perf_counter()
+
         optimizer.zero_grad()
 
         features, labels = _flatten_batch(batch, device)
@@ -237,11 +244,16 @@ def _train_one_epoch(
         num_batches += 1
         all_logits.append(logits.detach().cpu())
         all_labels.append(labels.cpu())
+        n_samples += int(labels.size(0))
+
+        train_time_s += time.perf_counter() - t_comp
+        t_wait = time.perf_counter()
 
     avg_loss = total_loss / num_batches if num_batches > 0 else 0.0
     metrics = _compute_metrics_epoch(all_logits, all_labels, n_classes)
 
-    return {"loss": avg_loss, **metrics}
+    timing = {"data_time_s": data_time_s, "train_time_s": train_time_s, "n_samples": float(n_samples)}
+    return {"loss": avg_loss, **metrics}, timing
 
 
 def _validate_one_epoch(
@@ -312,9 +324,10 @@ def train(cfg: DictConfig) -> dict:
     # Initialize W&B (returns None if disabled or on error - training continues normally)
     wandb_run = init_wandb(cfg, model=model)
 
-    # Log parameter count
+    n_params = sum(p.numel() for p in model.parameters())
     param_count = model.count_parameters()
     print(f"MLP parameters: {param_count:,}")
+    log_metrics(wandb_run, {"model/num_parameters": float(n_params)}, step=0)
 
     # AdamW optimizer
     opt = torch.optim.AdamW(
@@ -401,10 +414,12 @@ def train(cfg: DictConfig) -> dict:
     progress = TrainingProgressShower(cfg.classifier.trainer.epochs)
 
     for epoch in range(cfg.classifier.trainer.epochs):
-        epoch_start = time.time()
+        epoch_wall_start = time.perf_counter()
+        if device.type == "cuda":
+            torch.cuda.reset_peak_memory_stats(device)
 
         # Train
-        train_metrics = _train_one_epoch(model, train_dl, opt, criterion, device, cfg, meta["n_classes"], warmup_scheduler)
+        train_metrics, train_timing = _train_one_epoch(model, train_dl, opt, criterion, device, cfg, meta["n_classes"], warmup_scheduler)
         histories["train_loss"].append(train_metrics["loss"])
         histories["train_acc"].append(train_metrics["acc"])
         histories["train_f1"].append(train_metrics["f1"])
@@ -413,7 +428,9 @@ def train(cfg: DictConfig) -> dict:
         histories["train_auroc"].append(last_valid_auroc if train_metrics["auroc"] is None else train_metrics["auroc"])
 
         # Validate
+        val_t0 = time.perf_counter()
         val_metrics = _validate_one_epoch(model, val_dl, criterion, device, cfg, meta["n_classes"])
+        eval_time_s = time.perf_counter() - val_t0
         histories["val_loss"].append(val_metrics["loss"])
         histories["val_acc"].append(val_metrics["acc"])
         histories["val_f1"].append(val_metrics["f1"])
@@ -421,7 +438,13 @@ def train(cfg: DictConfig) -> dict:
             last_valid_auroc = val_metrics["auroc"]
         histories["val_auroc"].append(last_valid_auroc if val_metrics["auroc"] is None else val_metrics["auroc"])
 
-        epoch_time = time.time() - epoch_start
+        epoch_time = time.perf_counter() - epoch_wall_start
+        train_time_s = float(train_timing["train_time_s"])
+        data_time_s = float(train_timing["data_time_s"])
+        n_samp = float(train_timing["n_samples"])
+        throughput_sps = n_samp / train_time_s if train_time_s > 1e-9 else 0.0
+        max_mem_mib = float(torch.cuda.max_memory_allocated(device)) / (1024.0**2) if device.type == "cuda" else None
+        lr_current = float(opt.param_groups[0]["lr"])
         global_step += len(train_dl)
 
         # Checkpointing
@@ -506,6 +529,8 @@ def train(cfg: DictConfig) -> dict:
                 },
                 histories=histories,
                 epoch_time_s=epoch_time,
+                throughput=float(throughput_sps),
+                max_memory_mib=max_mem_mib,
                 cfg=cfg,
             )
             append_jsonl_event(str(outdir), payload)
@@ -521,28 +546,33 @@ def train(cfg: DictConfig) -> dict:
                     "auroc": val_auroc_for_facts,
                 },
                 epoch_time_s=epoch_time,
-                throughput=None,
-                max_memory_mib=None,
+                throughput=float(throughput_sps),
+                max_memory_mib=max_mem_mib,
             )
             handle_event(cfg.logging, SUPPORTED_PLOT_FAMILIES, "on_epoch_end", payload)
 
         # W&B logging (alongside Facts, not replacing)
         val_auroc_for_wandb = last_valid_auroc if val_metrics["auroc"] is None else val_metrics["auroc"]
-        log_metrics(
-            wandb_run,
-            {
-                "epoch": epoch,
-                "train/loss": float(train_metrics["loss"]),
-                "train/acc": float(train_metrics["acc"]),
-                "train/f1": float(train_metrics["f1"]),
-                "val/loss": float(val_metrics["loss"]),
-                "val/acc": float(val_metrics["acc"]),
-                "val/f1": float(val_metrics["f1"]),
-                "val/auroc": float(val_auroc_for_wandb) if val_auroc_for_wandb is not None else None,
-                "perf/epoch_time_s": float(epoch_time),
-            },
-            step=epoch,
-        )
+        wb_mlp: dict[str, Any] = {
+            "epoch": epoch,
+            "train/loss": float(train_metrics["loss"]),
+            "train/acc": float(train_metrics["acc"]),
+            "train/f1": float(train_metrics["f1"]),
+            "val/loss": float(val_metrics["loss"]),
+            "val/acc": float(val_metrics["acc"]),
+            "val/f1": float(val_metrics["f1"]),
+            "val/auroc": float(val_auroc_for_wandb) if val_auroc_for_wandb is not None else None,
+            "perf/epoch_time_s": float(epoch_time),
+            "perf/epoch_total_s": float(epoch_time),
+            "perf/train_time_s": train_time_s,
+            "perf/data_time_s": data_time_s,
+            "perf/eval_time_s": float(eval_time_s),
+            "perf/throughput_samples_sec": float(throughput_sps),
+            "training/lr_current": lr_current,
+        }
+        if max_mem_mib is not None:
+            wb_mlp["perf/max_memory_mib"] = max_mem_mib
+        log_metrics(wandb_run, wb_mlp, step=epoch)
 
         progress.update(epoch, epoch_time, train_loss=train_metrics["loss"], val_loss=val_metrics["loss"])
 

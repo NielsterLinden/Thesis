@@ -220,6 +220,8 @@ def train(cfg: DictConfig) -> dict:
     complexity = model.get_complexity_estimate()
     print(f"BDT complexity: {complexity['n_estimators']} trees, depth {complexity['max_depth']}")
     print(f"Effective parameters estimate: {complexity['effective_params_estimate']:,}")
+    n_params_est = float(complexity["effective_params_estimate"])
+    log_metrics(wandb_run, {"model/num_parameters": n_params_est}, step=0)
 
     # Logging dir from Hydra
     outdir = None
@@ -280,6 +282,17 @@ def train(cfg: DictConfig) -> dict:
 
     training_time = time.time() - training_start
     print(f"Training completed in {training_time:.2f}s")
+    n_train = int(X_train.shape[0])
+    bdt_throughput = n_train / training_time if training_time > 1e-9 else 0.0
+    log_metrics(
+        wandb_run,
+        {
+            "perf/train_time_s": float(training_time),
+            "perf/epoch_total_s": float(training_time),
+            "perf/throughput_samples_sec": float(bdt_throughput),
+        },
+        step=0,
+    )
 
     # Extract per-iteration metrics from XGBoost (if available)
     evals_result: dict[str, dict[str, list[float]]] | None = None
@@ -418,6 +431,8 @@ def train(cfg: DictConfig) -> dict:
             },
             histories=histories,
             epoch_time_s=training_time,
+            throughput=float(bdt_throughput),
+            max_memory_mib=None,
             cfg=cfg,
         )
         append_jsonl_event(str(outdir), payload)
