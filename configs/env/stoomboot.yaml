@@ -1,6 +1,7 @@
 # Stoomboot HPC environment paths
 data_root: "/data/atlas/users/nterlind/datasets"
 output_root: "/data/atlas/users/nterlind/outputs"
+wandb_project: "thesis-systematic"
 
 # VQ-VAE checkpoints for pretrained tokenizer
 # Two checkpoints for different input dimensions (auto-selected based on cont_features):

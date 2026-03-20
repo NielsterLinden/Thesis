@@ -10,6 +10,7 @@ Components:
 - meta: Build and write canonical run metadata (facts/meta.json)
 """
 
+from .axes import build_axes_metadata, write_axes
 from .builders import build_event_payload
 from .meta import (
     PROCESS_ID_NAMES,
@@ -27,6 +28,9 @@ from .meta import (
 from .writers import append_jsonl_event, append_scalars_csv, ensure_facts_dir
 
 __all__ = [
+    # Axes
+    "build_axes_metadata",
+    "write_axes",
     # Builders
     "build_event_payload",
     # Writers

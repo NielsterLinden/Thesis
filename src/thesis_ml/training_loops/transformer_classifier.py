@@ -22,7 +22,15 @@ from thesis_ml.architectures.transformer_classifier.modules.kan import (
 )
 from thesis_ml.architectures.transformer_classifier.modules.tokenizers.identity import IdentityTokenizer
 from thesis_ml.data.h5_loader import make_classification_dataloaders
-from thesis_ml.facts import append_jsonl_event, append_scalars_csv, build_event_payload, build_meta, write_meta
+from thesis_ml.facts import (
+    append_jsonl_event,
+    append_scalars_csv,
+    build_axes_metadata,
+    build_event_payload,
+    build_meta,
+    write_axes,
+    write_meta,
+)
 from thesis_ml.monitoring.orchestrator import handle_event
 from thesis_ml.utils import TrainingProgressShower
 from thesis_ml.utils.seed import set_all_seeds
@@ -103,17 +111,6 @@ def _save_split_scores_and_embeddings(
 
 def _gather_meta(cfg: DictConfig, ds_meta: Mapping[str, Any]) -> None:
     """Attach data-derived meta to cfg for module constructors."""
-    # #region agent log
-    try:
-        import json
-
-        _tf = ds_meta.get("token_feat_dim")
-        _nt = ds_meta.get("num_types")
-        with open(r"c:\Users\niels\Projects\Thesis-Code\Code\Niels_repo\.cursor\debug.log", "a") as _f:
-            _f.write(json.dumps({"location": "transformer_classifier._gather_meta", "message": "ds_meta token_feat_dim and num_types", "data": {"token_feat_dim": _tf, "num_types": _nt, "token_feat_dim_is_none": _tf is None, "num_types_is_none": _nt is None}, "hypothesisId": "H1_H2", "timestamp": __import__("time").time()}) + "\n")
-    except Exception:
-        pass
-    # #endregion
     prev_struct = OmegaConf.is_struct(cfg)
     try:
         OmegaConf.set_struct(cfg, False)
@@ -746,6 +743,13 @@ def train(cfg: DictConfig) -> dict:
             import logging
 
             logging.getLogger(__name__).warning("[meta] Could not write meta.json: %s", e)
+
+        try:
+            write_axes(build_axes_metadata(cfg), Path(outdir) / "facts" / "axes.json")
+        except Exception as e:
+            import logging
+
+            logging.getLogger(__name__).warning("[axes] Could not write axes.json: %s", e)
 
     # Training loop
     histories = {

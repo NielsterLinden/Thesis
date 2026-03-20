@@ -57,34 +57,6 @@ def _pid_label(pid: int) -> str:
     return str(pid)
 
 
-# #region agent log
-def _agent_debug_log(hypothesis_id: str, location: str, message: str, data: dict[str, Any]) -> None:
-    """Lightweight NDJSON logger for debugging analyze_pid_embeddings."""
-    try:
-        import json
-        import time
-
-        log_path = Path(".cursor") / "debug.log"
-        payload = {
-            "id": f"log_{int(time.time() * 1000)}",
-            "timestamp": int(time.time() * 1000),
-            "location": location,
-            "message": message,
-            "data": data,
-            "runId": "pid-deepdive",
-            "hypothesisId": hypothesis_id,
-        }
-        log_path.parent.mkdir(parents=True, exist_ok=True)
-        with log_path.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(payload) + "\n")
-    except Exception:
-        # Never let debugging interfere with report generation
-        return
-
-
-# #endregion agent log
-
-
 # ---------------------------------------------------------------------------
 # Metadata extraction
 # ---------------------------------------------------------------------------

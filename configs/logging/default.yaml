@@ -45,7 +45,7 @@ enable_tags: []  # e.g., ["core"]
 # - or explicit overrides: logging.use_wandb=true|false, logging.wandb.mode=online|offline
 use_wandb: true
 wandb:
-  project: "thesis-ml"
+  project: "${env.wandb_project}"
   entity: ""  # Set to your W&B username/team, or leave empty for default
   run_name: ""  # Leave empty to auto-generate from run directory (e.g., run_20260128-111834_myexp_job001)
   group: ""  # Leave empty to auto-extract from run_name (e.g., exp_20260128-111834_myexp), or set explicitly

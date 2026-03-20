@@ -71,7 +71,7 @@ def _flatten_dict(d: dict[str, Any], prefix: str = "") -> dict[str, Any]:
     return out
 
 
-def extract_wandb_config(cfg: dict[str, Any], source_location: str = "live") -> dict[str, Any]:
+def extract_wandb_config(cfg: dict[str, Any] | Any, source_location: str = "live") -> dict[str, Any]:
     """Extract ALL config fields into flat WandB-friendly dict.
 
     Uses '/' as namespace separator for clean WandB UI organization.
@@ -83,8 +83,8 @@ def extract_wandb_config(cfg: dict[str, Any], source_location: str = "live") -> 
 
     Parameters
     ----------
-    cfg : dict
-        Full Hydra config dict (as plain dict, not DictConfig)
+    cfg : dict | DictConfig
+        Full Hydra config (plain dict or OmegaConf DictConfig)
     source_location : str
         Source of the run ("hpc", "local", "live", etc.)
 
@@ -93,6 +93,16 @@ def extract_wandb_config(cfg: dict[str, Any], source_location: str = "live") -> 
     dict
         Flat dictionary with all relevant parameters for WandB config
     """
+    try:
+        from omegaconf import DictConfig, OmegaConf
+
+        if isinstance(cfg, DictConfig):
+            cfg = OmegaConf.to_container(cfg, resolve=True)
+    except Exception:
+        pass
+    if not isinstance(cfg, dict):
+        cfg = {}
+
     wc: dict[str, Any] = {}
 
     # === Model Type (Primary Classification) ===
@@ -290,21 +300,25 @@ def extract_wandb_config(cfg: dict[str, Any], source_location: str = "live") -> 
     meta_fields = extract_meta_fields(cfg)
     wc.update(meta_fields)
 
-    # === raw/* auto-flatten: catch-all so new config keys are never lost ===
+    # === Canonical thesis axes (keep nulls for stable W&B filters) ===
     try:
-        from omegaconf import OmegaConf
+        from thesis_ml.facts.axes import build_axes_metadata
 
-        data = OmegaConf.to_container(cfg, resolve=True) if not isinstance(cfg, dict) else cfg
-    except Exception:
-        data = cfg if isinstance(cfg, dict) else {}
+        for k, v in build_axes_metadata(cfg).items():
+            wc[f"axes/{k}"] = v
+    except Exception as e:
+        logger.warning("[wandb] Could not build axes metadata: %s", e)
+
+    # === raw/* auto-flatten: catch-all so new config keys are never lost ===
+    data = cfg
     if isinstance(data, dict):
         data_no_hydra = {k: v for k, v in data.items() if k != "hydra"}
         raw_flat = _flatten_dict(data_no_hydra, "raw")
         for k, v in raw_flat.items():
             if k not in wc:
                 wc[k] = v
-    # Remove None values for cleaner WandB display
-    return {k: v for k, v in wc.items() if v is not None}
+    # Remove None values except axes/* (canonical slice must stay filterable)
+    return {k: v for k, v in wc.items() if v is not None or (isinstance(k, str) and k.startswith("axes/"))}
 
 
 def extract_meta_fields(cfg: dict[str, Any]) -> dict[str, Any]:
