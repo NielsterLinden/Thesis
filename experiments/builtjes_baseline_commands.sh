@@ -40,4 +40,12 @@ condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot loop=tr
 #   thesis-report --config-name evaluate_classifier \
 #     inputs.sweep_dir=outputs/multiruns/exp_*_builtjes_baseline \
 #     inference.enabled=true
+#
+# =============================================================================
+# Training stability grid — ParT_int only, 3×3×3 = 27 jobs (warmup × batch × lr)
+# Config: configs/classifier/experiment/thesis_plan/builtjes_training_stability.yaml
+# =============================================================================
+#
+# condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot loop=transformer_classifier classifier/experiment=thesis_plan/builtjes_training_stability --multirun'
+#
 # =============================================================================

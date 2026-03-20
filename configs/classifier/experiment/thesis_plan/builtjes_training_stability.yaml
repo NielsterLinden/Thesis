@@ -1,0 +1,64 @@
+# @package _global_
+# Builtjes-scale ParT_int — training hyperparameter grid to diagnose collapse
+#
+# Context: aggressive settings (lr=1e-3, batch=512, warmup=0) can diverge mid-run;
+# `classifier.trainer.lr_schedule: cosine` is not wired in the transformer loop—only
+# LinearLR warmup runs when warmup_steps > 0. This sweep searches stable corners.
+#
+# Fixed (ParT_int + Table 16–style backbone): builtjes model, lorentz_scalar [m2,deltaR],
+# raw tokenizer, sinusoidal PE, post-norm, CLS, MET as tokens, 4t vs background, seed 42.
+#
+# Grid (3×3×3 = 27 jobs): warmup_steps × batch_size × lr
+#   - warmup_steps: 0, 1000, 5000  (0 reproduces the risky baseline)
+#   - batch_size: 128, 256, 512
+#   - lr: 1e-4, 3e-4, 1e-3
+#
+# Run (overrides before --multirun):
+#   thesis-train env=stoomboot classifier/experiment=thesis_plan/builtjes_training_stability --multirun
+#
+# Condor:
+#   condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot classifier/experiment=thesis_plan/builtjes_training_stability --multirun'
+
+meta:
+  goal: "classification"
+
+experiment:
+  name: "builtjes_training_stability"
+
+hydra:
+  mode: MULTIRUN
+  job:
+    chdir: true
+    name: ${experiment.name}
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweeper:
+    params:
+      +classifier/model_size: builtjes
+      # ParT_int only (pairwise m² + ΔR); not sweeping SM or vanilla ParT here
+      classifier.model.attention_biases: lorentz_scalar
+      classifier.model.bias_config.lorentz_scalar.hidden_dim: 64
+      classifier.model.bias_config.lorentz_scalar.features: "[m2, deltaR]"
+      classifier.model.bias_config.sm_interaction.mode: running_coupling
+      classifier.model.tokenizer.name: raw
+      classifier.model.positional: sinusoidal
+      classifier.model.head.pooling: cls
+      classifier.model.norm.policy: post
+      classifier.globals.include_met: true
+      classifier.trainer.epochs: 50
+      classifier.trainer.seed: 42
+      classifier.trainer.grad_clip: 1.0
+      # --- grid (Hydra: first key changes slowest, last fastest) ---
+      classifier.trainer.warmup_steps: 0,1000,5000
+      classifier.trainer.batch_size: 128,256,512
+      classifier.trainer.lr: 0.0001,0.0003,0.001
+
+data:
+  classifier:
+    signal_vs_background:
+      signal: 1
+      background: [2, 3, 4, 5]
+    selected_labels: null
