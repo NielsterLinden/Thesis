@@ -55,14 +55,14 @@ class NodewiseMassBias(nn.Module):
         cont_dim : int
             Continuous feature dimension.  Module is a no-op when cont_dim < 4.
         k_values : list[int], optional
-            Neighbourhood sizes.  Defaults to [4, 8, 16, 32] (Li et al.).
+            Neighbourhood sizes.  Defaults to [2, 4, 8].
         hidden_dim : int
             Hidden dim for the embedding MLP.
         """
         super().__init__()
         self.cont_dim = cont_dim
         self.has_E = cont_dim >= 4
-        self.k_values = sorted(k_values or [4, 8, 16, 32])
+        self.k_values = sorted(k_values or [2, 4, 8])
         n_k = len(self.k_values)
 
         if self.has_E:

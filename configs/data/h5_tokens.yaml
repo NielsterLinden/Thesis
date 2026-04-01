@@ -19,6 +19,10 @@ norm: "zscore"
 seed: 42
 num_workers: 4
 
+# Which continuous inputs to use: indices into (E, pt, eta, phi). Default 5-vector.
+# 4-vector ablation: [1, 2, 3]
+cont_features: [0, 1, 2, 3]
+
 # Limit samples per split (0 = use all). Override from CLI for fast debug:
 #   data.limit_samples=50
 limit_samples: 0

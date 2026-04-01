@@ -46,6 +46,6 @@ condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot loop=tr
 # Config: configs/classifier/experiment/thesis_plan/builtjes_training_stability.yaml
 # =============================================================================
 #
-# condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot loop=transformer_classifier classifier/experiment=thesis_plan/builtjes_training_stability --multirun'
+condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot loop=transformer_classifier classifier/experiment=thesis_plan/builtjes_training_stability --multirun'
 #
 # =============================================================================

@@ -477,7 +477,7 @@ def build_from_config(cfg: DictConfig, meta: Mapping[str, Any]) -> nn.Module:
         nodewise_mass = NodewiseMassBias(
             model_dim=dim,
             cont_dim=cont_dim,
-            k_values=list(nm_cfg.get("k_values", [4, 8, 16, 32])),
+            k_values=list(nm_cfg.get("k_values", [2, 4, 8])),
             hidden_dim=int(nm_cfg.get("hidden_dim", 64)),
         )
 

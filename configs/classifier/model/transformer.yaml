@@ -135,7 +135,7 @@ classifier:
     # -----------------------------------------------------------------------
     nodewise_mass:
       enabled: false
-      k_values: [4, 8, 16, 32]    # neighbourhood sizes (Li et al. defaults)
+      k_values: [2, 4, 8]         # neighbourhood sizes (default for short sequences; overrideable)
       hidden_dim: 64
 
     # -----------------------------------------------------------------------
