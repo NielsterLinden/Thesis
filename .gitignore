@@ -6,8 +6,15 @@ nul
 .vscode/
 .idea/
 .cursor/
+.cursor/plans/
+.cursor/rules/
+
 .cursorrules
 CLAUDE.md
+
+.editorconfig
+.gitattributes
+.gitignore
 
 
 # Python
