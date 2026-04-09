@@ -459,89 +459,140 @@ These are implemented or logged, but they stay outside the numbered 33-axis core
 | Shared backbone | `classifier.model.shared_backbone.*` | — | `raw/classifier.model.shared_backbone/*` | Infrastructure shared by bias/MIA |
 | Legacy pairwise | `classifier.model.attn_pairwise.*` | — | `raw/classifier.model.attn_pairwise/*` | Backward-compat path into Lorentz bias |
 
-## Exported W&B Field Mapping
+## Recommended W&B CSV Keys
 
-The CSV export used for this audit contains the fields below. Metrics and run identifiers are excluded from the axis count.
+If the goal is a CSV that is both thesis-complete and easy to slice later, the safest rule is:
 
-### `axes/*`
-| Exported field | Maps to |
-| --- | --- |
-| `axes/attention_biases` | B01 |
-| `axes/attention_norm` | A04 |
-| `axes/attention_type` | A03 |
-| `axes/batch_size` | H08 |
-| `axes/causal_attention` | A07 |
-| `axes/cont_features` | D04 |
-| `axes/depth` | H02 |
-| `axes/diff_bias_mode` | A05 |
-| `axes/dim` | H01 |
-| `axes/dropout` | H05 |
-| `axes/epochs` | Training hyperparameter appendix |
-| `axes/experiment_name` | Run metadata, not an axis |
-| `axes/ffn_type` | A08 |
-| `axes/global_conditioned_mode` | B07 |
-| `axes/head_type` | A10 |
-| `axes/heads` | H03 |
-| `axes/id_embed_dim` | D03 |
-| `axes/include_met` | D05 |
-| `axes/kan_ffn_variant` | A09 |
-| `axes/kan_grid_size` | KAN appendix |
-| `axes/kan_spline_order` | KAN appendix |
-| `axes/lorentz_features` | B03 |
-| `axes/lorentz_mlp_type` | B04 |
-| `axes/lorentz_per_head` | Lorentz sub-setting appendix |
-| `axes/lorentz_sparse_gating` | Lorentz sub-setting appendix |
-| `axes/lr` | H06 |
-| `axes/mia_enabled` | P02 |
-| `axes/mia_placement` | P03 |
-| `axes/mlp_dim` | H04 |
-| `axes/model_size_key` | H10 |
-| `axes/moe_enabled` | A11 |
-| `axes/moe_routing_level` | A13 |
-| `axes/moe_scope` | A14 |
-| `axes/moe_top_k` | A12 |
-| `axes/nodewise_mass_enabled` | P01 |
-| `axes/norm_policy` | A01 |
-| `axes/norm_type` | A02 |
-| `axes/pid_mode` | D02 |
-| `axes/pooling` | A06 |
-| `axes/positional` | D07 |
-| `axes/positional_space` | D08 |
-| `axes/seed` | H09 |
-| `axes/sm_mode` | B02 |
-| `axes/token_order` | D06 |
-| `axes/tokenizer_name` | D01 |
-| `axes/typepair_freeze` | B06 |
-| `axes/typepair_init` | B05 |
-| `axes/typepair_kinematic_gate` | Type-pair sub-setting appendix |
-| `axes/weight_decay` | H07 |
+1. Export the full canonical `axes/*` surface for every numbered axis.
+2. Add a small set of metadata and training-protocol keys so you know what data and training setup went into the run.
+3. Add structured module sub-settings only when they materially affect interpretation or reproducibility.
 
-### Structured bias and attention mirrors
-| Exported field | Maps to |
-| --- | --- |
-| `bias/global_mode` | B07 |
-| `bias/lorentz_features` | B03 |
-| `bias/lorentz_per_head` | Lorentz sub-setting appendix |
-| `bias/lorentz_sparse_gating` | Lorentz sub-setting appendix |
-| `bias/selector` | B01 |
-| `bias/sm_mode` | B02 |
-| `bias/typepair_freeze` | B06 |
-| `bias/typepair_init` | B05 |
-| `bias/typepair_kinematic_gate` | Type-pair sub-setting appendix |
-| `attention/diff_bias_mode` | A05 |
-| `attention/norm` | A04 |
-| `attention/type` | A03 |
-| `ffn/kan_variant` | A09 |
-| `ffn/type` | A08 |
-| `pid/schedule_mode` | PID schedule appendix |
-| `pid/transition_epoch` | PID schedule appendix |
+The tables below are based on keys that are actually built by `src/thesis_ml/facts/axes.py`, `src/thesis_ml/utils/wandb_utils.py`, or `meta.*` extraction in the same module.
 
-### Not Axes
-| Exported field | Meaning |
-| --- | --- |
-| `Name` | W&B run identifier |
-| `val/auroc` | Validation metric |
-| `test/auroc` | Test metric |
+### Must Have
+
+These are the keys that give you a robust thesis CSV: all axes, task identity, data-treatment identity, and the core training protocol.
+
+| W&B key | Config source | Maps to / note |
+| --- | --- | --- |
+| `axes/<all numbered-axis keys from completeness table below>` | See completeness table below | All frozen thesis axes (`D01-D09`, `A01-A14`, `B01-B07`, `P01-P03`) |
+| `data/name` | `data.name` or `data.path` | Dataset identity |
+| `meta.process_groups_key` | derived from `data.classifier.signal_vs_background` and `data.classifier.selected_labels` | Canonical task/class split for grouping |
+| `meta.class_def_str` | derived from `data.classifier.signal_vs_background` and `data.classifier.selected_labels` | Human-readable class definition |
+| `meta.row_key` | derived from dataset identity and process groups | Stable join key across reports |
+| `meta.datatreatment_tokenization` | derived from `data.use_binned_tokens`, `classifier.model.tokenizer.name` | High-level tokenization summary |
+| `meta.datatreatment_pid_encoding` | derived from `classifier.model.tokenizer.name`, `classifier.model.tokenizer.id_embed_dim` | High-level PID treatment summary |
+| `meta.datatreatment_met_rep` | derived from `classifier.globals.include_met`, `data.globals.*` | How MET is represented in the run |
+| `training/epochs` | `classifier.trainer.epochs` | Core training protocol |
+| `training/warmup_steps` | `classifier.trainer.warmup_steps` | Core training protocol |
+| `training/lr_schedule` | `classifier.trainer.lr_schedule` | Core training protocol |
+| `training/label_smoothing` | `classifier.trainer.label_smoothing` | Core training protocol |
+| `training/grad_clip` | `classifier.trainer.grad_clip` | Core training protocol |
+| `early_stop/enabled` | `classifier.trainer.early_stopping.enabled` | Training control |
+| `early_stop/patience` | `classifier.trainer.early_stopping.patience` | Training control |
+
+### Nice To Have
+
+These improve interpretability and reproducibility once the must-have layer is present.
+
+| W&B key | Config source | Maps to / note |
+| --- | --- | --- |
+| `pos_enc/rotary_base` | `classifier.model.rotary.base` | D07 rotary sub-setting |
+| `pid/schedule_mode` | `classifier.trainer.pid_schedule.mode` | PID training protocol, not D03 |
+| `pid/transition_epoch` | `classifier.trainer.pid_schedule.transition_epoch` | PID training protocol, not D03 |
+| `meta.datatreatment_globals_included` | derived from `data.globals.present` | High-level data-treatment note |
+| `meta.datatreatment_feature_set_version` | derived from metadata schema | Useful when feature definitions evolve |
+| `meta.datatreatment_normalization` | `data.norm` | High-level data-treatment note |
+| `kan/grid_size` | `classifier.model.kan.grid_size` | KAN shared sub-setting |
+| `kan/spline_order` | `classifier.model.kan.spline_order` | KAN shared sub-setting |
+| `kan/grid_range` | `classifier.model.kan.grid_range` | KAN shared sub-setting |
+| `kan/spline_reg_weight` | `classifier.model.kan.spline_regularization_weight` | KAN shared sub-setting |
+| `kan/grid_update_freq` | `classifier.model.kan.grid_update_freq` | KAN shared sub-setting |
+| `moe/num_experts` | `classifier.model.moe.num_experts` | MoE sub-setting for A11-A14 |
+| `moe/lb_weight` | `classifier.model.moe.load_balance_loss_weight` | MoE sub-setting for A11-A14 |
+| `moe/noisy_gating` | `classifier.model.moe.noisy_gating` | MoE sub-setting for A11-A14 |
+| `nodewise_mass/k_values` | `classifier.model.nodewise_mass.k_values` | P01 sub-setting |
+| `mia/num_blocks` | `classifier.model.mia_blocks.num_blocks` | P02/P03 sub-setting |
+| `tokenizer/model_type` | `classifier.model.tokenizer.model_type` | Mainly relevant for pretrained tokenizers |
+
+### Full Export
+
+If you want the most complete CSV without exporting the entire raw Hydra tree, this is the next layer to add.
+
+| W&B key | Config source | Maps to / note |
+| --- | --- | --- |
+| `kan/bias_lorentz_mlp_type` | `classifier.model.bias_config.lorentz_scalar.mlp_type` | Structured mirror of B04 |
+| `kan/bias_global_mlp_type` | `classifier.model.bias_config.global_conditioned.mlp_type` | B07 sub-setting |
+| `bias/lorentz_per_head` | `classifier.model.bias_config.lorentz_scalar.per_head` | B03/B04 sub-setting |
+| `bias/lorentz_sparse_gating` | `classifier.model.bias_config.lorentz_scalar.sparse_gating` | B03/B04 sub-setting |
+| `bias/typepair_kinematic_gate` | `classifier.model.bias_config.typepair_kinematic.kinematic_gate` | B05/B06 sub-setting |
+| `raw/classifier.model.ffn.kan.bottleneck_dim` | `classifier.model.ffn.kan.bottleneck_dim` | A09 sub-setting not otherwise curated |
+| `raw/classifier.model.bias_config.lorentz_scalar.hidden_dim` | `classifier.model.bias_config.lorentz_scalar.hidden_dim` | Bias-capacity detail |
+| `raw/classifier.model.bias_config.typepair_kinematic.kinematic_feature` | `classifier.model.bias_config.typepair_kinematic.kinematic_feature` | Typepair detail |
+| `raw/classifier.model.bias_config.typepair_kinematic.mask_value` | `classifier.model.bias_config.typepair_kinematic.mask_value` | Typepair detail |
+| `raw/classifier.model.bias_config.sm_interaction.mask_value` | `classifier.model.bias_config.sm_interaction.mask_value` | SM bias detail |
+| `raw/classifier.model.bias_config.global_conditioned.global_dim` | `classifier.model.bias_config.global_conditioned.global_dim` | Global-bias capacity detail |
+| `raw/classifier.model.mia_blocks.interaction_dim` | `classifier.model.mia_blocks.interaction_dim` | P02 capacity detail |
+| `raw/classifier.model.mia_blocks.reduction_dim` | `classifier.model.mia_blocks.reduction_dim` | P02/P03 capacity detail |
+| `raw/classifier.model.mia_blocks.dropout` | `classifier.model.mia_blocks.dropout` | P02/P03 training detail |
+| `raw/classifier.model.nodewise_mass.hidden_dim` | `classifier.model.nodewise_mass.hidden_dim` | P01 capacity detail |
+| `raw/classifier.trainer.pid_schedule.reinit_mode` | `classifier.trainer.pid_schedule.reinit_mode` | PID training-protocol detail |
+| `raw/classifier.trainer.pid_schedule.pid_lr` | `classifier.trainer.pid_schedule.pid_lr` | PID training-protocol detail |
+| `raw/classifier.trainer.log_pid_embeddings` | `classifier.trainer.log_pid_embeddings` | PID logging detail |
+| `raw/classifier.model.shared_backbone.enabled` | `classifier.model.shared_backbone.enabled` | Shared infrastructure toggle |
+| `raw/classifier.model.shared_backbone.features` | `classifier.model.shared_backbone.features` | Shared infrastructure detail |
+| `raw/classifier.model.attn_pairwise.enabled` | `classifier.model.attn_pairwise.enabled` | Legacy compatibility path |
+| `raw/classifier.model.attn_pairwise.features` | `classifier.model.attn_pairwise.features` | Legacy compatibility path |
+
+## Axis Completeness Table
+
+This is the easiest completeness check for the frozen axis set. If you want one CSV column per axis, the preferred key is the `axes/*` key below.
+
+| Axis | Config key | Preferred CSV W&B key | Also logged as |
+| --- | --- | --- | --- |
+| D01 | `classifier.model.tokenizer.name` | `axes/tokenizer_name` | `tokenizer/type` |
+| D02 | `classifier.model.tokenizer.pid_mode` | `axes/pid_mode` | `tokenizer/pid_mode` |
+| D03 | `classifier.model.tokenizer.id_embed_dim` | `axes/id_embed_dim` | `tokenizer/id_embed_dim` |
+| D04 | `data.cont_features` | `axes/cont_features` | `data/cont_features` |
+| D05 | `classifier.globals.include_met` | `axes/include_met` | `globals/include_met` |
+| D06 | `data.sort_tokens_by`, `data.shuffle_tokens` | `axes/token_order` | `data/sort_tokens_by`, `data/shuffle_tokens` |
+| D07 | `classifier.model.positional` | `axes/positional` | `pos_enc/type` |
+| D08 | `classifier.model.positional_space` | `axes/positional_space` | `pos_enc/space` |
+| D09 | `classifier.model.positional_dim_mask` | `axes/positional_dim_mask` | `pos_enc/dim_mask` |
+| A01 | `classifier.model.norm.policy` | `axes/norm_policy` | `norm/policy` |
+| A02 | `classifier.model.norm.type` | `axes/norm_type` | `norm/type` |
+| A03 | `classifier.model.attention.type` | `axes/attention_type` | `attention/type` |
+| A04 | `classifier.model.attention.norm` | `axes/attention_norm` | `attention/norm` |
+| A05 | `classifier.model.attention.diff_bias_mode` | `axes/diff_bias_mode` | `attention/diff_bias_mode` |
+| A06 | `classifier.model.head.pooling` | `axes/pooling` | `pooling/type` |
+| A07 | `classifier.model.causal_attention` | `axes/causal_attention` | `model/causal_attention` |
+| A08 | `classifier.model.ffn.type` | `axes/ffn_type` | `ffn/type` |
+| A09 | `classifier.model.ffn.kan.variant` | `axes/kan_ffn_variant` | `ffn/kan_variant` |
+| A10 | `classifier.model.head.type` | `axes/head_type` | `head/type` |
+| A11 | `classifier.model.moe.enabled` | `axes/moe_enabled` | `moe/enabled` |
+| A12 | `classifier.model.moe.top_k` | `axes/moe_top_k` | `moe/top_k` |
+| A13 | `classifier.model.moe.routing_level` | `axes/moe_routing_level` | `moe/routing_level` |
+| A14 | `classifier.model.moe.scope` | `axes/moe_scope` | `moe/scope` |
+| B01 | `classifier.model.attention_biases` | `axes/attention_biases` | `bias/selector` |
+| B02 | `classifier.model.bias_config.sm_interaction.mode` | `axes/sm_mode` | `bias/sm_mode` |
+| B03 | `classifier.model.bias_config.lorentz_scalar.features` | `axes/lorentz_features` | `bias/lorentz_features` |
+| B04 | `classifier.model.bias_config.lorentz_scalar.mlp_type` | `axes/lorentz_mlp_type` | `kan/bias_lorentz_mlp_type` |
+| B05 | `classifier.model.bias_config.typepair_kinematic.init_from_physics` | `axes/typepair_init` | `bias/typepair_init` |
+| B06 | `classifier.model.bias_config.typepair_kinematic.freeze_table` | `axes/typepair_freeze` | `bias/typepair_freeze` |
+| B07 | `classifier.model.bias_config.global_conditioned.mode` | `axes/global_conditioned_mode` | `bias/global_mode` |
+| P01 | `classifier.model.nodewise_mass.enabled` | `axes/nodewise_mass_enabled` | `nodewise_mass/enabled` |
+| P02 | `classifier.model.mia_blocks.enabled` | `axes/mia_enabled` | `mia/enabled` |
+| P03 | `classifier.model.mia_blocks.placement` | `axes/mia_placement` | `mia/placement` |
+| H01 | `classifier.model.dim` | `axes/dim` | `model/dim` |
+| H02 | `classifier.model.depth` | `axes/depth` | `model/depth` |
+| H03 | `classifier.model.heads` | `axes/heads` | `model/heads` |
+| H04 | `classifier.model.mlp_dim` | `axes/mlp_dim` | `model/mlp_dim` |
+| H05 | `classifier.model.dropout` | `axes/dropout` | `model/dropout` |
+| H06 | `classifier.trainer.lr` | `axes/lr` | `training/lr` |
+| H07 | `classifier.trainer.weight_decay` | `axes/weight_decay` | `training/weight_decay` |
+| H08 | `classifier.trainer.batch_size` | `axes/batch_size` | `training/batch_size` |
+| H09 | `classifier.trainer.seed` | `axes/seed` | `training/seed` if extractor is fixed to read `classifier.trainer.seed` consistently |
+| H10 | derived from `classifier.model.dim`, `classifier.model.depth` | `axes/model_size_key` | `model/size_key` |
 
 ## Stability Notes
 
@@ -551,3 +602,162 @@ The CSV export used for this audit contains the fields below. Metrics and run id
 - `classifier.model.shared_backbone.*` is real infrastructure consumed by code, but not a thesis axis because it is neither exposed as a canonical `axes/*` key nor used as a standalone sweep dimension.
 - `classifier.model.attn_pairwise.*` remains legacy compatibility. When `attention_biases` is unset or `none`, code can still map it to `lorentz_scalar`.
 - The current implementation accepts `mia_blocks.placement=interleave`, but falls back to `prepend`.
+
+## Appendix: Proposed Thesis-Facing Axis Taxonomy
+
+This section is a presentation-layer proposal only. It does **not** replace the frozen reference above and does **not** require code changes. The goal is to make the thesis language more honest than a flat list of "orthogonal axes" by separating:
+
+- primary axes: the main architectural decision
+- sub-axes: only meaningful when the parent axis activates a module or family
+- sub-sub-axes: technical settings inside a selected variant
+
+### Why revise the taxonomy
+
+The current `D01`, `A05`, `B03` style is useful as a checklist, but it mixes together:
+
+- independent top-level choices
+- conditional choices
+- selector axes and module-internal parameterizations
+
+The configs and the slides both already imply hierarchy in several places:
+
+- `A09` KAN FFN variant only matters when `A08 = kan`
+- `A11` MoE settings only matter when MoE is active
+- `B01` bias selector activates modules that each have their own internal settings
+- the slides already talk about "subchoices" for MoE and bundled sub-items for the bias modules
+
+### Proposed naming rule
+
+Keep the existing top-level IDs as the stable thesis anchors, but allow hierarchical suffixes:
+
+- top-level axis: `A09`
+- first dependent sub-axis: `A09-A`, `A09-B`
+- second dependent sub-axis: `A09-B1`, `A09-B2`
+
+This keeps the familiar "where in the transformer" naming, while making dependency explicit.
+
+### Recommended taxonomy levels
+
+| Level | Meaning | Example |
+| --- | --- | --- |
+| Top-level axis | Main design decision | `A08` FFN type |
+| Sub-axis | Only active for one branch of the parent | `A09-A` KAN FFN variant |
+| Sub-sub-axis | Only active inside one sub-axis choice | `A09-A1` bottleneck dimension |
+
+### Proposed thesis-facing structure
+
+#### D. Input Representation
+
+Keep `D01-D09` as the top-level chapter anchors. Introduce sub-axes only where the current doc already has strong conditionality.
+
+| Proposed ID | Meaning | Config |
+| --- | --- | --- |
+| `D01` | Tokenizer family | `classifier.model.tokenizer.name` |
+| `D01-A` | PID representation mode | `classifier.model.tokenizer.pid_mode` |
+| `D01-B` | PID embedding dimension | `classifier.model.tokenizer.id_embed_dim` |
+| `D04` | Continuous feature set | `data.cont_features` |
+| `D05` | MET treatment | `classifier.globals.include_met` |
+| `D06` | Token ordering policy | `data.sort_tokens_by`, `data.shuffle_tokens` |
+| `D07` | Positional encoding type | `classifier.model.positional` |
+| `D07-A` | Positional encoding space | `classifier.model.positional_space` |
+| `D07-B` | Positional dimension mask | `classifier.model.positional_dim_mask` |
+| `D07-C` | Rotary base | `classifier.model.rotary.base` |
+
+**Rationale:** `D02` and `D03` read naturally as dependent on tokenizer choice. For thesis prose, folding them under `D01` may be cleaner even if the frozen reference keeps `D02` and `D03` as separate documented axes.
+
+#### A. Transformer Architecture
+
+This is where the hierarchy is strongest in both the configs and the slides.
+
+| Proposed ID | Meaning | Config |
+| --- | --- | --- |
+| `A01` | Normalization policy | `classifier.model.norm.policy` |
+| `A02` | Normalization type | `classifier.model.norm.type` |
+| `A03` | Attention type | `classifier.model.attention.type` |
+| `A03-A` | Differential-attention bias mode | `classifier.model.attention.diff_bias_mode` |
+| `A03-B` | Attention-internal normalization | `classifier.model.attention.norm` |
+| `A04` | Pooling strategy | `classifier.model.head.pooling` |
+| `A05` | Causal attention | `classifier.model.causal_attention` |
+| `A06` | FFN family | `classifier.model.ffn.type` |
+| `A06-A` | KAN FFN variant | `classifier.model.ffn.kan.variant` |
+| `A06-A1` | KAN bottleneck dimension | `classifier.model.ffn.kan.bottleneck_dim` |
+| `A07` | Head family | `classifier.model.head.type` |
+| `A08` | MoE activation / use | `classifier.model.moe.enabled` and head/path activation |
+| `A08-A` | MoE routing level | `classifier.model.moe.routing_level` |
+| `A08-B` | MoE scope | `classifier.model.moe.scope` |
+| `A08-C` | MoE top-k | `classifier.model.moe.top_k` |
+| `A08-D` | MoE number of experts | `classifier.model.moe.num_experts` |
+| `A08-E` | MoE load-balance weight | `classifier.model.moe.load_balance_loss_weight` |
+| `A08-F` | MoE noisy gating | `classifier.model.moe.noisy_gating` |
+
+**Rationale:** the March 31 slides already imply this. They show MoE as a family with "subchoices", and KAN FFN as a family with internal variants. A thesis-facing hierarchy is cleaner than treating every MoE setting as the same kind of axis as normalization policy.
+
+#### B. Physics-Informed Attention Biases
+
+This is the most natural place to use selector-plus-subaxes language.
+
+| Proposed ID | Meaning | Config |
+| --- | --- | --- |
+| `B01` | Bias family selector | `classifier.model.attention_biases` |
+| `B01-A` | Lorentz-scalar bias family | `lorentz_scalar` selected in `attention_biases` |
+| `B01-A1` | Lorentz feature set | `classifier.model.bias_config.lorentz_scalar.features` |
+| `B01-A2` | Lorentz MLP type | `classifier.model.bias_config.lorentz_scalar.mlp_type` |
+| `B01-A3` | Lorentz per-head mode | `classifier.model.bias_config.lorentz_scalar.per_head` |
+| `B01-A4` | Lorentz sparse gating | `classifier.model.bias_config.lorentz_scalar.sparse_gating` |
+| `B01-B` | Type-pair bias family | `typepair_kinematic` selected in `attention_biases` |
+| `B01-B1` | Type-pair initialization | `classifier.model.bias_config.typepair_kinematic.init_from_physics` |
+| `B01-B2` | Type-pair freeze | `classifier.model.bias_config.typepair_kinematic.freeze_table` |
+| `B01-B3` | Type-pair kinematic gating | `classifier.model.bias_config.typepair_kinematic.kinematic_gate` |
+| `B01-B4` | Type-pair kinematic feature | `classifier.model.bias_config.typepair_kinematic.kinematic_feature` |
+| `B01-C` | SM-interaction bias family | `sm_interaction` selected in `attention_biases` |
+| `B01-C1` | SM interaction mode | `classifier.model.bias_config.sm_interaction.mode` |
+| `B01-D` | Global-conditioned bias family | `global_conditioned` selected in `attention_biases` |
+| `B01-D1` | Global-conditioned mode | `classifier.model.bias_config.global_conditioned.mode` |
+| `B01-D2` | Global-conditioned MLP type | `classifier.model.bias_config.global_conditioned.mlp_type` |
+
+**Rationale:** this is probably the cleanest thesis-facing story. Instead of pretending `B02-B07` are all equally independent, you can say that `B01` chooses the bias family and `B01-A*`, `B01-B*`, `B01-C*`, `B01-D*` parameterize the selected family.
+
+#### P. Pre-Encoder Modules
+
+These are naturally modular and also benefit from hierarchy.
+
+| Proposed ID | Meaning | Config |
+| --- | --- | --- |
+| `P01` | Nodewise mass module on/off | `classifier.model.nodewise_mass.enabled` |
+| `P01-A` | Nodewise mass neighborhood sizes | `classifier.model.nodewise_mass.k_values` |
+| `P01-B` | Nodewise mass hidden dimension | `classifier.model.nodewise_mass.hidden_dim` |
+| `P02` | MIA encoder on/off | `classifier.model.mia_blocks.enabled` |
+| `P02-A` | MIA placement | `classifier.model.mia_blocks.placement` |
+| `P02-B` | MIA number of blocks | `classifier.model.mia_blocks.num_blocks` |
+| `P02-C` | MIA interaction dimension | `classifier.model.mia_blocks.interaction_dim` |
+| `P02-D` | MIA reduction dimension | `classifier.model.mia_blocks.reduction_dim` |
+| `P02-E` | MIA dropout | `classifier.model.mia_blocks.dropout` |
+
+### Suggested thesis language
+
+If you adopt this taxonomy in the thesis, a more accurate phrasing would be:
+
+- "The codebase exposes a frozen set of top-level architectural axes, each with optional dependent sub-axes."
+- "Some chapters focus on top-level axes, while module deep-dives examine second-level sub-axes."
+- "The W&B overview can be backfilled so both top-level axes and dependent sub-axes remain queryable."
+
+### Recommended compromise with the current reference
+
+To minimize disruption:
+
+- keep the frozen reference above exactly as the canonical checklist
+- use the hierarchy in thesis figures, chapter intros, and result tables
+- refer to sub-axes only when the parent family is active
+- avoid calling the whole set "fully orthogonal"; prefer "design axes with dependencies"
+
+### My recommended final presentation choice
+
+If I had to choose one thesis-facing structure, I would use:
+
+- `Dxx` for input and representation
+- `Axx` for top-level transformer architecture
+- `Axx-A`, `Axx-B`, ... for architecture sub-axes
+- `B01` as the master bias selector, with `B01-A*`, `B01-B*`, `B01-C*`, `B01-D*` for family-specific sub-axes
+- `Pxx` for pre-encoder modules with `Pxx-*` internal settings
+
+That is the closest match to the actual configs, the current `AXES_REFERENCE`, and the structure already hinted at in the slides.
