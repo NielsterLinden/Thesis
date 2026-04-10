@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "level": "sim_event",
+  "goal": "classification",
+  "dataset_name": "4topssplitted",
+  "model_family": "transformer",
+  "process_groups": [
+    [
+      "4t"
+    ],
+    [
+      "ttH"
+    ]
+  ],
+  "datatreatment": {
+    "token_order": "input_order",
+    "tokenization": "direct",
+    "pid_encoding": "none",
+    "id_embed_dim": 8,
+    "met_rep": "met_metphi",
+    "globals_included": true,
+    "feature_set_version": "v1",
+    "normalization": "zscore"
+  },
+  "feature_mode": "4vec+MET+globals",
+  "meta_hash": "sha1:1e6289526104",
+  "meta_source": "live",
+  "meta_confidence": "high",
+  "meta_confidence_fields": {
+    "goal": "high",
+    "dataset_name": "high",
+    "model_family": "high",
+    "process_groups": "high",
+    "datatreatment": "high"
+  },
+  "needs_review": false,
+  "needs_review_reason": [],
+  "n_classes": 2,
+  "processes_all": [
+    "4t",
+    "ttH"
+  ],
+  "class_def_str": "4t | ttH",
+  "process_groups_key": "4t|ttH",
+  "row_key": "4topssplitted::4t|ttH"
+}

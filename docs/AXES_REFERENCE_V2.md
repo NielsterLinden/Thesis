@@ -21,7 +21,7 @@ P  — Pre-encoder modules (before transformer)
 A  — Attention & encoder-block controls
 F  — Encoder FFN realization
 B  — Physics-informed attention biases (additive to logits)
-C  — Classifier head    (pooled representation → class)
+C  — Classifier head (pooling + classification)
 H  — Model-size hyperparameters
 ─────────────────────────────────────────────────────────
 §K — KAN shared hyperparameters    (cross-cutting)
@@ -64,7 +64,8 @@ flowchart TD
     B1G -.->|consumes| K
     B1 -.->|consumes| S[§S Shared backbone]
     P2 -.->|consumes| S
-    C1[C1 Head type] -.->|consumes| K
+    C2[C2 Pooling strategy] --> C1[C1 Head type]
+    C1 -.->|consumes| K
     C1 -.->|consumes| M
 ```
 
@@ -323,7 +324,7 @@ Modules applied to raw particle features **before** the main transformer encoder
 
 ### A — Attention & Encoder-Block Controls
 
-Controls the transformer encoder's internal computation. These axes apply to **every** encoder block.
+Controls the transformer encoder's internal computation (normalisation, attention, and stack-wide masking). Pooling / readout before the classification MLP is **C2** under **C**.
 
 #### A1 · Normalization Policy
 
@@ -371,16 +372,7 @@ Controls the transformer encoder's internal computation. These axes apply to **e
 - **Default:** `none`
 - **Prerequisite:** None; applies to both standard and differential attention.
 
-#### A5 · Pooling Strategy
-
-- **Config:** `classifier.model.head.pooling`
-- **axes key:** `pooling`
-- **W&B:** `axes/pooling` · `pooling/type`
-- **Options:** `cls` · `mean` · `max`
-- **Default:** `cls`
-- **Prerequisite:** None
-
-#### A6 · Causal Masking
+#### A5 · Causal Masking
 
 - **Config:** `classifier.model.causal_attention`
 - **axes key:** `causal_attention`
@@ -583,7 +575,16 @@ Additive bias terms injected into attention logits. Requires `T1 ∈ {raw, ident
 
 ### C — Classifier Head
 
-Maps the pooled event representation to class logits.
+**C2** aggregates tokens to an event-level vector; **C1** maps that vector to class logits. Both use keys under `classifier.model.head.*` in Hydra.
+
+#### C2 · Pooling Strategy
+
+- **Config:** `classifier.model.head.pooling`
+- **axes key:** `pooling`
+- **W&B:** `axes/pooling` · `pooling/type`
+- **Options:** `cls` · `mean` · `max`
+- **Default:** `cls`
+- **Prerequisite:** None
 
 #### C1 · Head Realization
 
@@ -753,8 +754,7 @@ Complete mapping of all axes. `axes/*` keys are written to `facts/axes.json` and
 | A3 | Attention type | `classifier.model.attention.type` | `attention_type` | `axes/attention_type` | `attention/type` | — |
 | A3-a | Differential attention bias mode | `classifier.model.attention.diff_bias_mode` | `diff_bias_mode` | `axes/diff_bias_mode` | `attention/diff_bias_mode` | A3 = differential |
 | A4 | Attention-internal normalization | `classifier.model.attention.norm` | `attention_norm` | `axes/attention_norm` | `attention/norm` | — |
-| A5 | Pooling strategy | `classifier.model.head.pooling` | `pooling` | `axes/pooling` | `pooling/type` | — |
-| A6 | Causal masking | `classifier.model.causal_attention` | `causal_attention` | `axes/causal_attention` | `model/causal_attention` | — |
+| A5 | Causal masking | `classifier.model.causal_attention` | `causal_attention` | `axes/causal_attention` | `model/causal_attention` | — |
 
 ### 6.6 Encoder FFN (F)
 
@@ -790,6 +790,7 @@ Complete mapping of all axes. `axes/*` keys are written to `facts/axes.json` and
 
 | ID | Name | Hydra Config Key | axes key | W&B (axes/) | Also logged as | Depends On |
 |---|---|---|---|---|---|---|
+| C2 | Pooling strategy | `classifier.model.head.pooling` | `pooling` | `axes/pooling` | `pooling/type` | — |
 | C1 | Head realization | `classifier.model.head.type` | `head_type` | `axes/head_type` | `head/type` | — |
 
 ### 6.9 Shared Modules (§K, §M, §S)
@@ -862,7 +863,7 @@ Complete mapping of all axes. `axes/*` keys are written to `facts/axes.json` and
 |---|---|
 | Study framing (G) | 3 primary choices |
 | Data treatment (D) | 3 axes |
-| Architecture primary choices | 12 (T1, E1, P1, P2, A1–A6, F1, B1, C1) |
+| Architecture primary choices | 13 (T1, E1, P1, P2, A1–A5, F1, B1, C2, C1) |
 | Architecture conditional sub-axes | 16 |
 | Architecture module internals | 22 |
 | Cross-cutting shared controls | 12 (§K×5, §M×5, §S×2) |

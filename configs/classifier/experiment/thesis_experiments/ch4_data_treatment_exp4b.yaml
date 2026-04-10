@@ -1,0 +1,56 @@
+# @package _global_
+# Chapter 4 — commands for `ch4_data_treatment_exp4b`; put CLI overrides before --multirun.
+#
+# Local trial:
+# thesis-train env=local data.limit_samples=500 classifier.trainer.epochs=1 logging.use_wandb=false classifier/experiment=thesis_experiments/ch4_data_treatment_exp4b --multirun
+#
+# HPC trial:
+# condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot data.limit_samples=500 classifier.trainer.epochs=1 logging.use_wandb=false classifier/experiment=thesis_experiments/ch4_data_treatment_exp4b --multirun'
+#
+# HPC full sweep:
+# condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot classifier/experiment=thesis_experiments/ch4_data_treatment_exp4b --multirun'
+#
+# Full grid: do not override cont_features, include_met, shuffle_tokens, or seed on the CLI.
+#
+# Exp 4B: D01 × MET × shuffle × seeds. T1=identity, learned PID, dim 8. 24 runs.
+
+meta:
+  goal: "classification"
+
+experiment:
+  name: "ch4_data_treatment_exp4b"
+
+hydra:
+  mode: MULTIRUN
+  job:
+    chdir: true
+    name: ${experiment.name}
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweeper:
+    params:
+      +data.cont_features: "[0,1,2,3],[1,2,3]"
+      classifier.globals.include_met: false,true
+      data.shuffle_tokens: false,true
+      classifier.trainer.seed: 42,123,314
+
+classifier:
+  model:
+    tokenizer:
+      name: identity
+      pid_mode: learned
+      id_embed_dim: 8
+  trainer:
+    epochs: 50
+
+data:
+  _struct_: false
+  shuffle_tokens: false
+  classifier:
+    signal_vs_background:
+      signal: 1
+      background: [2, 3, 4, 5]
+    selected_labels: null

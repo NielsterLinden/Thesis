@@ -1,0 +1,5 @@
+- env=local
+- data.limit_samples=50
+- classifier.trainer.epochs=1
+- logging.use_wandb=False
+- classifier/experiment=thesis_experiments/ch4_input_repr_exp4a_1_raw
