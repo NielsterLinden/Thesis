@@ -221,4 +221,9 @@ class NodewiseMassBias(nn.Module):
         mass_tensor = torch.stack(mass_feats, dim=-1)  # [B, T, n_k]
 
         # Embed to model_dim
-        return self.embed_mlp(mass_tensor)  # [B, T, model_dim]
+        out = self.embed_mlp(mass_tensor)  # [B, T, model_dim]
+        if mask is not None:
+            if mask.size(1) != T:
+                mask = mask[:, :T]
+            out = out * mask.unsqueeze(-1).to(out.dtype)
+        return out

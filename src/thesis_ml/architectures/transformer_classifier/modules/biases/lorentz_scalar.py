@@ -42,6 +42,7 @@ class LorentzScalarBias(nn.Module):
         sparse_gating: bool = False,
         mlp_type: str = "standard",
         kan_cfg: dict[str, Any] | None = None,
+        dual_branch: bool = False,
     ):
         super().__init__()
         unknown = set(features) - VALID_FEATURES
@@ -53,10 +54,14 @@ class LorentzScalarBias(nn.Module):
         self.per_head = per_head
         self.num_heads = num_heads
         self.sparse_gating = sparse_gating
+        self.dual_branch = dual_branch
 
         F = len(self.active_features)
         if F == 0:
             self._has_mlp = False
+            self.mlp = None  # type: ignore[assignment]
+            self.mlp_branch1 = None
+            self.mlp_branch2 = None
         else:
             self._has_mlp = True
             out_dim = num_heads if per_head else 1
@@ -65,13 +70,22 @@ class LorentzScalarBias(nn.Module):
                 build_bias_mlp,
             )
 
-            self.mlp = build_bias_mlp(F, hidden_dim, out_dim, mlp_type=mlp_type, kan_cfg=kan_cfg)
-
-            # Zero-init last layer for stable init (standard path only;
-            # KAN uses its own init and gate=0 already ensures zero output)
-            if mlp_type == "standard":
-                nn.init.zeros_(self.mlp[-1].weight)
-                nn.init.zeros_(self.mlp[-1].bias)
+            if dual_branch:
+                self.mlp = None
+                self.mlp_branch1 = build_bias_mlp(F, hidden_dim, out_dim, mlp_type=mlp_type, kan_cfg=kan_cfg)
+                self.mlp_branch2 = build_bias_mlp(F, hidden_dim, out_dim, mlp_type=mlp_type, kan_cfg=kan_cfg)
+                if mlp_type == "standard":
+                    nn.init.zeros_(self.mlp_branch1[-1].weight)
+                    nn.init.zeros_(self.mlp_branch1[-1].bias)
+                    nn.init.zeros_(self.mlp_branch2[-1].weight)
+                    nn.init.zeros_(self.mlp_branch2[-1].bias)
+            else:
+                self.mlp_branch1 = None
+                self.mlp_branch2 = None
+                self.mlp = build_bias_mlp(F, hidden_dim, out_dim, mlp_type=mlp_type, kan_cfg=kan_cfg)
+                if mlp_type == "standard":
+                    nn.init.zeros_(self.mlp[-1].weight)
+                    nn.init.zeros_(self.mlp[-1].bias)
 
             if sparse_gating:
                 self.feature_gates = nn.Parameter(torch.zeros(F))
@@ -87,7 +101,7 @@ class LorentzScalarBias(nn.Module):
         feature_to_idx: dict[str, int] | None = None,
         mask: torch.Tensor | None = None,
         **_kwargs,
-    ) -> torch.Tensor | None:
+    ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor] | None:
         if not self._has_mlp:
             return None
         if F_ij is not None and feature_to_idx is not None:
@@ -101,6 +115,12 @@ class LorentzScalarBias(nn.Module):
             return None
         if self.feature_gates is not None:
             feat_tensor = feat_tensor * torch.sigmoid(self.feature_gates)
-        out = self.mlp(feat_tensor)  # [B, T, T, out_dim]
-        out = out.permute(0, 3, 1, 2)  # [B, out_dim, T, T]
-        return torch.tanh(self.gate) * out
+        g = torch.tanh(self.gate)
+        if self.dual_branch:
+            assert self.mlp_branch1 is not None and self.mlp_branch2 is not None
+            out1 = self.mlp_branch1(feat_tensor).permute(0, 3, 1, 2)
+            out2 = self.mlp_branch2(feat_tensor).permute(0, 3, 1, 2)
+            return g * out1, g * out2
+        assert self.mlp is not None
+        out = self.mlp(feat_tensor).permute(0, 3, 1, 2)  # [B, out_dim, T, T]
+        return g * out

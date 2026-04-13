@@ -1,0 +1,49 @@
+# @package _global_
+# Chapter 5 Exp 5D — SM interaction mode (Table 5.4).
+# Task: 5-way multiclass (ProcessIDs 1–5).
+# Fixed: sm_interaction, chapter baseline. Sweep: 3 modes x 3 seeds = 9 runs.
+#
+# Local smoke:
+# thesis-train env=local loop=transformer_classifier data.limit_samples=50 classifier.trainer.epochs=1 logging.use_wandb=false classifier/experiment=thesis_experiments/ch5_sm_mode_exp5d --multirun
+#
+# Stoomboot:
+# thesis-train env=stoomboot loop=transformer_classifier classifier/experiment=thesis_experiments/ch5_sm_mode_exp5d --multirun
+
+meta:
+  goal: "classification"
+
+experiment:
+  name: "ch5_sm_mode_exp5d"
+
+hydra:
+  mode: MULTIRUN
+  job:
+    chdir: true
+    name: ${experiment.name}
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweeper:
+    params:
+      classifier.trainer.seed: 42,123,314
+      classifier.model.attention_biases: sm_interaction
+      classifier.model.bias_config.sm_interaction.mode: binary,fixed_coupling,running_coupling
+
+classifier:
+  globals:
+    include_met: true
+  model:
+    tokenizer:
+      name: identity
+      pid_mode: learned
+      id_embed_dim: 8
+    positional: sinusoidal
+  trainer:
+    epochs: 50
+
+data:
+  _struct_: false
+  classifier:
+    selected_labels: [1, 2, 3, 4, 5]

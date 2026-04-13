@@ -47,6 +47,7 @@ classifier:
     interpretability:
       enabled: false
       save_attention_maps: false
+      save_differential_lambda: true   # when enabled: log λ per layer to W&B (no extra cost)
       save_kan_splines: false
       save_moe_routing: false
       save_gradient_norms: false

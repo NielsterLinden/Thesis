@@ -11,6 +11,9 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
+from thesis_ml.architectures.transformer_classifier.modules.attention import (
+    DifferentialAttention,
+)
 from thesis_ml.architectures.transformer_classifier.modules.ffn.moe import MoEFFN
 from thesis_ml.architectures.transformer_classifier.modules.kan.kan_linear import KANLinear
 
@@ -75,6 +78,25 @@ def _batch_to_encoder_args(
     return (integer_tokens,), mask
 
 
+def _attention_weight_batch_size(w: torch.Tensor | dict[str, torch.Tensor]) -> int:
+    if isinstance(w, dict):
+        return int(w["a1"].size(0))
+    return int(w.size(0))
+
+
+def gather_differential_lambda_metrics(model: torch.nn.Module) -> dict[str, float]:
+    """Scalar λ per encoder layer (differential attention only)."""
+    out: dict[str, float] = {}
+    enc = getattr(model, "encoder", None)
+    if enc is None or not hasattr(enc, "blocks"):
+        return out
+    for i, block in enumerate(enc.blocks):
+        attn = getattr(block, "attention", None)
+        if isinstance(attn, DifferentialAttention):
+            out[f"interpretability/lambda/layer_{i}"] = float(attn._compute_lambda().detach().item())
+    return out
+
+
 def log_attention_maps(
     model: torch.nn.Module,
     loader: DataLoader,
@@ -84,12 +106,18 @@ def log_attention_maps(
     n_events: int = 100,
     filename_suffix: str | None = None,
 ) -> None:
-    """Save per-layer attention weights for up to ``n_events`` validation samples."""
+    """Save per-layer attention weights for up to ``n_events`` validation samples.
+
+    **Version 2** (differential): each layer is a dict with ``a1``, ``a2``,
+    ``combined``, and ``lambda`` (0-dim tensor, repeated from the first batch).
+    **Version 1** (standard): each layer has key ``weights`` only.
+    """
     if not hasattr(model, "prepare_encoder_inputs") or not hasattr(model, "encoder"):
         return
 
     model.eval()
-    per_layer_rows: list[list[torch.Tensor]] = []
+    per_layer_rows: list[list[torch.Tensor | dict[str, torch.Tensor]]] | None = None
+    attention_family: str | None = None
 
     with torch.no_grad():
         for batch in loader:
@@ -99,31 +127,63 @@ def log_attention_maps(
             if not isinstance(enc_out, tuple):
                 continue
             _x_enc, weights = enc_out
-            if not per_layer_rows and weights:
-                per_layer_rows = [[] for _ in weights]
+            if not weights:
+                continue
+            if per_layer_rows is None:
+                per_layer_rows = [[] for _ in range(len(weights))]
             for li, w in enumerate(weights):
                 if w is None:
                     continue
-                per_layer_rows[li].append(w.cpu())
-            n_so_far = sum(t.size(0) for t in per_layer_rows[0]) if per_layer_rows and per_layer_rows[0] else 0
+                if attention_family is None and w is not None:
+                    attention_family = "differential" if isinstance(w, dict) else "standard"
+                per_layer_rows[li].append(w)
+            n_so_far = sum(_attention_weight_batch_size(t) for t in per_layer_rows[0]) if per_layer_rows and per_layer_rows[0] else 0
             if n_so_far >= n_events:
                 break
 
-    stacked: dict[str, torch.Tensor] = {}
+    if not per_layer_rows:
+        return
+
+    stacked: dict[str, Any] = {}
     n_saved = 0
+    version = 2 if attention_family == "differential" else 1
+
     for li, rows in enumerate(per_layer_rows):
         if not rows:
             continue
-        cat = torch.cat(rows, dim=0)
-        if cat.size(0) > n_events:
-            cat = cat[:n_events]
-        stacked[f"layer_{li}"] = cat
-        n_saved = cat.size(0)
+        if isinstance(rows[0], dict):
+            a1_cat = torch.cat([r["a1"].cpu() for r in rows], dim=0)
+            a2_cat = torch.cat([r["a2"].cpu() for r in rows], dim=0)
+            comb_cat = torch.cat([r["combined"].cpu() for r in rows], dim=0)
+            if a1_cat.size(0) > n_events:
+                a1_cat = a1_cat[:n_events]
+                a2_cat = a2_cat[:n_events]
+                comb_cat = comb_cat[:n_events]
+            stacked[f"layer_{li}"] = {
+                "a1": a1_cat,
+                "a2": a2_cat,
+                "combined": comb_cat,
+                "lambda": rows[0]["lambda"].detach().cpu(),
+            }
+            n_saved = a1_cat.size(0)
+        else:
+            cat = torch.cat([r.cpu() for r in rows], dim=0)
+            if cat.size(0) > n_events:
+                cat = cat[:n_events]
+            stacked[f"layer_{li}"] = {"weights": cat}
+            n_saved = cat.size(0)
 
     os.makedirs(os.path.join(outdir, "interpretability"), exist_ok=True)
     tag = filename_suffix if filename_suffix is not None else str(epoch)
     path = os.path.join(outdir, "interpretability", f"attention_epoch_{tag}.pt")
-    torch.save({"epoch": epoch, "n_events": n_saved, "layers": stacked}, path)
+    payload: dict[str, Any] = {
+        "version": version,
+        "attention_type": attention_family or "unknown",
+        "epoch": epoch,
+        "n_events": n_saved,
+        "layers": stacked,
+    }
+    torch.save(payload, path)
 
 
 def log_kan_splines(model: torch.nn.Module, outdir: str, epoch: int, filename_suffix: str | None = None) -> None:

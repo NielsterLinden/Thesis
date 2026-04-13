@@ -157,7 +157,7 @@ class TransformerEncoderBlock(nn.Module):
         attention_bias: torch.Tensor | tuple[torch.Tensor, torch.Tensor] | None = None,
         *,
         capture_attention: bool = False,
-    ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor | None]:
+    ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor | dict[str, torch.Tensor] | None]:
         """Forward pass.
 
         Parameters
@@ -170,7 +170,9 @@ class TransformerEncoderBlock(nn.Module):
             Additive bias for attention logits.
         capture_attention : bool
             If True, pass ``need_weights=True`` to attention and return
-            ``(x_out, attn_weights)`` with weights ``[B, H, T, T]``.
+            ``(x_out, attn_weights)``. For standard attention, weights are
+            ``[B, H, T, T]``. For differential attention, weights are a dict
+            with keys ``a1``, ``a2``, ``lambda``, ``combined``.
 
         Returns
         -------
@@ -187,7 +189,7 @@ class TransformerEncoderBlock(nn.Module):
             T = x.size(1)
             attn_mask = torch.triu(torch.ones(T, T, device=x.device, dtype=torch.bool), diagonal=1)
 
-        attn_weights_out: torch.Tensor | None = None
+        attn_weights_out: torch.Tensor | dict[str, torch.Tensor] | None = None
 
         # ---- Attention block ----
         if self.norm_policy == "pre":
@@ -335,7 +337,7 @@ class TransformerEncoder(nn.Module):
         attention_bias: torch.Tensor | tuple[torch.Tensor, torch.Tensor] | None = None,
         *,
         capture_attention: bool = False,
-    ) -> torch.Tensor | tuple[torch.Tensor, list[torch.Tensor | None]]:
+    ) -> torch.Tensor | tuple[torch.Tensor, list[torch.Tensor | dict[str, torch.Tensor] | None]]:
         """Forward pass through all encoder blocks.
 
         Parameters

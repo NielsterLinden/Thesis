@@ -1,0 +1,54 @@
+# @package _global_
+# Chapter 6 Exp 6A — attention type x internal norm x Lorentz bias x seeds (Table 6.1).
+# Baseline: Ch 5 (identity tokenizer, MET, sinusoidal PE). Task: 5-way multiclass.
+# Sweep: 2 x 3 x 2 x 3 = 36 runs.
+# Lorentz features: placeholder [m2, deltaR] until Ch 5 Exp 5B best feature set is known — override then.
+#
+# Local smoke:
+# thesis-train env=local loop=transformer_classifier data.limit_samples=50 classifier.trainer.epochs=1 logging.use_wandb=false classifier/experiment=thesis_experiments/ch6_attention_type_exp6a --multirun
+#
+# Stoomboot full:
+# thesis-train env=stoomboot loop=transformer_classifier classifier/experiment=thesis_experiments/ch6_attention_type_exp6a --multirun
+
+meta:
+  goal: "classification"
+
+experiment:
+  name: "ch6_attention_type_exp6a"
+
+hydra:
+  mode: MULTIRUN
+  job:
+    chdir: true
+    name: ${experiment.name}
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweeper:
+    params:
+      classifier.trainer.seed: 42,123,314
+      classifier.model.attention.type: standard,differential
+      classifier.model.attention.norm: none,layernorm,rmsnorm
+      classifier.model.attention_biases: none,lorentz_scalar
+
+classifier:
+  globals:
+    include_met: true
+  model:
+    tokenizer:
+      name: identity
+      pid_mode: learned
+      id_embed_dim: 8
+    positional: sinusoidal
+    bias_config:
+      lorentz_scalar:
+        features: [m2, deltaR]
+  trainer:
+    epochs: 50
+
+data:
+  _struct_: false
+  classifier:
+    selected_labels: [1, 2, 3, 4, 5]

@@ -163,7 +163,11 @@ class TestDifferentialAttention:
     def test_need_weights(self, x):
         attn = DifferentialAttention(embed_dim=D, num_heads=H)
         out, weights = attn(x, x, x, need_weights=True)
-        assert weights.shape == (B, H, T, T)
+        assert isinstance(weights, dict)
+        assert weights["a1"].shape == (B, H, T, T)
+        assert weights["a2"].shape == (B, H, T, T)
+        assert weights["combined"].shape == (B, H, T, T)
+        assert weights["lambda"].shape == ()
 
     @pytest.mark.parametrize("norm", ["none", "layernorm", "rmsnorm"])
     def test_attention_norm(self, x, norm):

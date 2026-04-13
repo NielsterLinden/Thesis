@@ -194,7 +194,7 @@ class DifferentialAttention(nn.Module):
         need_weights: bool = False,
         attn_mask: torch.Tensor | None = None,
         attention_bias: torch.Tensor | tuple[torch.Tensor, torch.Tensor] | None = None,
-    ) -> tuple[torch.Tensor, torch.Tensor | None]:
+    ) -> tuple[torch.Tensor, torch.Tensor | dict[str, torch.Tensor] | None]:
         """Forward pass (same signature as ``MultiHeadAttention``).
 
         Parameters
@@ -204,7 +204,8 @@ class DifferentialAttention(nn.Module):
         key_padding_mask : torch.Tensor, optional
             ``[B, T_k]`` where ``True=pad``.
         need_weights : bool
-            If True, return differential attention weights ``A1 - lambda*A2``.
+            If True, return a dict with branch weights ``a1``, ``a2`` (post-dropout),
+            scalar ``lambda``, and ``combined`` equal to ``a1 - lambda * a2``.
         attn_mask : torch.Tensor, optional
             Boolean or additive attention mask.
         attention_bias : Tensor | tuple[Tensor, Tensor] | None
@@ -212,8 +213,9 @@ class DifferentialAttention(nn.Module):
 
         Returns
         -------
-        tuple[torch.Tensor, torch.Tensor | None]
-            ``(output, attn_weights)``.
+        tuple[torch.Tensor, torch.Tensor | dict[str, torch.Tensor] | None]
+            ``(output, attn_weights)`` where ``attn_weights`` is a dict if
+            ``need_weights`` is True (differential detail), else None.
         """
         bias_1, bias_2 = self._resolve_bias_pair(attention_bias)
 
@@ -306,7 +308,16 @@ class DifferentialAttention(nn.Module):
         # Output projection
         output = self.out_proj(attn_output)
 
-        attn_weights_out = diff_weights if need_weights else None
+        if need_weights:
+            lam_det = lam.detach()
+            attn_weights_out = {
+                "a1": a1.detach(),
+                "a2": a2.detach(),
+                "lambda": lam_det,
+                "combined": diff_weights.detach(),
+            }
+        else:
+            attn_weights_out = None
 
         if not self.batch_first:
             output = output.transpose(0, 1)

@@ -30,6 +30,24 @@ from thesis_ml.architectures.transformer_classifier.modules.positional import (
 from thesis_ml.architectures.transformer_classifier.modules.tokenizers.tokenizers import get_feature_map
 
 
+def _add_optional_attention_bias(
+    a: torch.Tensor | tuple[torch.Tensor, torch.Tensor] | None,
+    b: torch.Tensor | tuple[torch.Tensor, torch.Tensor] | None,
+) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor] | None:
+    """Sum pairwise attention biases; tensor + tuple broadcasts the tensor to both branches."""
+    if b is None:
+        return a
+    if a is None:
+        return b
+    if isinstance(a, tuple) and isinstance(b, tuple):
+        return a[0] + b[0], a[1] + b[1]
+    if isinstance(a, tuple) and not isinstance(b, tuple):
+        return a[0] + b, a[1] + b
+    if not isinstance(a, tuple) and isinstance(b, tuple):
+        return a + b[0], a + b[1]
+    return a + b
+
+
 class TransformerClassifier(nn.Module):
     """Transformer-based classifier for event-level sequence classification.
 
@@ -220,7 +238,7 @@ class TransformerClassifier(nn.Module):
                     feature_to_idx=feature_to_idx,
                 )
                 if composer_bias is not None:
-                    attention_bias = composer_bias if attention_bias is None else attention_bias + composer_bias
+                    attention_bias = _add_optional_attention_bias(attention_bias, composer_bias)
 
             # -------------------------------------------------------------
             # 7. Legacy pairwise_bias_net fallback (deprecated)
@@ -487,12 +505,7 @@ def build_from_config(cfg: DictConfig, meta: Mapping[str, Any]) -> nn.Module:
     if mia_cfg.get("enabled", False) and not is_binned:
         reduction_dim = int(mia_cfg.get("reduction_dim", num_heads))
         if reduction_dim != num_heads:
-            import warnings
-
-            warnings.warn(
-                f"mia_blocks.reduction_dim ({reduction_dim}) != num_heads ({num_heads}). " "U2 will be broadcast across heads during bias summation.",
-                stacklevel=2,
-            )
+            raise ValueError(f"mia_blocks.reduction_dim ({reduction_dim}) must equal classifier.model.heads ({num_heads}) " "when mia_blocks.enabled=true; MultiHeadAttention requires 4D bias with dim 1 == num_heads.")
         mia_encoder = MIAEncoder(
             model_dim=dim,
             cont_dim=cont_dim,

@@ -36,6 +36,7 @@ from thesis_ml.monitoring.orchestrator import handle_event
 from thesis_ml.utils import TrainingProgressShower
 from thesis_ml.utils.interpretability import (
     compute_gradient_norms,
+    gather_differential_lambda_metrics,
     log_attention_maps,
     log_kan_splines,
     log_moe_routing,
@@ -808,6 +809,9 @@ def train(cfg: DictConfig) -> dict:
     interp_cfg = cfg.classifier.trainer.get("interpretability", {})
     interp_enabled = bool(interp_cfg.get("enabled", False))
     ckpt_interp_epochs = set(interp_cfg.get("checkpoint_epochs", []))
+    # When interpretability is enabled, default to verbose artifact + λ logging unless overridden.
+    interp_save_attention = interp_enabled and bool(interp_cfg.get("save_attention_maps", True))
+    interp_save_lambda = interp_enabled and bool(interp_cfg.get("save_differential_lambda", True))
 
     for epoch in range(cfg.classifier.trainer.epochs):
         epoch_wall_start = time.perf_counter()
@@ -922,7 +926,7 @@ def train(cfg: DictConfig) -> dict:
                         warnings.warn(f"Failed to save validation scores/embeddings: {e}", stacklevel=2)
 
                     if interp_enabled:
-                        if interp_cfg.get("save_attention_maps", False):
+                        if interp_save_attention:
                             try:
                                 log_attention_maps(model, val_dl, device, outdir, epoch, filename_suffix="best")
                             except Exception as e:
@@ -1023,6 +1027,9 @@ def train(cfg: DictConfig) -> dict:
             wandb_payload["perf/max_memory_mib"] = max_mem_mib
         wandb_payload.update(grad_norm_dict)
 
+        if interp_save_lambda:
+            wandb_payload.update(gather_differential_lambda_metrics(model))
+
         # MoE diagnostics
         if "moe_aux_loss" in train_metrics:
             wandb_payload["moe/train_aux_loss"] = float(train_metrics["moe_aux_loss"])
@@ -1042,7 +1049,7 @@ def train(cfg: DictConfig) -> dict:
         log_metrics(wandb_run, wandb_payload, step=epoch)
 
         if interp_enabled and outdir and epoch in ckpt_interp_epochs:
-            if interp_cfg.get("save_attention_maps", False):
+            if interp_save_attention:
                 try:
                     log_attention_maps(model, val_dl, device, outdir, epoch, filename_suffix=str(epoch))
                 except Exception as e:
@@ -1102,7 +1109,7 @@ def train(cfg: DictConfig) -> dict:
             warnings.warn(f"Failed to save test scores/embeddings: {e}", stacklevel=2)
 
         if interp_enabled and outdir:
-            if interp_cfg.get("save_attention_maps", False):
+            if interp_save_attention:
                 try:
                     log_attention_maps(model, val_dl, device, outdir, epoch, filename_suffix="final")
                 except Exception as e:

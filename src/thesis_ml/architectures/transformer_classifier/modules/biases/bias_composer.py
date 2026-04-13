@@ -167,6 +167,11 @@ class BiasComposer(nn.Module):
 
     All sub-modules receive the *physical* T tokens only.  The output is
     padded to the full encoder sequence length.
+
+    When a module returns ``(branch1, branch2)`` (e.g. dual-branch
+    ``LorentzScalarBias``), tensor-valued modules are added to **both**
+    branches.  The forward may return a single tensor or
+    ``(tensor, tensor)`` for differential attention ``split`` mode.
     """
 
     def __init__(
@@ -192,8 +197,35 @@ class BiasComposer(nn.Module):
         globals_: torch.Tensor | None = None,
         F_ij: torch.Tensor | None = None,
         feature_to_idx: dict[str, int] | None = None,
-    ) -> torch.Tensor | None:
-        total: torch.Tensor | None = None
+    ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor] | None:
+        total_single: torch.Tensor | None = None
+        total_b1: torch.Tensor | None = None
+        total_b2: torch.Tensor | None = None
+
+        def _ensure_4d(t: torch.Tensor) -> torch.Tensor:
+            if t.ndim == 3:
+                return t.unsqueeze(1)
+            return t
+
+        def _add_tensor(t: torch.Tensor) -> None:
+            nonlocal total_single, total_b1, total_b2
+            t = _ensure_4d(t)
+            if total_b1 is not None or total_b2 is not None:
+                total_b1 = t if total_b1 is None else total_b1 + t
+                total_b2 = t if total_b2 is None else total_b2 + t
+            else:
+                total_single = t if total_single is None else total_single + t
+
+        def _add_pair(b1: torch.Tensor, b2: torch.Tensor) -> None:
+            nonlocal total_single, total_b1, total_b2
+            b1 = _ensure_4d(b1)
+            b2 = _ensure_4d(b2)
+            if total_single is not None:
+                b1 = total_single + b1
+                b2 = total_single + b2
+                total_single = None
+            total_b1 = b1 if total_b1 is None else total_b1 + b1
+            total_b2 = b2 if total_b2 is None else total_b2 + b2
 
         for module in self.bias_modules.values():
             bias = module(
@@ -206,28 +238,45 @@ class BiasComposer(nn.Module):
             )
             if bias is None:
                 continue
-            if bias.ndim == 3:
-                bias = bias.unsqueeze(1)
-            total = bias if total is None else total + bias
+            if isinstance(bias, tuple):
+                _add_pair(bias[0], bias[1])
+            else:
+                _add_tensor(bias)
 
         if self.global_conditioner is not None and globals_ is not None:
             g_bias = self.global_conditioner(globals_=globals_, tokens_cont=tokens_cont, mask=mask)
             if g_bias is not None:
-                if g_bias.ndim == 3:
-                    g_bias = g_bias.unsqueeze(1)
-                total = g_bias if total is None else total + g_bias
-
-        if total is None:
-            return None
+                _add_tensor(g_bias)
 
         T = tokens_cont.size(1)
-        if total.size(-1) != T or total.size(-2) != T:
-            total = total.expand(tokens_cont.size(0), -1, T, T).contiguous()
 
-        # Normalise single-head [B, 1, T, T] → [B, T, T] for broadcast
-        if total.dim() == 4 and total.size(1) == 1:
-            total = total.squeeze(1)
+        def _validate_and_squeeze(total: torch.Tensor) -> torch.Tensor:
+            if total.dim() == 3:
+                if total.size(-1) != T or total.size(-2) != T:
+                    raise ValueError(f"BiasComposer expected bias [B, {T}, {T}] for physical tokens; got shape {tuple(total.shape)}.")
+            elif total.dim() == 4:
+                if total.size(-1) != T or total.size(-2) != T:
+                    raise ValueError(f"BiasComposer expected bias [B, H, {T}, {T}] for physical tokens; got shape {tuple(total.shape)}.")
+            else:
+                raise ValueError(f"BiasComposer expected 3D or 4D bias tensor; got shape {tuple(total.shape)}.")
+            if total.dim() == 4 and total.size(1) == 1:
+                return total.squeeze(1)
+            return total
 
+        if total_b1 is not None or total_b2 is not None:
+            if total_b1 is None or total_b2 is None:
+                raise ValueError("BiasComposer tuple mode requires both branches; got a single branch only.")
+            tb1 = _validate_and_squeeze(total_b1)
+            tb2 = _validate_and_squeeze(total_b2)
+            return (
+                _pad_bias_for_special_tokens(tb1, self.use_cls, self.num_met_tokens),
+                _pad_bias_for_special_tokens(tb2, self.use_cls, self.num_met_tokens),
+            )
+
+        if total_single is None:
+            return None
+
+        total = _validate_and_squeeze(total_single)
         return _pad_bias_for_special_tokens(total, self.use_cls, self.num_met_tokens)
 
 
@@ -245,6 +294,9 @@ _SELECTOR_MAP: dict[str, str] = {
     "global_conditioned": "global_conditioned",
     "global": "global_conditioned",  # short alias
 }
+
+# Canonical module names that may appear in attention_biases (after alias resolution).
+_CANONICAL_BIAS_MODULES: frozenset[str] = frozenset(_SELECTOR_MAP.values())
 
 
 def parse_attention_biases(selector: str) -> list[str]:
@@ -264,6 +316,9 @@ def parse_attention_biases(selector: str) -> list[str]:
         if tok in ("none", ""):
             continue
         canonical = _SELECTOR_MAP.get(tok, tok)
+        if canonical not in _CANONICAL_BIAS_MODULES:
+            aliases = sorted(k for k, v in _SELECTOR_MAP.items() if k != v)
+            raise ValueError(f"Unknown attention_biases token {tok!r} (resolved to {canonical!r}). " f"Expected one of: none, " f"{', '.join(sorted(_CANONICAL_BIAS_MODULES))}, " f"or aliases: {', '.join(aliases)}.")
         if canonical not in result:
             result.append(canonical)
     return result
@@ -330,6 +385,10 @@ def build_bias_composer(
 
     enabled = parse_attention_biases(selector_raw)
     bias_cfg = dict(cfg.get("bias_config", {}))
+
+    attn_cfg = cfg.get("attention", {}) or {}
+    attention_type = str(attn_cfg.get("type", "standard"))
+    diff_bias_mode = str(attn_cfg.get("diff_bias_mode", "shared"))
     # Backward-compat: merge old attention_bias dict into bias_config
     old_bias = cfg.get("attention_bias", {})
     if isinstance(old_bias, dict):
@@ -349,6 +408,8 @@ def build_bias_composer(
         per_head = bool(c.get("per_head", ap.get("per_head", False)))
         sparse_gating = bool(c.get("sparse_gating", False))
         ls_mlp_type = str(c.get("mlp_type", "standard"))
+        explicit_dual = c.get("dual_branch", None)
+        dual_branch = bool(explicit_dual) if explicit_dual is not None else (attention_type == "differential" and diff_bias_mode == "split" and "lorentz_scalar" in enabled)
         modules["lorentz_scalar"] = LorentzScalarBias(
             features=features,
             cont_dim=cont_dim,
@@ -358,6 +419,7 @@ def build_bias_composer(
             sparse_gating=sparse_gating,
             mlp_type=ls_mlp_type,
             kan_cfg=kan_cfg,
+            dual_branch=dual_branch,
         )
 
     # TypePairKinematicBias

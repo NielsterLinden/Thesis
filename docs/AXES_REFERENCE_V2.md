@@ -361,7 +361,7 @@ Controls the transformer encoder's internal computation (normalisation, attentio
 - **Options:** `none` · `shared` · `split`
 - **Default:** `shared`
 - **Prerequisite:** A3 = `differential`
-- **Note:** Controls how additive physics bias (B1) interacts with the two differential-attention branches.
+- **Note:** Controls how additive physics bias (B1) interacts with the two differential-attention softmax branches. For `split`, the Lorentz-scalar module uses **two independent** MLP/KAN heads (same features, separate weights); other bias modules that emit a single tensor are added **to both** branches. For `shared`, the same bias is added to both branches.
 
 #### A4 · Attention-Internal Normalization
 
