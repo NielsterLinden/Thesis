@@ -1,21 +1,16 @@
 # OS / IDE
 .DS_Store
 Thumbs.db
-# Windows reserved device name (invalid path)
-nul
 .vscode/
 .idea/
 .cursor/
-.cursor/plans/
-.cursor/rules/
 
+# AI tool files
 .cursorrules
 CLAUDE.md
-
-.editorconfig
-.gitattributes
-.gitignore
-
+docs/archive/
+docs/AXES_AUDIT_LOG.md
+docs/*.plan.md
 
 # Python
 __pycache__/
@@ -26,9 +21,11 @@ __pycache__/
 
 # Jupyter
 .ipynb_checkpoints/
+notebooks/
 
 # Outputs
 outputs/
+multirun/
 wandb/
 mlruns/
 
@@ -44,6 +41,3 @@ mlruns/
 hpc/stoomboot/*.log
 *.sub.backup
 hpc/stoomboot/.wandb_env
-
-# Notebooks
-notebooks/*.ipynb
