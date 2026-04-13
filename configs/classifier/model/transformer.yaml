@@ -105,6 +105,7 @@ classifier:
         per_head: false           # false → shared bias broadcast across heads
         sparse_gating: false      # true: per-feature sigmoid gates for learned importance
         mlp_type: standard        # "standard" | "kan" — uses global kan.* hyperparams
+        dual_branch: null         # null → auto (true iff A3=differential, A3-a=split, lorentz enabled)
 
       # Module 2 — Type-Pair Kinematic Bias
       # Source: Novel, inspired by Builtjes et al. (2025)

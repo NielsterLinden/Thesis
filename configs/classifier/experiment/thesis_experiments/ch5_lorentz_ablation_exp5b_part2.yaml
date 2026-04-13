@@ -1,0 +1,54 @@
+# @package _global_
+# Chapter 5 Exp 5B — Lorentz feature set x mlp_type x sparse_gating x seed (Table 5.2).
+# Task: 5-way multiclass (ProcessIDs 1–5).
+# Fixed: attention_biases=lorentz_scalar, chapter baseline (identity, MET, sinusoidal).
+# Sweep: 5 x 2 x 1 x 3 = 30 runs (sparse_gating=true).
+# For KAN interpretability, override: classifier.trainer.interpretability.save_kan_splines=true
+# Combined with part1 reproduces the original 60-run grid exactly.
+#
+# Local smoke:
+# thesis-train env=local loop=transformer_classifier data.limit_samples=50 classifier.trainer.epochs=1 logging.use_wandb=false classifier/experiment=thesis_experiments/ch5_lorentz_ablation_exp5b_part2 --multirun
+#
+# Stoomboot full (part 2):
+# thesis-train env=stoomboot loop=transformer_classifier classifier/experiment=thesis_experiments/ch5_lorentz_ablation_exp5b_part2 --multirun
+
+meta:
+  goal: "classification"
+
+experiment:
+  name: "ch5_lorentz_ablation_exp5b_part2"
+
+hydra:
+  mode: MULTIRUN
+  job:
+    chdir: true
+    name: ${experiment.name}
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweeper:
+    params:
+      classifier.trainer.seed: 42,123,314
+      classifier.model.attention_biases: lorentz_scalar
+      classifier.model.bias_config.lorentz_scalar.features: "[m2],[deltaR],[m2,deltaR],[log_kt,z,deltaR,log_m2],[m2,deltaR,log_m2,log_kt,z,deltaR_ptw]"
+      classifier.model.bias_config.lorentz_scalar.mlp_type: standard,kan
+      classifier.model.bias_config.lorentz_scalar.sparse_gating: true
+
+classifier:
+  globals:
+    include_met: true
+  model:
+    tokenizer:
+      name: identity
+      pid_mode: learned
+      id_embed_dim: 8
+    positional: sinusoidal
+  trainer:
+    epochs: 50
+
+data:
+  _struct_: false
+  classifier:
+    selected_labels: [1, 2, 3, 4, 5]
