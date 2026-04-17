@@ -5,6 +5,7 @@
 # Sweep: 5 x 2 x 2 x 3 = 60 runs.
 # For KAN interpretability, override: classifier.trainer.interpretability.save_kan_splines=true
 #
+# also look at ch5_lorentz_ablation_exp5b_part1.yaml and ch5_lorentz_ablation_exp5b_part2.yaml, these are the splits for the original 60 run grid to 30 each, to stay below the 72 hour limit on stoomboot.
 # Local smoke:
 # thesis-train env=local loop=transformer_classifier data.limit_samples=50 classifier.trainer.epochs=1 logging.use_wandb=false classifier/experiment=thesis_experiments/ch5_lorentz_ablation_exp5b --multirun
 #

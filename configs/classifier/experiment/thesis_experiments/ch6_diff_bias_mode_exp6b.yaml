@@ -3,8 +3,12 @@
 # Fixed: A3=differential, B1=lorentz_scalar, chapter baseline. Lorentz features: placeholder [m2, deltaR].
 # Sweep: 3 x 3 = 9 runs.
 #
+# Interpretability: see ch6_attention_type_exp6a.yaml — use
+#   classifier.trainer.interpretability.enabled=true
+# with save_* below for disk + W&B λ logging.
+#
 # Local smoke:
-# thesis-train env=local loop=transformer_classifier data.limit_samples=50 classifier.trainer.epochs=1 logging.use_wandb=false classifier/experiment=thesis_experiments/ch6_diff_bias_mode_exp6b --multirun
+# thesis-train env=local loop=transformer_classifier data.limit_samples=50 classifier.trainer.epochs=1 logging.use_wandb=false classifier.trainer.interpretability.enabled=true classifier/experiment=thesis_experiments/ch6_diff_bias_mode_exp6b --multirun
 #
 # Stoomboot full:
 # thesis-train env=stoomboot loop=transformer_classifier classifier/experiment=thesis_experiments/ch6_diff_bias_mode_exp6b --multirun
@@ -47,6 +51,10 @@ classifier:
         features: [m2, deltaR]
   trainer:
     epochs: 50
+    interpretability:
+      enabled: false
+      save_attention_maps: true
+      save_differential_lambda: true
 
 data:
   _struct_: false

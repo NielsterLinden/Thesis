@@ -22,7 +22,7 @@ def run_classification_inference(
     dataset_cfg: DictConfig | dict[str, Any],
     split: str = "test",
     inference_cfg: dict[str, Any] | None = None,
-) -> dict[str, dict[str, Any]]:
+) -> dict[str, dict[str, Any]] | tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
     """Run classification inference on transformer classifier models.
 
     Parameters
@@ -39,15 +39,24 @@ def run_classification_inference(
             - batch_size: int (default: 512)
             - seed: int (default: 42)
             - max_samples: int | None (default: None)
+            - return_scores: bool (default: False)
+              When True, also return per-event scores dict alongside metrics.
 
     Returns
     -------
     dict[str, dict[str, Any]]
         Nested dict: {run_id: {metrics...}}
         Metrics include: accuracy, auroc, precision, recall, f1, confusion_matrix, roc_curves, pr_curves
+
+    tuple[dict, dict]
+        When ``inference_cfg["return_scores"]`` is True, returns
+        ``(metrics_dict, per_event_scores)`` where
+        ``per_event_scores = {run_id: {"probs": np.ndarray [N, C], "labels": np.ndarray [N]}}``.
     """
     if inference_cfg is None:
         inference_cfg = {}
+
+    return_scores = bool(inference_cfg.get("return_scores", False))
 
     logger.info("Starting classification inference")
     logger.info(f"Processing {len(models)} models")
@@ -64,7 +73,8 @@ def run_classification_inference(
     autocast = inference_cfg.get("autocast", False)
     autocast_ctx = torch.autocast(device_type="cuda", dtype=torch.float16) if autocast and device.type == "cuda" else nullcontext()
 
-    results = {}
+    results: dict[str, dict[str, Any]] = {}
+    per_event_scores: dict[str, dict[str, Any]] = {}
 
     # Process each model with its own dataloader (4-vect vs 5-vect, binned vs raw need different data formats)
     for model_idx, (run_id, model_cfg, model) in enumerate(models, 1):
@@ -147,5 +157,13 @@ def run_classification_inference(
         results[run_id] = metrics
         logger.info(f"  Metrics computed - Accuracy: {metrics.get('accuracy', 0):.4f}, AUROC: {metrics.get('auroc', 'N/A')}")
 
+        # Optionally retain per-event scores for downstream analyses (e.g. failure analysis)
+        if return_scores:
+            all_probs_cat = torch.cat(all_probs, dim=0).numpy()
+            all_labels_cat = torch.cat(all_labels, dim=0).numpy()
+            per_event_scores[run_id] = {"probs": all_probs_cat, "labels": all_labels_cat}
+
     logger.info(f"Classification inference complete for {len(models)} models")
+    if return_scores:
+        return results, per_event_scores
     return results

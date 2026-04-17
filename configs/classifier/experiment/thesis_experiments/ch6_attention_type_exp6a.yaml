@@ -4,8 +4,12 @@
 # Sweep: 2 x 3 x 2 x 3 = 36 runs.
 # Lorentz features: placeholder [m2, deltaR] until Ch 5 Exp 5B best feature set is known — override then.
 #
+# Interpretability: defaults stay off (`enabled: false`). For attention .pt + λ logging, pass
+#   classifier.trainer.interpretability.enabled=true
+# (save_attention_maps / save_differential_lambda are true below so CLI merge turns them on.)
+#
 # Local smoke:
-# thesis-train env=local loop=transformer_classifier data.limit_samples=50 classifier.trainer.epochs=1 logging.use_wandb=false classifier/experiment=thesis_experiments/ch6_attention_type_exp6a --multirun
+# thesis-train env=local loop=transformer_classifier data.limit_samples=50 classifier.trainer.epochs=1 logging.use_wandb=false classifier.trainer.interpretability.enabled=true classifier/experiment=thesis_experiments/ch6_attention_type_exp6a --multirun
 #
 # Stoomboot full:
 # thesis-train env=stoomboot loop=transformer_classifier classifier/experiment=thesis_experiments/ch6_attention_type_exp6a --multirun
@@ -47,6 +51,10 @@ classifier:
         features: [m2, deltaR]
   trainer:
     epochs: 50
+    interpretability:
+      enabled: false
+      save_attention_maps: true
+      save_differential_lambda: true
 
 data:
   _struct_: false

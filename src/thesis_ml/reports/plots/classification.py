@@ -1795,3 +1795,208 @@ def plot_auroc_bar_by_group(
     plt.tight_layout()
     save_figure(fig, inference_figs_dir, fname, fig_cfg)
     plt.close(fig)
+
+
+def plot_auroc_seedspread_by_group(
+    auroc_df: pd.DataFrame,
+    group_col: str,
+    inference_figs_dir: Path,
+    fig_cfg: dict[str, Any],
+    fname: str = "figure-auroc_seedspread_by_group",
+    title: str | None = None,
+    figsize: tuple[float, float] = (10, 6),
+) -> None:
+    """Plot per-seed AUROC dots with mean bar, grouped by a parameter.
+
+    Unlike ``plot_auroc_bar_by_group`` which accepts ``inference_results`` and
+    ``runs_df`` separately, this function takes the already-flattened
+    ``auroc_df`` (one row per run, produced by ``_build_auroc_df``).  This
+    allows reuse across analyses without re-running inference.
+
+    Each group shows one dot per run (seed), making the seed-to-seed variance
+    visually apparent even for the small n=3 case.
+
+    Parameters
+    ----------
+    auroc_df : pd.DataFrame
+        Flat DataFrame with at least columns: [group_col, 'auroc']
+        (one row per run)
+    group_col : str
+        Column to group by (e.g. 'tokenizer_name', 'include_met')
+    inference_figs_dir : Path
+        Directory to save the figure
+    fig_cfg : dict[str, Any]
+        Figure configuration (fig_format, dpi)
+    fname : str
+        Base filename
+    title : str | None
+        Plot title (auto-generated if None)
+    figsize : tuple[float, float]
+        Figure size
+    """
+    if group_col not in auroc_df.columns:
+        logger.warning("Column '%s' not found in auroc_df, skipping seed-spread plot", group_col)
+        return
+
+    subset = auroc_df.dropna(subset=[group_col, "auroc"]).copy()
+    if subset.empty:
+        logger.warning("No data for seed-spread plot on '%s'", group_col)
+        return
+
+    groups = sorted(subset[group_col].unique(), key=str)
+    x_pos = np.arange(len(groups))
+
+    fig, ax = plt.subplots(figsize=figsize)
+    colors = plt.cm.tab10(np.linspace(0, 1, len(groups)))
+
+    for i, (group_val, color) in enumerate(zip(groups, colors, strict=False)):
+        vals = subset.loc[subset[group_col] == group_val, "auroc"].to_numpy()
+        mean = float(np.mean(vals))
+        std = float(np.std(vals)) if len(vals) > 1 else 0.0
+
+        # Mean bar (thin, behind dots)
+        ax.bar(i, mean, width=0.5, alpha=0.35, color=color, edgecolor="black", linewidth=0.8, zorder=1)
+        # Error cap
+        if std > 0:
+            ax.errorbar(i, mean, yerr=std, fmt="none", color="black", capsize=6, linewidth=1.5, zorder=2)
+
+        # Individual seed dots (jittered)
+        rng = np.random.default_rng(seed=42)
+        jitter = rng.normal(0, 0.06, size=len(vals))
+        ax.scatter(x_pos[i] + jitter, vals, color=color, edgecolors="black", linewidths=0.5, s=60, zorder=3, alpha=0.9)
+
+        # Mean label
+        ax.text(i, mean + std + 0.008, f"{mean:.4f}", ha="center", va="bottom", fontsize=9)
+
+    ax.set_xlabel(group_col.replace("_", " ").title(), fontsize=13)
+    ax.set_ylabel("AUROC (test)", fontsize=13)
+    ax.set_title(title or f"AUROC by {group_col.replace('_', ' ').title()} (per seed)", fontsize=15)
+    ax.set_xticks(x_pos)
+    ax.set_xticklabels([str(g) for g in groups], rotation=45, ha="right", fontsize=11)
+    ax.set_ylim([max(0.0, subset["auroc"].min() - 0.05), min(1.0, subset["auroc"].max() + 0.06)])
+    ax.grid(axis="y", alpha=0.3)
+
+    plt.tight_layout()
+    save_figure(fig, inference_figs_dir, fname, fig_cfg)
+    plt.close(fig)
+
+
+def plot_failure_analysis(
+    raw_probs: np.ndarray,
+    identity_probs: np.ndarray,
+    labels: np.ndarray,
+    inference_figs_dir: Path,
+    fig_cfg: dict[str, Any],
+    fname: str = "figure-failure_analysis_raw_vs_identity",
+    signal_class_idx: int = 0,
+) -> None:
+    """Failure analysis: compare raw vs identity model predictions per event.
+
+    Identifies events in four categories:
+    - both_correct: both models predict the right class
+    - identity_fixed: raw wrong, identity correct (PID encoding helped)
+    - raw_fixed: raw correct, identity wrong (PID encoding hurt)
+    - both_wrong: both models wrong
+
+    Produces a 2-panel figure:
+    - Left: 2D scatter of raw signal score vs identity signal score,
+      coloured by ground-truth label and annotated by flip category.
+    - Right: Bar chart showing fraction of events in each flip category.
+
+    Parameters
+    ----------
+    raw_probs : np.ndarray of shape [N, n_classes]
+        Seed-averaged softmax probabilities from raw tokenizer models
+    identity_probs : np.ndarray of shape [N, n_classes]
+        Seed-averaged softmax probabilities from identity tokenizer models
+    labels : np.ndarray of shape [N]
+        Ground-truth integer labels
+    inference_figs_dir : Path
+        Directory to save the figure
+    fig_cfg : dict[str, Any]
+        Figure configuration (fig_format, dpi)
+    fname : str
+        Base filename for the saved figure
+    signal_class_idx : int
+        Class index treated as "signal" for the score axis (default: 0)
+    """
+    n = len(labels)
+    if n == 0:
+        logger.warning("Empty arrays passed to plot_failure_analysis, skipping")
+        return
+
+    raw_pred = np.argmax(raw_probs, axis=1)
+    id_pred = np.argmax(identity_probs, axis=1)
+    raw_correct = raw_pred == labels
+    id_correct = id_pred == labels
+
+    both_correct = raw_correct & id_correct
+    identity_fixed = ~raw_correct & id_correct
+    raw_fixed = raw_correct & ~id_correct
+    both_wrong = ~raw_correct & ~id_correct
+
+    category_labels = ["both_correct", "identity_fixed\n(PID helped)", "raw_fixed\n(PID hurt)", "both_wrong"]
+    category_masks = [both_correct, identity_fixed, raw_fixed, both_wrong]
+    category_colors = ["#2ca02c", "#1f77b4", "#ff7f0e", "#d62728"]
+
+    raw_signal = raw_probs[:, signal_class_idx]
+    id_signal = identity_probs[:, signal_class_idx]
+
+    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+
+    # ── Left panel: scatter ────────────────────────────────────────────────
+    ax = axes[0]
+    for mask, label, color in zip(category_masks, category_labels, category_colors, strict=False):
+        if mask.sum() == 0:
+            continue
+        label_clean = label.replace("\n", " ")
+        ax.scatter(
+            raw_signal[mask],
+            id_signal[mask],
+            c=color,
+            alpha=0.25,
+            s=5,
+            label=f"{label_clean} (n={mask.sum()})",
+            rasterized=True,
+        )
+
+    ax.plot([0, 1], [0, 1], "k--", linewidth=0.8, alpha=0.4, label="equal score")
+    ax.axhline(0.5, color="gray", linewidth=0.5, alpha=0.5, linestyle=":")
+    ax.axvline(0.5, color="gray", linewidth=0.5, alpha=0.5, linestyle=":")
+    ax.set_xlabel("Raw model signal score", fontsize=12)
+    ax.set_ylabel("Identity model signal score", fontsize=12)
+    ax.set_title("Per-event score comparison\n(raw vs identity tokenizer)", fontsize=13)
+    ax.legend(fontsize=8, loc="lower right", markerscale=3)
+    ax.set_xlim([0, 1])
+    ax.set_ylim([0, 1])
+    ax.grid(alpha=0.2)
+
+    # ── Right panel: flip fractions ────────────────────────────────────────
+    ax2 = axes[1]
+    counts = [m.sum() for m in category_masks]
+    fracs = [c / n for c in counts]
+    x = np.arange(len(category_labels))
+    bars = ax2.bar(x, fracs, color=category_colors, edgecolor="black", alpha=0.8)
+
+    for bar, frac, count in zip(bars, fracs, counts, strict=False):
+        ax2.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height() + 0.005,
+            f"{frac:.1%}\n(n={count})",
+            ha="center",
+            va="bottom",
+            fontsize=9,
+        )
+
+    short_labels = ["both\ncorrect", "identity\nfixed", "raw\nfixed", "both\nwrong"]
+    ax2.set_xticks(x)
+    ax2.set_xticklabels(short_labels, fontsize=11)
+    ax2.set_ylabel("Fraction of test events", fontsize=12)
+    ax2.set_title("Flip analysis: raw → identity", fontsize=13)
+    ax2.set_ylim([0, max(fracs) + 0.1])
+    ax2.grid(axis="y", alpha=0.3)
+
+    plt.suptitle(f"Failure Analysis: Raw vs Identity Tokenizer  (N={n:,} events)", fontsize=14, y=1.01)
+    plt.tight_layout()
+    save_figure(fig, inference_figs_dir, fname, fig_cfg)
+    plt.close(fig)

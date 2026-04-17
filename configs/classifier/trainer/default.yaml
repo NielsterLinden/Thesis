@@ -43,11 +43,13 @@ classifier:
       min_delta: 0.0
       restore_best_weights: true
 
-    # Interpretability (transformer loop only; heavy artifacts)
+    # Interpretability (transformer loop only; heavy artifacts).
+    # When `enabled=true`, also set save_* in the experiment YAML (or CLI) — merged defaults
+    # keep save_attention_maps false so other experiments do not dump .pt files unless configured.
     interpretability:
       enabled: false
       save_attention_maps: false
-      save_differential_lambda: true   # when enabled: log λ per layer to W&B (no extra cost)
+      save_differential_lambda: false    # set true in an experiment YAML when enabling interpretability
       save_kan_splines: false
       save_moe_routing: false
       save_gradient_norms: false

@@ -3,6 +3,7 @@
 Available reports:
 - analyze_pid_embeddings: Deep analysis of PID embedding representations, geometry, and evolution
 - analyze_representations: Deep analysis of transformer representations
+- ch4_best_input_repr: Chapter 4 — tokenizer family (T1), PID encoding (T1-a/b), feature set (D01), MET (D02), token ordering (D03)
 - compare_embeddings_4tbg: Compare embedding strategies in emb_pe_4tbg sweep
 - compare_globals_heads: Compare globals reconstruction weights
 - compare_model_sizes: Compare model size and architecture effects
