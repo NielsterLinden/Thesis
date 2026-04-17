@@ -35,8 +35,9 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 inputs:
-  sweep_dir: null           # Wildcard or single path; exp_*_ch4_* matches all four sweeps
-  run_dirs: []              # Alternative: explicit list across multiple multiruns
+  sweep_dir: null           # Single sweep dir (one multirun)
+  sweep_dirs: []            # Multiple sweep dirs — use when Ch4 runs span several multiruns
+  run_dirs: []              # Alternative: explicit list of individual run dirs
   select: null              # Optional per-axis filter (e.g. select.seed=[42])
 
 report_name: ch4_best_input_repr

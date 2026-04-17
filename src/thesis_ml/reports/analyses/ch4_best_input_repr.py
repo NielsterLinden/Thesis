@@ -295,6 +295,21 @@ def run_report(cfg: DictConfig) -> None:
     """
     logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 
+    # If multiple sweep dirs provided, collect all run dirs from each and merge into run_dirs
+    if cfg.inputs.get("sweep_dirs") and len(cfg.inputs.sweep_dirs) > 0:
+        from omegaconf import OmegaConf
+
+        from thesis_ml.facts.readers import discover_runs
+
+        all_paths: list[str] = []
+        for sd in cfg.inputs.sweep_dirs:
+            all_paths.extend(str(p) for p in discover_runs(sweep_dir=str(sd), run_dirs=None))
+        logger.info("sweep_dirs: collected %d runs from %d sweep dirs", len(all_paths), len(cfg.inputs.sweep_dirs))
+        cfg_dict = OmegaConf.to_container(cfg, resolve=True)
+        cfg_dict["inputs"]["sweep_dir"] = None
+        cfg_dict["inputs"]["run_dirs"] = all_paths
+        cfg = OmegaConf.create(cfg_dict)
+
     (
         training_dir,
         inference_dir,
