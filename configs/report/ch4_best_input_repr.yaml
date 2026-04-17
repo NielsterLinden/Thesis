@@ -1,0 +1,109 @@
+# Hydra config for report: ch4_best_input_repr
+#
+# Chapter 4 — Best Input Representation
+#
+# Two experiments are covered by this single report:
+#
+#   Exp 4A: Tokenizer family and PID encoding
+#     - T1:   tokenizer.name = raw / binned / identity
+#     - T1-a: tokenizer.pid_mode = learned / one_hot / fixed_random  (identity only)
+#     - T1-b: tokenizer.id_embed_dim = 8 / 16 / 32                   (identity only)
+#
+#   Exp 4B: Feature content and token ordering
+#     - D01: data.cont_features = [0,1,2,3] / [1,2,3]
+#     - D02: classifier.globals.include_met = false / true
+#     - D03: data.shuffle_tokens = false / true  (permutation-invariance check)
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# Usage — HPC (wildcard covers all four Ch4 sweep dirs at once):
+#
+#   thesis-report --config-name thesis_experiments_reports/ch4_best_input_repr \
+#     'inputs.sweep_dir=/data/atlas/users/nterlind/outputs/multiruns/exp_*_ch4_*' \
+#     env.output_root=/data/atlas/users/nterlind/outputs
+#
+# Usage — explicit run dirs (supply after training completes):
+#
+#   thesis-report --config-name thesis_experiments_reports/ch4_best_input_repr \
+#     'inputs.run_dirs=[/abs/path/run_..._job0,/abs/path/run_..._job1,...]' \
+#     env.output_root=/data/atlas/users/nterlind/outputs
+#
+# Usage — training-only smoke-check (no GPU/checkpoints needed):
+#
+#   thesis-report --config-name thesis_experiments_reports/ch4_best_input_repr \
+#     'inputs.run_dirs=[...]' inference.enabled=false
+#
+# ─────────────────────────────────────────────────────────────────────────────
+
+inputs:
+  sweep_dir: null           # Wildcard or single path; exp_*_ch4_* matches all four sweeps
+  run_dirs: []              # Alternative: explicit list across multiple multiruns
+  select: null              # Optional per-axis filter (e.g. select.seed=[42])
+
+report_name: ch4_best_input_repr
+
+outputs:
+  report_subdir: report
+  fig_format: png
+  dpi: 150
+  which_figures:
+    # ── Training phase: val AUROC curves grouped by each axis ──────────────
+    - val_auroc_by_tokenizer      # T1:   raw / binned / identity
+    - val_auroc_by_pid_mode       # T1-a: learned / one_hot / fixed_random
+    - val_auroc_by_id_embed_dim   # T1-b: 8 / 16 / 32
+    - val_auroc_by_met            # D02:  include_met true/false
+    - val_auroc_by_features       # D01:  energy+kinematics vs no-energy
+    - val_auroc_by_shuffle        # D03:  input_order vs shuffled
+
+    # ── Inference diagnostics (all runs combined) ──────────────────────────
+    - roc_curves
+    - metrics_comparison
+    - confusion_matrices
+    - score_distributions
+
+    # ── Inference: AUROC bars by axis (Exp 4A) ─────────────────────────────
+    - auroc_bar_by_tokenizer      # T1
+    - auroc_bar_by_pid_mode       # T1-a (identity only)
+    - auroc_bar_by_id_embed_dim   # T1-b (identity only)
+
+    # ── Inference: AUROC bars by axis (Exp 4B) ─────────────────────────────
+    - auroc_bar_by_met            # D02
+    - auroc_bar_by_features       # D01
+    - auroc_bar_by_shuffle        # D03
+
+    # ── Inference: per-seed AUROC dot plots (shows variance across 3 seeds) ─
+    - auroc_seedspread_by_tokenizer
+    - auroc_seedspread_by_met
+    - auroc_seedspread_by_shuffle
+
+    # ── Inference: grouped ROC curves ──────────────────────────────────────
+    - roc_curves_by_tokenizer
+    - roc_curves_by_met
+    - roc_curves_by_shuffle
+
+    # ── Inference: 2D heatmap (Exp 4A2 identity ablations) ─────────────────
+    - auroc_heatmap_pid_mode_x_embed_dim
+
+    # ── Inference: failure analysis (raw vs identity) ──────────────────────
+    # Requires inference.return_scores: true
+    - failure_analysis_raw_vs_identity
+
+thresholds:
+  val_acc: 0.8
+  comparison: ge
+  split: val
+
+summary_schema_version: 1
+
+inference:
+  enabled: true
+  persist_raw_scores: false     # Set true to save per-event scores to disk
+  return_scores: true           # Required for failure_analysis_raw_vs_identity
+  dataset_split: test
+  autocast: true
+  batch_size: 512
+  seed: 42
+  n_points_roc: 250
+  max_samples: null             # Set e.g. 5000 for a quick local smoke-test
+
+env:
+  output_root: null             # Set to /data/atlas/users/nterlind/outputs on HPC
