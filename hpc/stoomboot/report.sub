@@ -9,8 +9,9 @@ error         = /data/atlas/users/nterlind/logs/stderr/report_$(ClusterId).$(Pro
 log           = /data/atlas/users/nterlind/logs/stdlog/report_$(ClusterId).log
 
 request_cpus  = 1
-request_memory = 8GB
-request_disk  = 8GB
+request_memory = 16GB
+request_gpus  = 1
+request_disk  = 16GB
 
 +UseOS = "el9"
 +JobCategory = "medium"
