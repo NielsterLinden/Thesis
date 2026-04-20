@@ -1,0 +1,52 @@
+# @package _global_
+# Chapter 8 Exp 8A (part 1) — scaling across model sizes for 4t-vs-background.
+# Sweep: 5 model sizes x 3 seeds = 15 runs.
+#
+# Local smoke:
+# thesis-train env=local data.limit_samples=500 classifier.trainer.epochs=1 logging.use_wandb=false classifier/experiment=thesis_experiments/ch8_scaling_exp8a_1_4t_vs_bg --multirun
+#
+# Stoomboot full:
+# thesis-train env=stoomboot classifier/experiment=thesis_experiments/ch8_scaling_exp8a_1_4t_vs_bg --multirun
+
+meta:
+  goal: "classification"
+
+experiment:
+  name: "ch8_scaling_exp8a_1_4t_vs_bg"
+
+hydra:
+  mode: MULTIRUN
+  job:
+    chdir: true
+    name: ${experiment.name}
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweeper:
+    params:
+      classifier.trainer.seed: 42,123,314
+      +classifier/model_size: s30k,s50k,s200k,s1m,s4m
+
+classifier:
+  globals:
+    include_met: false
+  model:
+    tokenizer:
+      name: identity
+      pid_mode: learned
+      id_embed_dim: 8
+    positional: sinusoidal
+    attention_biases: none
+  trainer:
+    epochs: 50
+
+data:
+  _struct_: false
+  cont_features: [0, 1, 2, 3]
+  classifier:
+    signal_vs_background:
+      signal: 1
+      background: [2, 3, 4, 5]
+    selected_labels: null
