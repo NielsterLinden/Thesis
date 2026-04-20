@@ -1,0 +1,66 @@
+# HPC production run for ch4_best_input_repr.
+# Hardcodes the four Ch4 sweep dirs so condor -append arguments stay short.
+# All other settings inherited by copy from ch4_best_input_repr.yaml.
+
+inputs:
+  sweep_dir: null
+  sweep_dirs:
+    - /data/atlas/users/nterlind/outputs/multiruns/exp_20260410-160141_ch4_input_repr_exp4a_1_raw
+    - /data/atlas/users/nterlind/outputs/multiruns/exp_20260410-160937_ch4_input_repr_exp4a_1_binned
+    - /data/atlas/users/nterlind/outputs/multiruns/exp_20260410-162037_ch4_input_repr_exp4a_2
+    - /data/atlas/users/nterlind/outputs/multiruns/exp_20260410-163637_ch4_data_treatment_exp4b
+  run_dirs: []
+  select: null
+
+report_name: ch4_best_input_repr
+
+outputs:
+  report_subdir: report
+  fig_format: png
+  dpi: 150
+  which_figures:
+    - val_auroc_by_tokenizer
+    - val_auroc_by_pid_mode
+    - val_auroc_by_id_embed_dim
+    - val_auroc_by_met
+    - val_auroc_by_features
+    - val_auroc_by_shuffle
+    - roc_curves
+    - metrics_comparison
+    - confusion_matrices
+    - score_distributions
+    - auroc_bar_by_tokenizer
+    - auroc_bar_by_pid_mode
+    - auroc_bar_by_id_embed_dim
+    - auroc_bar_by_met
+    - auroc_bar_by_features
+    - auroc_bar_by_shuffle
+    - auroc_seedspread_by_tokenizer
+    - auroc_seedspread_by_met
+    - auroc_seedspread_by_shuffle
+    - roc_curves_by_tokenizer
+    - roc_curves_by_met
+    - roc_curves_by_shuffle
+    - auroc_heatmap_pid_mode_x_embed_dim
+    - failure_analysis_raw_vs_identity
+
+thresholds:
+  val_acc: 0.8
+  comparison: ge
+  split: val
+
+summary_schema_version: 1
+
+inference:
+  enabled: true
+  persist_raw_scores: false
+  return_scores: true
+  dataset_split: test
+  autocast: true
+  batch_size: 512
+  seed: 42
+  n_points_roc: 250
+  max_samples: null
+
+env:
+  output_root: /data/atlas/users/nterlind/outputs
