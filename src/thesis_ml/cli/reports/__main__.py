@@ -26,13 +26,14 @@ def main(cfg: DictConfig) -> None:
         python -m thesis_ml.cli.reports --config-name compare_tokenizers \
           inputs.run_dirs=[/abs/path/to/run_...,/abs/path/to/run_...]
     """
-    # Get inputs - support both sweep_dir and run_dirs
+    # Get inputs - support sweep_dir, sweep_dirs (list), or run_dirs
     inputs = cfg.get("inputs", {})
     sweep_dir = inputs.get("sweep_dir") or cfg.get("sweep_dir")
+    sweep_dirs = list(inputs.get("sweep_dirs", []) or [])
     run_dirs = inputs.get("run_dirs", []) or []
 
-    if not sweep_dir and not run_dirs:
-        raise ValueError("Provide either inputs.sweep_dir=<path> or inputs.run_dirs=[...]")
+    if not sweep_dir and not sweep_dirs and not run_dirs:
+        raise ValueError("Provide either inputs.sweep_dir=<path>, inputs.sweep_dirs=[...], or inputs.run_dirs=[...]")
 
     # Infer output_root
     output_root = cfg.get("env", {}).get("output_root")
@@ -87,9 +88,13 @@ def main(cfg: DictConfig) -> None:
             # Extract from first run's config
             from thesis_ml.facts.readers import discover_runs
 
-            discovered_runs = discover_runs(
-                sweep_dir=Path(str(sweep_dir)) if sweep_dir else None,
-                run_dirs=[Path(str(d)) for d in run_dirs] if run_dirs else None,
+            discovered_runs = (
+                discover_runs(sweep_dir=Path(str(sweep_dirs[0])), run_dirs=None)
+                if sweep_dirs and not sweep_dir and not run_dirs
+                else discover_runs(
+                    sweep_dir=Path(str(sweep_dir)) if sweep_dir else None,
+                    run_dirs=[Path(str(d)) for d in run_dirs] if run_dirs else None,
+                )
             )
             if discovered_runs:
                 first_run_dir = discovered_runs[0]
@@ -108,6 +113,7 @@ def main(cfg: DictConfig) -> None:
         {
             "inputs": {
                 "sweep_dir": str(sweep_dir) if sweep_dir else None,
+                "sweep_dirs": [str(sd) for sd in sweep_dirs] if sweep_dirs else [],
                 "run_dirs": [str(Path(d).resolve()) for d in run_dirs] if run_dirs else [],
                 "select": inputs.get("select") if inputs.get("select") else None,
             },
