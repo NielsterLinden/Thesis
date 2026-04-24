@@ -1,0 +1,156 @@
+{
+  "project": "nterlind-nikhef/thesis-ml",
+  "n_runs": 1002,
+  "n_unique_config_keys": 367,
+  "sampled_runs": {
+    "T1_identity": {
+      "id": "1iuxis2l",
+      "name": "run_20260320-141518_phd_exp1_4t_vs_bg_sizes_and_pe_job000",
+      "group": "exp_20260320-141518_phd_exp1_4t_vs_bg_sizes_and_pe"
+    },
+    "T1_binned_or_raw": {
+      "id": "7ipzizh6",
+      "name": "run_20260320-123722_builtjes_baseline_test_job000",
+      "group": "exp_20260320-123722_builtjes_baseline_test"
+    },
+    "E1_rotary": {
+      "id": "wqo0y6mw",
+      "name": "run_20251126-150519_compare_positional_encodings_job009",
+      "group": "exp_20251126-150519_compare_positional_encodings"
+    },
+    "A3_differential": {
+      "id": "17ovy6fy",
+      "name": "run_20260320-163524_OrthogonalSweep_A_g04_attention_type_job003",
+      "group": "exp_20260320-163524_OrthogonalSweep_A_g04_attention_type"
+    },
+    "T1_not_identity_no_bias": {
+      "id": "7ipzizh6",
+      "name": "run_20260320-123722_builtjes_baseline_test_job000",
+      "group": "exp_20260320-123722_builtjes_baseline_test"
+    }
+  },
+  "top_30_keys_by_presence": [
+    {
+      "key": "data/token_order",
+      "fraction": 1.0
+    },
+    {
+      "key": "meta.class_def_str",
+      "fraction": 1.0
+    },
+    {
+      "key": "meta.dataset_name",
+      "fraction": 1.0
+    },
+    {
+      "key": "meta.datatreatment",
+      "fraction": 1.0
+    },
+    {
+      "key": "meta.goal",
+      "fraction": 1.0
+    },
+    {
+      "key": "meta.level",
+      "fraction": 1.0
+    },
+    {
+      "key": "meta.meta_confidence",
+      "fraction": 1.0
+    },
+    {
+      "key": "meta.meta_hash",
+      "fraction": 1.0
+    },
+    {
+      "key": "meta.model_family",
+      "fraction": 1.0
+    },
+    {
+      "key": "meta.n_classes",
+      "fraction": 1.0
+    },
+    {
+      "key": "meta.needs_review",
+      "fraction": 1.0
+    },
+    {
+      "key": "meta.process_groups",
+      "fraction": 1.0
+    },
+    {
+      "key": "meta.process_groups_key",
+      "fraction": 1.0
+    },
+    {
+      "key": "meta.row_key",
+      "fraction": 1.0
+    },
+    {
+      "key": "meta.schema_version",
+      "fraction": 1.0
+    },
+    {
+      "key": "source/location",
+      "fraction": 1.0
+    },
+    {
+      "key": "ae/globals_beta",
+      "fraction": 0.8363
+    },
+    {
+      "key": "data/name",
+      "fraction": 0.8363
+    },
+    {
+      "key": "model/loop",
+      "fraction": 0.8363
+    },
+    {
+      "key": "model/type",
+      "fraction": 0.8363
+    },
+    {
+      "key": "training/batch_size",
+      "fraction": 0.7974
+    },
+    {
+      "key": "training/epochs",
+      "fraction": 0.7974
+    },
+    {
+      "key": "training/grad_clip",
+      "fraction": 0.7974
+    },
+    {
+      "key": "training/label_smoothing",
+      "fraction": 0.7974
+    },
+    {
+      "key": "training/lr",
+      "fraction": 0.7974
+    },
+    {
+      "key": "training/lr_schedule",
+      "fraction": 0.7974
+    },
+    {
+      "key": "training/warmup_steps",
+      "fraction": 0.7974
+    },
+    {
+      "key": "training/weight_decay",
+      "fraction": 0.7974
+    },
+    {
+      "key": "model/depth",
+      "fraction": 0.7934
+    },
+    {
+      "key": "model/dim",
+      "fraction": 0.7934
+    }
+  ],
+  "n_distinct_experiment_names": 52,
+  "n_distinct_groups": 99
+}

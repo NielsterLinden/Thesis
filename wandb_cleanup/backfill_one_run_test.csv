@@ -1,0 +1,2 @@
+run_id,run_name,experiment_name,keys_written,keys_left_empty_by_prereq,keys_empty_missing_config,keys_skipped_already_set,unresolved_flags,error
+xeqlaxyw,run_20260307-193837_4tbg_physics_interpretability_job000,exp_20260307-193837_4tbg_physics_interpretability,34,52,0,9,,RuntimeError('run xeqlaxyw config is legacy string shape; refusing write via private attrs')

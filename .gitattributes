@@ -2,3 +2,4 @@
 *.ipynb filter=nbstripout
 *.sh eol=lf
 *.ps1 eol=crlf
+wandb_cleanup/wandb_dump.jsonl filter=lfs diff=lfs merge=lfs -text

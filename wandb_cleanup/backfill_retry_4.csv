@@ -1,0 +1,5 @@
+run_id,run_name,experiment_name,keys_written,keys_left_empty_by_prereq,keys_empty_missing_config,keys_skipped_already_set,unresolved_flags,error
+wqo0y6mw,run_20251126-150519_compare_positional_encodings_job009,exp_20251126-150519_compare_positional_encodings,0,0,0,0,,HTTPError('500 Server Error: Internal Server Error for url: https://api.wandb.ai/graphql')
+7ipzizh6,run_20260320-123722_builtjes_baseline_test_job000,exp_20260320-123722_builtjes_baseline_test,0,0,0,0,,HTTPError('500 Server Error: Internal Server Error for url: https://api.wandb.ai/graphql')
+1iuxis2l,run_20260320-141518_phd_exp1_4t_vs_bg_sizes_and_pe_job000,exp_20260320-141518_phd_exp1_4t_vs_bg_sizes_and_pe,0,0,0,0,,HTTPError('500 Server Error: Internal Server Error for url: https://api.wandb.ai/graphql')
+17ovy6fy,run_20260320-163524_OrthogonalSweep_A_g04_attention_type_job003,exp_20260320-163524_OrthogonalSweep_A_g04_attention_type,0,0,0,0,,HTTPError('500 Server Error: Internal Server Error for url: https://api.wandb.ai/graphql')

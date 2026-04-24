@@ -14,6 +14,7 @@ logging layer for visualization and collaboration.
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import logging
 import os
@@ -24,6 +25,7 @@ if TYPE_CHECKING:
     from omegaconf import DictConfig
 
 logger = logging.getLogger(__name__)
+_V2_DERIVE_CACHE: tuple[Any, Any] | None = None
 
 
 # =============================================================================
@@ -69,6 +71,51 @@ def _flatten_dict(d: dict[str, Any], prefix: str = "") -> dict[str, Any]:
         elif v is not None:
             out[full_key] = json.dumps(v) if isinstance(v, list | dict) else v
     return out
+
+
+def _load_v2_axes_runtime() -> tuple[Any, Any] | tuple[None, None]:
+    """Load V2 derivation runtime from scripts/wandb/v2_axes.py.
+
+    This keeps training-time logging and backfill-time derivation aligned
+    without duplicating the V2 registry.
+    """
+    global _V2_DERIVE_CACHE
+    if _V2_DERIVE_CACHE is not None:
+        return _V2_DERIVE_CACHE
+
+    # Find project root (contains pyproject.toml), then scripts/wandb/v2_axes.py.
+    path = Path(__file__).resolve()
+    for _ in range(8):
+        path = path.parent
+        if (path / "pyproject.toml").exists():
+            break
+    else:
+        _V2_DERIVE_CACHE = (None, None)
+        return _V2_DERIVE_CACHE
+
+    mod_path = path / "scripts" / "wandb" / "v2_axes.py"
+    if not mod_path.exists():
+        _V2_DERIVE_CACHE = (None, None)
+        return _V2_DERIVE_CACHE
+
+    try:
+        spec = importlib.util.spec_from_file_location("thesis_v2_axes_runtime", mod_path)
+        if spec is None or spec.loader is None:
+            _V2_DERIVE_CACHE = (None, None)
+            return _V2_DERIVE_CACHE
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        derive_v2_axes = getattr(mod, "derive_v2_axes", None)
+        v2_axes = getattr(mod, "V2_AXES", None)
+        if derive_v2_axes is None or v2_axes is None:
+            _V2_DERIVE_CACHE = (None, None)
+            return _V2_DERIVE_CACHE
+        _V2_DERIVE_CACHE = (derive_v2_axes, v2_axes)
+        return _V2_DERIVE_CACHE
+    except Exception as e:
+        logger.warning("[wandb] Could not load V2 axes runtime: %s", e)
+        _V2_DERIVE_CACHE = (None, None)
+        return _V2_DERIVE_CACHE
 
 
 def extract_wandb_config(cfg: dict[str, Any] | Any, source_location: str = "live") -> dict[str, Any]:
@@ -308,6 +355,18 @@ def extract_wandb_config(cfg: dict[str, Any] | Any, source_location: str = "live
             wc[f"axes/{k}"] = v
     except Exception as e:
         logger.warning("[wandb] Could not build axes metadata: %s", e)
+
+    # === V2 thesis axes (new canonical run-level keys) ===
+    # Always emit the full V2 key set (including empty strings) so all new runs
+    # share the same schema without requiring post-hoc backfill.
+    try:
+        derive_v2_axes, _v2_axes = _load_v2_axes_runtime()
+        if derive_v2_axes is not None:
+            v2_values = derive_v2_axes(cfg, flag_bucket={})
+            for k, v in v2_values.items():
+                wc[k] = v
+    except Exception as e:
+        logger.warning("[wandb] Could not build V2 axes metadata: %s", e)
 
     # === raw/* auto-flatten: catch-all so new config keys are never lost ===
     data = cfg
