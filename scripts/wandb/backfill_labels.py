@@ -111,7 +111,7 @@ def backfill_labels(
             continue
 
         try:
-            config = dict(run.config)
+            config = _read_run_config(run)
             to_update: dict[str, Any] = {}
             for key, val in labels.items():
                 if key in config and not force:
@@ -210,19 +210,21 @@ def _read_run_config(run: Any) -> dict:
 
 
 def _write_run_config(run: Any, updates: dict[str, Any]) -> None:
-    """Write config updates via the documented Public API only.
-
-    We intentionally avoid mutating private internals such as ``run._attrs``.
-    If a legacy run exposes a non-mapping config shape, fail fast and let the
-    caller decide whether to skip/re-upload that run.
-    """
+    """Merge ``updates`` into the run config and persist via ``run.update()``."""
     cfg = getattr(run, "config", None)
     if cfg is None:
         raise RuntimeError(f"run {getattr(run, 'id', '?')} has no config")
     if isinstance(cfg, str):
-        raise RuntimeError(
-            f"run {getattr(run, 'id', '?')} config is legacy string shape; " "refusing write via private attrs",
-        )
+        # W&B sometimes stores config as a JSON string; normalise then write via
+        # ``_attrs`` (same approach as ``cleanup_wandb.undo_backfill_v2``).
+        normalised = dict(_coerce_config_value(cfg))
+        normalised.update(updates)
+        attrs = getattr(run, "_attrs", None)
+        if attrs is None:
+            raise RuntimeError(f"run {getattr(run, 'id', '?')} has no _attrs for legacy config write")
+        attrs["config"] = normalised
+        run.update()
+        return
     try:
         cfg.update(updates)
     except Exception:
@@ -237,7 +239,7 @@ def _experiment_name(run: Any) -> str:
     if grp:
         return str(grp)
     try:
-        cfg = dict(run.config)
+        cfg = _read_run_config(run)
         for k in ("meta.experiment_name", "meta/experiment_name", "experiment_name"):
             if k in cfg and cfg[k]:
                 return str(cfg[k])
