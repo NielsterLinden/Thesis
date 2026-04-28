@@ -209,8 +209,33 @@ def _read_run_config(run: Any) -> dict:
     return _coerce_config_value(run.config)
 
 
+def _ensure_attrs_summary_is_object(run: Any) -> None:
+    """``run.update()`` PATCH fails with 400 if ``_attrs['summary']`` is not a JSON object.
+
+    Migrated / API-created runs sometimes store ``summary`` as a string or null.
+    """
+    attrs = getattr(run, "_attrs", None)
+    if attrs is None:
+        return
+    summ = attrs.get("summary")
+    if summ is None:
+        attrs["summary"] = {}
+        return
+    if isinstance(summ, dict):
+        return
+    if isinstance(summ, str):
+        try:
+            parsed = json.loads(summ) if summ.strip() else {}
+        except json.JSONDecodeError:
+            parsed = {}
+        attrs["summary"] = parsed if isinstance(parsed, dict) else {}
+        return
+    attrs["summary"] = {}
+
+
 def _write_run_config(run: Any, updates: dict[str, Any]) -> None:
     """Merge ``updates`` into the run config and persist via ``run.update()``."""
+    _ensure_attrs_summary_is_object(run)
     cfg = getattr(run, "config", None)
     if cfg is None:
         raise RuntimeError(f"run {getattr(run, 'id', '?')} has no config")
