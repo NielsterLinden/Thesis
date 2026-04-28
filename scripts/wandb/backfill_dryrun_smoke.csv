@@ -1,0 +1,6 @@
+run_id,run_name,experiment_name,keys_written,keys_left_empty_by_prereq,keys_empty_missing_config,keys_skipped_already_set,unresolved_flags,error
+z8n245or,run_20251029-150416_run,,0,0,0,0,,"RuntimeError(""Cannot materialise run.config for z8n245or: string indices must be integers, not 'str'"")"
+xxyxrbns,run_20251030-151044_run,,0,0,0,0,,"RuntimeError(""Cannot materialise run.config for xxyxrbns: string indices must be integers, not 'str'"")"
+fn6w4zcs,run_20251030-151833_run,,0,0,0,0,,"RuntimeError(""Cannot materialise run.config for fn6w4zcs: string indices must be integers, not 'str'"")"
+hf8uplq3,run_20251031-152750_compare_globals_heads_job000,exp_20251031-152750_compare_globals_heads,0,0,0,0,,"RuntimeError(""Cannot materialise run.config for hf8uplq3: string indices must be integers, not 'str'"")"
+jgo0lxba,run_20251031-152750_compare_globals_heads_job001,exp_20251031-152750_compare_globals_heads,0,0,0,0,,"RuntimeError(""Cannot materialise run.config for jgo0lxba: string indices must be integers, not 'str'"")"
