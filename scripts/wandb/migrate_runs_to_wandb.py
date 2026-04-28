@@ -262,28 +262,33 @@ def migrate_run(
         logger.warning("Skipping %s: config read error: %s", run_name, e)
         return False
 
-    # === Read scalars ===
+    # === Read scalars (missing file => config-only recovery upload) ===
+    config_only = False
     try:
         scalars = _read_scalars(run_dir)
     except FileNotFoundError:
-        logger.warning("Skipping %s: no scalars.csv found", run_name)
-        return False
+        logger.warning(
+            "%s: missing facts/scalars.csv — W&B upload will be config-only (no epoch metrics)",
+            run_name,
+        )
+        scalars = pd.DataFrame()
+        config_only = True
     except Exception as e:
         logger.warning("Skipping %s: scalars read error: %s", run_name, e)
         return False
 
-    # === Validate scalars ===
-    if scalars.empty:
-        logger.warning("Skipping %s: empty scalars.csv", run_name)
-        return False
-
-    # Get validation metrics
-    val_df = scalars[scalars["split"] == "val"] if "split" in scalars.columns else scalars
-    n_epochs = len(val_df)
-
-    if n_epochs == 0:
-        logger.warning("Skipping %s: no validation data", run_name)
-        return False
+    if not config_only:
+        if scalars.empty:
+            logger.warning("Skipping %s: empty scalars.csv", run_name)
+            return False
+        val_df = scalars[scalars["split"] == "val"] if "split" in scalars.columns else scalars
+        n_epochs = len(val_df)
+        if n_epochs == 0:
+            logger.warning("Skipping %s: no validation data", run_name)
+            return False
+    else:
+        val_df = pd.DataFrame()
+        n_epochs = 0
 
     # === Read events (optional, for completeness check) ===
     try:
@@ -324,6 +329,8 @@ def migrate_run(
 
     # Extract tags (use meta-based tags if available)
     tags = extract_meta_tags(cfg) if meta else _extract_tags_from_cfg(cfg)
+    if config_only:
+        tags = list(tags) + (["config-only-recovery"] if "config-only-recovery" not in tags else [])
     if extra_tags:
         tags = list(tags) + [t for t in extra_tags if t not in tags]
 
@@ -335,6 +342,8 @@ def migrate_run(
     if extra_config:
         for k, v in extra_config.items():
             wandb_config[k] = v
+    if config_only:
+        wandb_config["recovery/config_only"] = "true"
 
     # === Dry run logging ===
     if dry_run:
@@ -381,7 +390,7 @@ def migrate_run(
         wandb.define_metric("val/*", step_metric="epoch")
         wandb.define_metric("perf/*", step_metric="epoch")
 
-        # Log all epochs from scalars.csv
+        # Log all epochs from scalars.csv (skipped for config-only recovery)
         for _, row in val_df.iterrows():
             epoch = int(row["epoch"]) if "epoch" in row and pd.notna(row["epoch"]) else 0
 
