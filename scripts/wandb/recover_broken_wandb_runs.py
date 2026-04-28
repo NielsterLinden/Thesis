@@ -24,7 +24,7 @@ _THIS_DIR = Path(__file__).resolve().parent
 if str(_THIS_DIR) not in sys.path:
     sys.path.insert(0, str(_THIS_DIR))
 
-from migrate_runs_to_wandb import get_existing_wandb_runs, migrate_run  # noqa: E402
+from migrate_runs_to_wandb import migrate_run  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -78,6 +78,11 @@ def main() -> int:
         default="wandb_cleanup/backfill_recovered_four.csv",
         help="CSV path for optional V2 backfill step",
     )
+    p.add_argument(
+        "--check-existing-names",
+        action="store_true",
+        help="Fetch all run names first to skip duplicates (slow on large projects).",
+    )
     args = p.parse_args()
 
     runs_root: Path = args.runs_root
@@ -85,8 +90,14 @@ def main() -> int:
         logger.error("runs root missing: %s", runs_root)
         return 1
 
-    logger.info("Checking existing run names in %s/%s ...", args.entity, args.project)
-    existing = get_existing_wandb_runs(args.project, args.entity)
+    existing: set[str] | None = None
+    if args.check_existing_names:
+        from migrate_runs_to_wandb import get_existing_wandb_runs  # noqa: PLC0415
+
+        logger.info("Checking existing run names in %s/%s ...", args.entity, args.project)
+        existing = get_existing_wandb_runs(args.project, args.entity)
+    else:
+        logger.info("Skipping full-project name fetch (use --check-existing-names to enable).")
 
     mapping_rows: list[tuple[str, str, str]] = []  # broken_id, folder, new_id or ""
 
@@ -112,7 +123,8 @@ def main() -> int:
         display = f"{folder}{args.name_suffix}"
         if isinstance(result, str) and result != "exists":
             mapping_rows.append((broken_id, folder, result))
-            existing.add(display)
+            if existing is not None:
+                existing.add(display)
         elif result == "exists":
             logger.warning(
                 "Skipped %s: W&B name %s already exists — use a different --name-suffix or remove the run",
@@ -122,7 +134,8 @@ def main() -> int:
             mapping_rows.append((broken_id, folder, ""))
         elif result is True:
             mapping_rows.append((broken_id, folder, "(dry-run)"))
-            existing.add(display)
+            if existing is not None:
+                existing.add(display)
         else:
             logger.error("Failed to migrate %s (%s)", broken_id, run_dir)
             return 1
