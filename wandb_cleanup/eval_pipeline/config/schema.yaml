@@ -1,0 +1,24 @@
+# Stage C validation: eval_v2/* columns (extend as needed).
+# type: float | int | str | json_str
+# na_literal: "<not_applicable>" allowed when rule says metric does not apply
+columns:
+  eval_v2/test_auroc: { type: float, na_literal: true }
+  eval_v2/test_acc: { type: float, na_literal: true }
+  eval_v2/test_loss: { type: float, na_literal: true }
+  eval_v2/test_f1: { type: float, na_literal: true }
+  eval_v2/checkpoint_status: { type: str, na_literal: false }
+  eval_v2/checkpoint_kind: { type: str, na_literal: true }
+  eval_v2/checkpoint_sha256: { type: str, na_literal: true }
+  eval_v2/test_set_hash: { type: str, na_literal: true }
+  eval_v2/spec_version: { type: str, na_literal: false }
+  eval_v2/timestamp: { type: str, na_literal: false }
+  eval_v2/torch_version: { type: str, na_literal: true }
+  eval_v2/cuda_version: { type: str, na_literal: true }
+  eval_v2/gpu_name: { type: str, na_literal: true }
+  eval_v2/runtime_seconds: { type: float, na_literal: true }
+  eval_v2/roc_fpr: { type: json_str, na_literal: true }
+  eval_v2/roc_tpr: { type: json_str, na_literal: true }
+  eval_v2/pr_precision: { type: json_str, na_literal: true }
+  eval_v2/pr_recall: { type: json_str, na_literal: true }
+  eval_v2/score_hist_signal: { type: json_str, na_literal: true }
+  eval_v2/score_hist_background: { type: json_str, na_literal: true }

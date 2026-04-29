@@ -1,0 +1,33 @@
+# Canonical task -> HDF5 and classifier data settings (paths relative to data_root or absolute on HPC).
+defaults:
+  data_root: /data/atlas/users/nterlind/datasets
+
+tasks:
+  binary_4t_vs_bg:
+    h5_filename: 4tops_splitted.h5
+    use_binned_tokens: false
+    n_classes: 2
+    # Matches thesis_ml h5_loader signal_vs_background → binary groups
+    signal_vs_background:
+      signal: 1
+      background: [2, 3, 4, 5]
+
+  binary_4t_vs_ttH:
+    h5_filename: 4tops_splitted.h5
+    use_binned_tokens: false
+    selected_labels: [1, 2]
+    n_classes: 2
+
+  multiclass_5way:
+    h5_filename: 4tops_splitted.h5
+    use_binned_tokens: false
+    selected_labels: [1, 2, 3, 4, 5]
+    n_classes: 5
+
+  binary_4t_vs_bg_binned:
+    h5_filename: 4tops_5bins_ours.h5
+    use_binned_tokens: true
+    n_classes: 2
+    signal_vs_background:
+      signal: 1
+      background: [2, 3, 4, 5]

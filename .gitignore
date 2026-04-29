@@ -41,3 +41,5 @@ mlruns/
 hpc/stoomboot/*.log
 *.sub.backup
 hpc/stoomboot/.wandb_env
+
+wandb_cleanup/eval_pipeline/snapshots/

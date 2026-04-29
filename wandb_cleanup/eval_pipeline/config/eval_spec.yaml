@@ -1,0 +1,47 @@
+# Auditable policy for Phase 2 eval pipeline (Stage A/B/C/D).
+spec_version: "eval_v2.1"
+
+inference:
+  dtype: float32
+  autocast: false
+  n_points_roc: 250
+  latency:
+    warmup_iterations: 50
+    measure_iterations: 200
+    batch_sizes: [1, 64, 512]
+
+# Mirror Stage A checkpoint priority (must match code in resolve_classifier_weights_path).
+checkpoint_priority:
+  - best_val.pt
+  - last.pt
+  - model.pt
+  - epoch_*.pt  # highest epoch number wins
+
+# Map CSV config/axes/G3_Classification Task -> canonical task id.
+# All 13 unique strings from 2026-04-29_raw export; rare tasks -> skip_unsupported_task.
+g3_to_canonical:
+  "ttH+ttW+ttWW+ttZ | 4t": binary_4t_vs_bg
+  "4t | ttH": binary_4t_vs_ttH
+  "4t | ttH | ttW | ttWW | ttZ": multiclass_5way
+  "4t | ttH | ttW+ttWW+ttZ": skip_unsupported_task
+  "4t | ttW": skip_unsupported_task
+  "4t | ttWW": skip_unsupported_task
+  "4t | ttZ": skip_unsupported_task
+  "ttH | ttW": skip_unsupported_task
+  "ttH | ttWW": skip_unsupported_task
+  "ttH | ttZ": skip_unsupported_task
+  "ttW | ttWW": skip_unsupported_task
+  "ttW | ttZ": skip_unsupported_task
+  "ttWW | ttZ": skip_unsupported_task
+
+# Rough analytic FLOPs per forward (documentation only; Stage B fills eval_v2/flops_per_event_analytic).
+# Transformer encoder-dominated estimate: ~12 * L * H * D^2 per token per layer (order-of-magnitude).
+flops_notes: |
+  Use dim D, depth L, heads H, seq T, FFN hidden F, n_classes C.
+  Approximate per-event FLOPs ~ L * (12*T*D^2 + 2*T*D*F) + head terms; exact formula in code helper.
+
+anomaly_thresholds:
+  auroc_lt: 0.499
+  auroc_eq_one: true
+  latency_zero: true
+  peak_memory_mib_gt: 81920

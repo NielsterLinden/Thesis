@@ -1,0 +1,27 @@
+universe       = vanilla
+executable     = hpc/stoomboot/thesis_inference.sh
+# Edit MANIFEST, OUTDIR, and queue count (number of batches) before submit.
+arguments      = --manifest /project/atlas/users/nterlind/Thesis-Code/wandb_cleanup/eval_pipeline/snapshots/PHASE2_DATE/00_eval_manifest.csv --out-dir /project/atlas/users/nterlind/Thesis-Code/wandb_cleanup/eval_pipeline/snapshots/PHASE2_DATE --batch-index $(ProcId) --batch-size 100
+
+initialdir     = /project/atlas/users/nterlind/Thesis-Code
+
+output         = /data/atlas/users/nterlind/logs/stdout/eval_b_$(ClusterId).$(ProcId).out
+error          = /data/atlas/users/nterlind/logs/stderr/eval_b_$(ClusterId).$(ProcId).err
+log            = /data/atlas/users/nterlind/logs/stdlog/eval_b_$(ClusterId).log
+
+request_cpus   = 4
+request_memory = 64GB
+request_disk   = 64GB
+request_gpus   = 1
+
++UseOS = "el9"
++JobCategory = "long"
+should_transfer_files = NO
+getenv         = True
+stream_output  = True
+stream_error   = True
+
+environment = "APPTAINER_CACHEDIR=/data/atlas/users/nterlind/.apptainer_cache"
+
+# One proc per batch-index; increase queue count to cover ceil(n_evaluable/100).
+queue 10
