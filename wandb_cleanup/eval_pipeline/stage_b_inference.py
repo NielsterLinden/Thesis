@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stage B: GPU inference, append-only 01_eval_results.csv (resumable)."""
+"""Stage B: GPU inference, append-only CSV per shard (parallel-safe)."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ import csv
 import hashlib
 import json
 import logging
+import socket
 import sys
 import time
 import traceback
@@ -46,17 +47,30 @@ from thesis_ml.reports.utils.inference import load_classifier_from_run_dir  # no
 from thesis_ml.utils.seed import set_all_seeds  # noqa: E402
 
 _LOG = logging.getLogger("stage_b_inference")
+_FMT = logging.Formatter("[%(asctime)s] %(message)s", datefmt="%H:%M:%S")
 
 
-def _setup_terminal_logging() -> None:
-    """One-line timestamps on stderr (Condor .out + interactive terminal)."""
+def _setup_logging() -> None:
+    """INFO to stdout and stderr (Condor .out skims stdout; stderr mirrors)."""
     if _LOG.handlers:
         return
     _LOG.setLevel(logging.INFO)
-    h = logging.StreamHandler(sys.stderr)
-    h.setFormatter(logging.Formatter("[%(asctime)s] %(message)s", datefmt="%H:%M:%S"))
-    _LOG.addHandler(h)
+    for stream in (sys.stdout, sys.stderr):
+        h = logging.StreamHandler(stream)
+        h.setFormatter(_FMT)
+        _LOG.addHandler(h)
     _LOG.propagate = False
+
+
+def _default_shard_dir(phase_dir: Path, batch_index: int) -> Path:
+    return phase_dir / "shards" / f"batch_{batch_index:03d}"
+
+
+def _tail_traceback(tb: str, max_lines: int = 20) -> str:
+    lines = tb.strip().splitlines()
+    if len(lines) <= max_lines:
+        return tb.strip()
+    return "\n".join(lines[-max_lines:])
 
 
 DEFAULT_RESULT_KEYS = [
@@ -410,8 +424,20 @@ def _fail_row(run_id: str, category: str, spec_version: str, ck_sha: str, ck_kin
 
 def main() -> None:
     ap = argparse.ArgumentParser()
+    ap.add_argument(
+        "--out-dir",
+        type=Path,
+        required=True,
+        help="Phase snapshot directory (manifest lives elsewhere; used for default shard path).",
+    )
+    ap.add_argument(
+        "--shard-dir",
+        type=Path,
+        default=None,
+        help="Directory for this job's 01_eval_results.csv, failures/, run_log.txt. "
+        "Default: <out-dir>/shards/batch_<batch-index:03d>.",
+    )
     ap.add_argument("--manifest", type=Path, required=True)
-    ap.add_argument("--out-dir", type=Path, required=True)
     ap.add_argument("--eval-spec", type=Path, default=Path(__file__).parent / "config" / "eval_spec.yaml")
     ap.add_argument("--test-splits", type=Path, default=Path(__file__).parent / "config" / "test_splits.yaml")
     ap.add_argument("--data-root", type=Path, default=None)
@@ -428,15 +454,18 @@ def main() -> None:
         help="Skip GPU latency benchmark (warmup+timed iterations); use for smoke tests.",
     )
     args = ap.parse_args()
-    _setup_terminal_logging()
+    _setup_logging()
     resume = args.resume and not args.no_resume
+
+    shard_dir = args.shard_dir if args.shard_dir is not None else _default_shard_dir(args.out_dir, args.batch_index)
+    shard_dir.mkdir(parents=True, exist_ok=True)
+    (shard_dir / "failures").mkdir(exist_ok=True)
 
     spec = _load_yaml(args.eval_spec)
     splits = _load_yaml(args.test_splits)
-    args.out_dir.mkdir(parents=True, exist_ok=True)
-    (args.out_dir / "failures").mkdir(exist_ok=True)
-    results_path = args.out_dir / "01_eval_results.csv"
-    log_path = args.out_dir / "run_log.txt"
+    results_path = shard_dir / "01_eval_results.csv"
+    log_path = shard_dir / "run_log.txt"
+    failures_dir = shard_dir / "failures"
 
     done: set[str] = set()
     fieldnames: list[str] | None = None
@@ -470,15 +499,18 @@ def main() -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     set_all_seeds(args.seed)
 
-    with log_path.open("a", encoding="utf-8") as logf:
-        logf.write(f"\n--- batch {args.batch_index} size {args.batch_size} n={len(batch)} ---\n")
+    host = socket.gethostname()
+    msg = (
+        f"host={host} batch_index={args.batch_index} batch_size={args.batch_size} "
+        f"n_in_slice={len(batch)} manifest={args.manifest} shard_dir={shard_dir.resolve()}"
+    )
+    _LOG.info(msg)
+    print(f"[stage_b] {msg}", flush=True)
 
-    tasks_in_batch: dict[str, list[dict[str, str]]] = {}
-    for r in batch:
-        tasks_in_batch.setdefault(r["task_canonical"], []).append(r)
+    with log_path.open("a", encoding="utf-8") as logf:
+        logf.write(f"\n--- batch {args.batch_index} size {args.batch_size} n={len(batch)} shard={shard_dir} ---\n")
 
     need_header = not results_path.exists() or results_path.stat().st_size == 0
-    failures_dir = args.out_dir / "failures"
 
     def append_row(row: dict[str, str], rid: str) -> None:
         nonlocal need_header
@@ -492,62 +524,87 @@ def main() -> None:
         with log_path.open("a", encoding="utf-8") as logf:
             logf.write(f"done {rid} {row.get('eval_v2/checkpoint_status')}\n")
 
-    for task_id, group in tasks_in_batch.items():
-        try:
-            rd0 = Path(group[0]["run_dir"])
-            cfg_eval = merge_eval_cfg(rd0, task_id, splits, args.data_root)
-            _, _, test_dl, meta = make_classification_dataloaders(cfg_eval)
-            test_hash = _test_set_hash(test_dl, task_id)
-        except Exception:
-            tb = traceback.format_exc()
-            for mrow in group:
-                rid = mrow["run_id"]
-                if rid in done:
-                    continue
-                (failures_dir / f"{rid}_traceback.txt").write_text(tb, encoding="utf-8")
-                row = _fail_row(
-                    rid,
-                    "data_cfg",
-                    str(spec.spec_version),
-                    mrow.get("checkpoint_sha256", ""),
-                    mrow.get("checkpoint_kind", ""),
-                    fieldnames,
-                )
-                append_row(row, rid)
-                done.add(rid)
+    n_total = len(batch)
+    for i, mrow in enumerate(batch):
+        rid = mrow["run_id"]
+        task_id = mrow["task_canonical"]
+        rd = Path(mrow["run_dir"])
+        ck_sha = mrow.get("checkpoint_sha256", "")
+        ck_kind = mrow.get("checkpoint_kind", "")
+        t_run = time.perf_counter()
+
+        if rid in done:
+            _LOG.info("skip %s (already in shard CSV)", rid)
+            print(f"[batch {args.batch_index}] {i + 1}/{n_total} run_id={rid} status=skipped_resume", flush=True)
             continue
 
-        for mrow in group:
-            rid = mrow["run_id"]
-            if rid in done:
-                continue
-            rd = Path(mrow["run_dir"])
-            ck_sha = mrow.get("checkpoint_sha256", "")
-            ck_kind = mrow.get("checkpoint_kind", "")
-            try:
-                row = _eval_row(
-                    rid,
-                    rd,
-                    task_id,
-                    cfg_eval,
-                    test_dl,
-                    test_hash,
-                    ck_sha,
-                    ck_kind,
-                    device,
-                    spec,
-                    meta,
-                    skip_latency=args.skip_latency,
-                )
-            except Exception:
-                tb = traceback.format_exc()
-                (failures_dir / f"{rid}_traceback.txt").write_text(tb, encoding="utf-8")
-                row = _fail_row(rid, "runtime", str(spec.spec_version), ck_sha, ck_kind, fieldnames)
-
+        try:
+            cfg_eval = merge_eval_cfg(rd, task_id, splits, args.data_root)
+            _, _, test_dl, meta = make_classification_dataloaders(cfg_eval)
+            test_hash = _test_set_hash(test_dl, task_id)
+        except Exception as e:
+            tb = traceback.format_exc()
+            exc_lines = "".join(traceback.format_exception_only(type(e), e)).strip()
+            (failures_dir / f"{rid}_traceback.txt").write_text(tb, encoding="utf-8")
+            row = _fail_row(
+                rid,
+                "data_cfg",
+                str(spec.spec_version),
+                ck_sha,
+                ck_kind,
+                fieldnames,
+            )
             append_row(row, rid)
             done.add(rid)
+            elapsed = time.perf_counter() - t_run
+            st = row["eval_v2/checkpoint_status"]
+            line = f"[batch {args.batch_index}] {i + 1}/{n_total} run_id={rid} status={st} elapsed={elapsed:.1f}s"
+            _LOG.info(line)
+            print(line, flush=True)
+            print(f"  exception_only: {exc_lines}", flush=True)
+            print(f"  traceback_tail:\n{_tail_traceback(tb)}", flush=True)
+            continue
 
-    print(f"Finished batch; results at {results_path}")
+        try:
+            row = _eval_row(
+                rid,
+                rd,
+                task_id,
+                cfg_eval,
+                test_dl,
+                test_hash,
+                ck_sha,
+                ck_kind,
+                device,
+                spec,
+                meta,
+                skip_latency=args.skip_latency,
+            )
+            exc_lines = ""
+        except Exception as e:
+            tb = traceback.format_exc()
+            exc_lines = "".join(traceback.format_exception_only(type(e), e)).strip()
+            (failures_dir / f"{rid}_traceback.txt").write_text(tb, encoding="utf-8")
+            row = _fail_row(rid, "runtime", str(spec.spec_version), ck_sha, ck_kind, fieldnames)
+
+        append_row(row, rid)
+        done.add(rid)
+        elapsed = time.perf_counter() - t_run
+        st = row["eval_v2/checkpoint_status"]
+        line = f"[batch {args.batch_index}] {i + 1}/{n_total} run_id={rid} status={st} elapsed={elapsed:.1f}s"
+        _LOG.info(line)
+        print(line, flush=True)
+        if not st.startswith("success"):
+            if exc_lines:
+                print(f"  exception_only: {exc_lines}", flush=True)
+            exc_tail = ""
+            if (failures_dir / f"{rid}_traceback.txt").exists():
+                exc_tail = _tail_traceback((failures_dir / f"{rid}_traceback.txt").read_text(encoding="utf-8"))
+            print(f"  traceback_tail:\n{exc_tail}", flush=True)
+
+    done_msg = f"Finished batch_index={args.batch_index}; results at {results_path}"
+    _LOG.info(done_msg)
+    print(done_msg, flush=True)
 
 
 if __name__ == "__main__":

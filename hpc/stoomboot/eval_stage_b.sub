@@ -1,7 +1,27 @@
+# Stage B: one Condor proc = one GPU = one Python process = up to BATCH_SIZE runs per slice.
+#
+# Each job writes ONLY under: $(EVAL_PHASE_DIR)/shards/batch_<BATCH_SLICE zero-padded to 3 digits>
+# (Python derives shard path from --out-dir + --batch-index). Safe to run many jobs in parallel.
+#
+# Submit one job per batch slice (typical BATCH_SIZE=100):
+#   condor_submit hpc/stoomboot/eval_stage_b.sub EVAL_PHASE_DIR=... BATCH_SLICE=0
+#   condor_submit hpc/stoomboot/eval_stage_b.sub EVAL_PHASE_DIR=... BATCH_SLICE=1
+# Use QUEUE_COUNT>1 only if each proc must get a different ProcId as slice; otherwise prefer
+# separate submits with BATCH_SLICE=0,1,... so each job has its own ClusterId / log files.
+#
+# Condor .log = scheduler events; application progress is in stdout .out (see README).
+# Do not name a macro MANIFEST — Condor reserves "manifest" (boolean) case-insensitively.
+#
 universe       = vanilla
 executable     = hpc/stoomboot/thesis_inference.sh
-# Edit MANIFEST, OUTDIR, and queue count (number of batches) before submit.
-arguments      = --manifest /project/atlas/users/nterlind/Thesis-Code/wandb_cleanup/eval_pipeline/snapshots/PHASE2_DATE/00_eval_manifest.csv --out-dir /project/atlas/users/nterlind/Thesis-Code/wandb_cleanup/eval_pipeline/snapshots/PHASE2_DATE --batch-index $(ProcId) --batch-size 100
+
+EVAL_MANIFEST_CSV = /project/atlas/users/nterlind/Thesis-Code/wandb_cleanup/eval_pipeline/snapshots/2026-04-29_phase2/00_eval_manifest.csv
+EVAL_PHASE_DIR    = /project/atlas/users/nterlind/Thesis-Code/wandb_cleanup/eval_pipeline/snapshots/2026-04-29_phase2
+BATCH_SIZE        = 100
+QUEUE_COUNT       = 1
+BATCH_SLICE       = $(ProcId)
+
+arguments      = --manifest $(EVAL_MANIFEST_CSV) --out-dir $(EVAL_PHASE_DIR) --batch-index $(BATCH_SLICE) --batch-size $(BATCH_SIZE)
 
 initialdir     = /project/atlas/users/nterlind/Thesis-Code
 
@@ -21,7 +41,6 @@ getenv         = True
 stream_output  = True
 stream_error   = True
 
-environment = "APPTAINER_CACHEDIR=/data/atlas/users/nterlind/.apptainer_cache"
+environment = "APPTAINER_CACHEDIR=/data/atlas/users/nterlind/.apptainer_cache PYTHONUNBUFFERED=1"
 
-# One proc per batch-index; increase queue count to cover ceil(n_evaluable/100).
-queue 10
+queue $(QUEUE_COUNT)

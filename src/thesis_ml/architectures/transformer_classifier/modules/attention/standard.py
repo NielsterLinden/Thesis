@@ -194,6 +194,14 @@ class MultiHeadAttention(nn.Module):
                     raise ValueError(f"attention_bias has shape {attention_bias.shape}; " f"when 4D, size(1) must be num_heads={self.num_heads}")
             else:
                 raise ValueError(f"attention_bias must be 3D or 4D, got ndim={attention_bias.ndim}")
+            b_last = attention_bias.shape[-2:]
+            a_last = attn_scores.shape[-2:]
+            if b_last != a_last:
+                raise RuntimeError(
+                    f"attention_bias spatial dims {tuple(attention_bias.shape)} last-2={b_last} "
+                    f"do not match attention scores {tuple(attn_scores.shape)} last-2={a_last}. "
+                    "Often a MET/globals vs model num_met_tokens or per-run dataloader mismatch."
+                )
             attn_scores = attn_scores + attention_bias
 
         # Padding mask
