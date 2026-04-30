@@ -130,6 +130,34 @@ DEFAULT_RESULT_KEYS = [
     *list(tier3_placeholder().keys()),
 ]
 
+# Latency benchmark columns (same as skip-latency path); filled with <not_applicable> on OOM.
+_LATENCY_CSV_KEYS = (
+    "eval_v2/inference_latency_ms_b1_mean",
+    "eval_v2/inference_latency_ms_b1_p50",
+    "eval_v2/inference_latency_ms_b1_p95",
+    "eval_v2/inference_latency_ms_b1_p99",
+    "eval_v2/inference_latency_ms_b64_mean",
+    "eval_v2/inference_latency_ms_b512_mean",
+    "eval_v2/throughput_samples_per_s_b512",
+    "eval_v2/peak_memory_mib_inference_b512",
+)
+
+
+def _fill_latency_not_applicable(row: dict[str, str]) -> None:
+    for k in _LATENCY_CSV_KEYS:
+        row[k] = "<not_applicable>"
+
+
+def _is_cuda_oom(exc: BaseException) -> bool:
+    """True for GPU OOM from torch (message or dedicated type across versions)."""
+    oom_t = getattr(torch, "OutOfMemoryError", None)
+    if oom_t is not None and isinstance(exc, oom_t):
+        return True
+    cuda_oom = getattr(torch.cuda, "OutOfMemoryError", None)
+    if cuda_oom is not None and isinstance(exc, cuda_oom):
+        return True
+    return isinstance(exc, RuntimeError) and "out of memory" in str(exc).lower()
+
 
 def _load_yaml(path: Path) -> OmegaConf:
     return OmegaConf.load(path)
@@ -349,50 +377,58 @@ def _eval_row(
     row["eval_v2/gpu_name"] = torch.cuda.get_device_name(device) if device.type == "cuda" else ""
 
     if skip_latency:
-        for k in (
-            "eval_v2/inference_latency_ms_b1_mean",
-            "eval_v2/inference_latency_ms_b1_p50",
-            "eval_v2/inference_latency_ms_b1_p95",
-            "eval_v2/inference_latency_ms_b1_p99",
-            "eval_v2/inference_latency_ms_b64_mean",
-            "eval_v2/inference_latency_ms_b512_mean",
-            "eval_v2/throughput_samples_per_s_b512",
-            "eval_v2/peak_memory_mib_inference_b512",
-        ):
-            row[k] = "<not_applicable>"
+        _fill_latency_not_applicable(row)
     else:
-        first = next(iter(test_dl))
         bf: dict[int, tuple] = {}
-        for bsz in (1, 64, 512):
-            tiles = [first] * bsz
-            if len(first) == 5:
-                tc = torch.cat([t[0] for t in tiles], dim=0)
-                tid = torch.cat([t[1] for t in tiles], dim=0)
-                gl = torch.cat([t[2] for t in tiles], dim=0)
-                ms = torch.cat([t[3] for t in tiles], dim=0)
-                lb = torch.cat([t[4] for t in tiles], dim=0)
-                bat = (tc, tid, gl, ms, lb)
-            else:
-                tc = torch.cat([t[0] for t in tiles], dim=0)
-                gl = torch.cat([t[1] for t in tiles], dim=0)
-                ms = torch.cat([t[2] for t in tiles], dim=0)
-                lb = torch.cat([t[3] for t in tiles], dim=0)
-                bat = (tc, gl, ms, lb)
-            bf[bsz] = _clone_batch_to_device(bat, device)
+        try:
+            if device.type == "cuda":
+                torch.cuda.empty_cache()
+            first = next(iter(test_dl))
+            for bsz in (1, 64, 512):
+                tiles = [first] * bsz
+                if len(first) == 5:
+                    tc = torch.cat([t[0] for t in tiles], dim=0)
+                    tid = torch.cat([t[1] for t in tiles], dim=0)
+                    gl = torch.cat([t[2] for t in tiles], dim=0)
+                    ms = torch.cat([t[3] for t in tiles], dim=0)
+                    lb = torch.cat([t[4] for t in tiles], dim=0)
+                    bat = (tc, tid, gl, ms, lb)
+                else:
+                    tc = torch.cat([t[0] for t in tiles], dim=0)
+                    gl = torch.cat([t[1] for t in tiles], dim=0)
+                    ms = torch.cat([t[2] for t in tiles], dim=0)
+                    lb = torch.cat([t[3] for t in tiles], dim=0)
+                    bat = (tc, gl, ms, lb)
+                bf[bsz] = _clone_batch_to_device(bat, device)
 
-        warm = int(spec.inference.latency.warmup_iterations)
-        meas = int(spec.inference.latency.measure_iterations)
-        lbs = [int(x) for x in list(spec.inference.latency.batch_sizes)]
-        bench = benchmark_batches(model, device, bf, lbs, warm, meas)
-        row["eval_v2/inference_latency_ms_b1_mean"] = str(bench.get("latency_ms_b1_mean", 0))
-        row["eval_v2/inference_latency_ms_b1_p50"] = str(bench.get("latency_ms_b1_p50", 0))
-        row["eval_v2/inference_latency_ms_b1_p95"] = str(bench.get("latency_ms_b1_p95", 0))
-        row["eval_v2/inference_latency_ms_b1_p99"] = str(bench.get("latency_ms_b1_p99", 0))
-        row["eval_v2/inference_latency_ms_b64_mean"] = str(bench.get("latency_ms_b64_mean", 0))
-        row["eval_v2/inference_latency_ms_b512_mean"] = str(bench.get("latency_ms_b512_mean", 0))
-        ms512 = bench.get("latency_ms_b512_mean", 1e-6)
-        row["eval_v2/throughput_samples_per_s_b512"] = str(512.0 / max(ms512, 1e-6) * 1000.0)
-        row["eval_v2/peak_memory_mib_inference_b512"] = str(bench.get("peak_memory_mib_b512", 0))
+            warm = int(spec.inference.latency.warmup_iterations)
+            meas = int(spec.inference.latency.measure_iterations)
+            lbs = [int(x) for x in list(spec.inference.latency.batch_sizes)]
+            bench = benchmark_batches(model, device, bf, lbs, warm, meas)
+            row["eval_v2/inference_latency_ms_b1_mean"] = str(bench.get("latency_ms_b1_mean", 0))
+            row["eval_v2/inference_latency_ms_b1_p50"] = str(bench.get("latency_ms_b1_p50", 0))
+            row["eval_v2/inference_latency_ms_b1_p95"] = str(bench.get("latency_ms_b1_p95", 0))
+            row["eval_v2/inference_latency_ms_b1_p99"] = str(bench.get("latency_ms_b1_p99", 0))
+            row["eval_v2/inference_latency_ms_b64_mean"] = str(bench.get("latency_ms_b64_mean", 0))
+            row["eval_v2/inference_latency_ms_b512_mean"] = str(bench.get("latency_ms_b512_mean", 0))
+            ms512 = bench.get("latency_ms_b512_mean", 1e-6)
+            row["eval_v2/throughput_samples_per_s_b512"] = str(512.0 / max(ms512, 1e-6) * 1000.0)
+            row["eval_v2/peak_memory_mib_inference_b512"] = str(bench.get("peak_memory_mib_b512", 0))
+            bf.clear()
+            if device.type == "cuda":
+                torch.cuda.empty_cache()
+        except Exception as e:
+            if not _is_cuda_oom(e):
+                raise
+            bf.clear()
+            _LOG.warning(
+                "latency benchmark CUDA OOM for run_id=%s (%s); keeping eval metrics, latency fields -> na",
+                run_id,
+                type(e).__name__,
+            )
+            _fill_latency_not_applicable(row)
+            if device.type == "cuda":
+                torch.cuda.empty_cache()
 
     for k, v in tier3_placeholder().items():
         row.setdefault(k, v)

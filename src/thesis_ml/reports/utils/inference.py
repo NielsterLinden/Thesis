@@ -74,6 +74,42 @@ def resolve_classifier_weights_path(run_dir: Path | str) -> tuple[Path, str]:
     )
 
 
+_re_legacy_flat_ffn = re.compile(
+    r"^(encoder\.blocks\.\d+)\.(mlp_fc1|norm_mlp_mid|mlp_fc2)\.(weight|bias)$"
+)
+
+# NormFormer StandardFFN uses Sequential indices 0 (fc1), 1 (mid norm), 4 (fc2).
+_LEGACY_FLAT_FFN_TO_NET = {
+    "mlp_fc1": "ffn.net.0",
+    "norm_mlp_mid": "ffn.net.1",
+    "mlp_fc2": "ffn.net.4",
+}
+
+
+def _maybe_remap_legacy_encoder_flat_ffn(state_dict: dict[str, Any]) -> dict[str, Any]:
+    """Map legacy flat block FFN keys to ``StandardFFN`` ``ffn.net.*``.
+
+    Older checkpoints stored NormFormer MLP weights as ``mlp_fc1`` /
+    ``norm_mlp_mid`` / ``mlp_fc2`` on each ``TransformerEncoderBlock``.  Current
+    code wraps these in ``StandardFFN.net`` (indices 0, 1, 4).
+    """
+    if not any(".mlp_fc1." in k for k in state_dict):
+        return state_dict
+    out: dict[str, Any] = {}
+    n_migrated = 0
+    for k, v in state_dict.items():
+        m = _re_legacy_flat_ffn.match(k)
+        if m:
+            block_prefix, piece, wb = m.groups()
+            mid = _LEGACY_FLAT_FFN_TO_NET[piece]
+            out[f"{block_prefix}.{mid}.{wb}"] = v
+            n_migrated += 1
+        else:
+            out[k] = v
+    logger.info("Remapped %d legacy encoder flat FFN keys (*.mlp_fc1/norm_mlp_mid/mlp_fc2 → *.ffn.net.*)", n_migrated)
+    return out
+
+
 def _maybe_remap_legacy_encoder_mlp(state_dict: dict[str, Any]) -> dict[str, Any]:
     """Map ``encoder.blocks.N.mlp.*`` (legacy checkpoints) to ``encoder.blocks.N.ffn.net.*``."""
     prefix = "encoder.blocks."
@@ -107,6 +143,7 @@ def _build_classifier_from_checkpoint(
 
     state_dict = checkpoint["model_state_dict"] if isinstance(checkpoint, dict) and "model_state_dict" in checkpoint else checkpoint
     if isinstance(state_dict, dict):
+        state_dict = _maybe_remap_legacy_encoder_flat_ffn(state_dict)
         state_dict = _maybe_remap_legacy_encoder_mlp(state_dict)
 
     if not hasattr(cfg, "meta") or cfg.meta is None:
