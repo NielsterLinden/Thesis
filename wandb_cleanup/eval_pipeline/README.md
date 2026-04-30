@@ -46,33 +46,26 @@ python wandb_cleanup/eval_pipeline/stage_b_inference.py \
 - **`--no-resume`:** ignore existing rows in **this shard’s** CSV (delete the shard dir for a clean rewrite).
 - **Failures:** full traceback in `failures/<run_id>_traceback.txt`; Condor **stdout** (`.out`) prints progress plus `exception_only` / `traceback_tail` on failure.
 
-### HTCondor — parallel jobs
+### HTCondor — ten separate submits
 
-Always pass **`ROW_START`** and **`ROW_COUNT`** on each submit (defaults in the `.sub` file are only placeholders). Same `ROW_COUNT` every time; advance `ROW_START` by `ROW_COUNT` per job: `0`, `100`, `200`, …
-
-- **`EVAL_PHASE_DIR`:** phase dir (`--out-dir` from Stage A).
-- **`ROW_COUNT`:** width of each slice (e.g. `100`).
-- **`ROW_START`:** first global index for that job (e.g. `0`, `100`, `200`, `300`).
-- **Logs:** Condor **`log`** = scheduler events; app output in **`output`** (`.out`). `PYTHONUNBUFFERED=1` is set in the submit file.
+Use **`-append 'arguments = ...'`** (same pattern as training in [docs/COMMANDS.md](../docs/COMMANDS.md) §2.3.3). Each command is one GPU job; `--row-start` is a literal `0`, `100`, …, `900`.
 
 ```bash
-EVAL_MANIFEST_CSV=/project/atlas/users/nterlind/Thesis-Code/wandb_cleanup/eval_pipeline/snapshots/2026-04-29_phase2/00_eval_manifest.csv
-EVAL_PHASE_DIR=/project/atlas/users/nterlind/Thesis-Code/wandb_cleanup/eval_pipeline/snapshots/2026-04-29_phase2
-SUB=/project/atlas/users/nterlind/Thesis-Code/hpc/stoomboot/eval_stage_b.sub
+SUB=hpc/stoomboot/eval_stage_b.sub
 
-condor_submit "$SUB" EVAL_MANIFEST_CSV="$EVAL_MANIFEST_CSV" EVAL_PHASE_DIR="$EVAL_PHASE_DIR" ROW_START=0   ROW_COUNT=100
-condor_submit "$SUB" EVAL_MANIFEST_CSV="$EVAL_MANIFEST_CSV" EVAL_PHASE_DIR="$EVAL_PHASE_DIR" ROW_START=100 ROW_COUNT=100
-condor_submit "$SUB" EVAL_MANIFEST_CSV="$EVAL_MANIFEST_CSV" EVAL_PHASE_DIR="$EVAL_PHASE_DIR" ROW_START=200 ROW_COUNT=100
-condor_submit "$SUB" EVAL_MANIFEST_CSV="$EVAL_MANIFEST_CSV" EVAL_PHASE_DIR="$EVAL_PHASE_DIR" ROW_START=300 ROW_COUNT=100
-condor_submit "$SUB" EVAL_MANIFEST_CSV="$EVAL_MANIFEST_CSV" EVAL_PHASE_DIR="$EVAL_PHASE_DIR" ROW_START=400 ROW_COUNT=100
-condor_submit "$SUB" EVAL_MANIFEST_CSV="$EVAL_MANIFEST_CSV" EVAL_PHASE_DIR="$EVAL_PHASE_DIR" ROW_START=500 ROW_COUNT=100
-condor_submit "$SUB" EVAL_MANIFEST_CSV="$EVAL_MANIFEST_CSV" EVAL_PHASE_DIR="$EVAL_PHASE_DIR" ROW_START=600 ROW_COUNT=100
-condor_submit "$SUB" EVAL_MANIFEST_CSV="$EVAL_MANIFEST_CSV" EVAL_PHASE_DIR="$EVAL_PHASE_DIR" ROW_START=700 ROW_COUNT=100
-condor_submit "$SUB" EVAL_MANIFEST_CSV="$EVAL_MANIFEST_CSV" EVAL_PHASE_DIR="$EVAL_PHASE_DIR" ROW_START=800 ROW_COUNT=100
-condor_submit "$SUB" EVAL_MANIFEST_CSV="$EVAL_MANIFEST_CSV" EVAL_PHASE_DIR="$EVAL_PHASE_DIR" ROW_START=900 ROW_COUNT=100
+condor_submit $SUB -append 'arguments = --manifest $(EVAL_MANIFEST_CSV) --out-dir $(EVAL_PHASE_DIR) --row-start 0 --row-count $(ROW_COUNT)'
+condor_submit $SUB -append 'arguments = --manifest $(EVAL_MANIFEST_CSV) --out-dir $(EVAL_PHASE_DIR) --row-start 100 --row-count $(ROW_COUNT)'
+condor_submit $SUB -append 'arguments = --manifest $(EVAL_MANIFEST_CSV) --out-dir $(EVAL_PHASE_DIR) --row-start 200 --row-count $(ROW_COUNT)'
+condor_submit $SUB -append 'arguments = --manifest $(EVAL_MANIFEST_CSV) --out-dir $(EVAL_PHASE_DIR) --row-start 300 --row-count $(ROW_COUNT)'
+condor_submit $SUB -append 'arguments = --manifest $(EVAL_MANIFEST_CSV) --out-dir $(EVAL_PHASE_DIR) --row-start 400 --row-count $(ROW_COUNT)'
+condor_submit $SUB -append 'arguments = --manifest $(EVAL_MANIFEST_CSV) --out-dir $(EVAL_PHASE_DIR) --row-start 500 --row-count $(ROW_COUNT)'
+condor_submit $SUB -append 'arguments = --manifest $(EVAL_MANIFEST_CSV) --out-dir $(EVAL_PHASE_DIR) --row-start 600 --row-count $(ROW_COUNT)'
+condor_submit $SUB -append 'arguments = --manifest $(EVAL_MANIFEST_CSV) --out-dir $(EVAL_PHASE_DIR) --row-start 700 --row-count $(ROW_COUNT)'
+condor_submit $SUB -append 'arguments = --manifest $(EVAL_MANIFEST_CSV) --out-dir $(EVAL_PHASE_DIR) --row-start 800 --row-count $(ROW_COUNT)'
+condor_submit $SUB -append 'arguments = --manifest $(EVAL_MANIFEST_CSV) --out-dir $(EVAL_PHASE_DIR) --row-start 900 --row-count $(ROW_COUNT)'
 ```
 
-Use only the lines you need (`ROW_START` = 0, 100, … up to the last slice). Macros: `EVAL_MANIFEST_CSV`, `EVAL_PHASE_DIR`, `ROW_START`, `ROW_COUNT`, `QUEUE_COUNT`. Do not use a macro named `MANIFEST` (Condor reserved).
+Defaults live in `hpc/stoomboot/eval_stage_b.sub` (`EVAL_MANIFEST_CSV`, `EVAL_PHASE_DIR`, `ROW_COUNT`). Edit the `.sub` file if paths or slice list change.
 
 ### Merge shards (before Stage C)
 

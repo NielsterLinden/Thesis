@@ -524,7 +524,7 @@ def main() -> None:
     host = socket.gethostname()
     msg = (
         f"host={host} evaluable_row_range=[{row_start},{row_end_excl}) "
-        f"n_in_slice={len(batch)} manifest={args.manifest} shard_dir={shard_dir.resolve()}"
+        f"n_in_slice={len(batch)} manifest={args.manifest} shard_dir={shard_dir}"
     )
     _LOG.info(msg)
     print(f"[stage_b] {msg}", flush=True)

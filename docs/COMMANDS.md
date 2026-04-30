@@ -122,6 +122,34 @@ condor_submit hpc/stoomboot/train.sub -append 'arguments = env=stoomboot loop=tr
 
 **Monitor:** `condor_q`, `condor_tail -f <job_id>`, `condor_rm <job_id>`. Logs: `/data/atlas/users/nterlind/logs/`.
 
+### 2.3.3 Phase2 eval — Stage B (GPU, ten jobs)
+
+Same **`-append 'arguments = ...'`** pattern as training. Each line is one cluster job; `--row-start` is a **literal** (evaluable rows sorted by `source_created_at`, half-open `[start, start+count)`). Shards: `EVAL_PHASE_DIR/shards/rows_<start>_<end>/`.
+
+Defaults in `eval_stage_b.sub`: `EVAL_MANIFEST_CSV`, `EVAL_PHASE_DIR`, `ROW_COUNT=100`. Override paths on the command line if needed, e.g. `EVAL_PHASE_DIR=/other/phase`.
+
+```bash
+SUB=hpc/stoomboot/eval_stage_b.sub
+
+condor_submit $SUB -append 'arguments = --manifest $(EVAL_MANIFEST_CSV) --out-dir $(EVAL_PHASE_DIR) --row-start 0 --row-count $(ROW_COUNT)'
+condor_submit $SUB -append 'arguments = --manifest $(EVAL_MANIFEST_CSV) --out-dir $(EVAL_PHASE_DIR) --row-start 100 --row-count $(ROW_COUNT)'
+condor_submit $SUB -append 'arguments = --manifest $(EVAL_MANIFEST_CSV) --out-dir $(EVAL_PHASE_DIR) --row-start 200 --row-count $(ROW_COUNT)'
+condor_submit $SUB -append 'arguments = --manifest $(EVAL_MANIFEST_CSV) --out-dir $(EVAL_PHASE_DIR) --row-start 300 --row-count $(ROW_COUNT)'
+condor_submit $SUB -append 'arguments = --manifest $(EVAL_MANIFEST_CSV) --out-dir $(EVAL_PHASE_DIR) --row-start 400 --row-count $(ROW_COUNT)'
+condor_submit $SUB -append 'arguments = --manifest $(EVAL_MANIFEST_CSV) --out-dir $(EVAL_PHASE_DIR) --row-start 500 --row-count $(ROW_COUNT)'
+condor_submit $SUB -append 'arguments = --manifest $(EVAL_MANIFEST_CSV) --out-dir $(EVAL_PHASE_DIR) --row-start 600 --row-count $(ROW_COUNT)'
+condor_submit $SUB -append 'arguments = --manifest $(EVAL_MANIFEST_CSV) --out-dir $(EVAL_PHASE_DIR) --row-start 700 --row-count $(ROW_COUNT)'
+condor_submit $SUB -append 'arguments = --manifest $(EVAL_MANIFEST_CSV) --out-dir $(EVAL_PHASE_DIR) --row-start 800 --row-count $(ROW_COUNT)'
+condor_submit $SUB -append 'arguments = --manifest $(EVAL_MANIFEST_CSV) --out-dir $(EVAL_PHASE_DIR) --row-start 900 --row-count $(ROW_COUNT)'
+```
+
+Merge shard CSVs for Stage C:
+
+```bash
+python wandb_cleanup/eval_pipeline/merge_stage_b_shards.py \
+  --phase-dir /project/atlas/users/nterlind/Thesis-Code/wandb_cleanup/eval_pipeline/snapshots/2026-04-29_phase2
+```
+
 ---
 
 ## 3. Reporting

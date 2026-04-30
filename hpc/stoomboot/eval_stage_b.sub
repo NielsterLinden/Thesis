@@ -1,12 +1,5 @@
-# Stage B: one Condor proc = one GPU = one Python process over a fixed row range.
-#
-# Evaluable manifest rows (sorted) use HALF-OPEN indices [ROW_START, ROW_START+ROW_COUNT).
-#   Job A: ROW_START=0   ROW_COUNT=100  -> indices 0..99   -> shard .../shards/rows_00000_00100/
-#   Job B: ROW_START=100 ROW_COUNT=100 -> indices 100..199 -> shard .../shards/rows_00100_00200/
-# Pass ROW_START / ROW_COUNT on every condor_submit (no ProcId default — avoids duplicate slices).
-#
-# Condor .log = scheduler events; application progress is in stdout .out (see README).
-# Do not name a macro MANIFEST — Condor reserves "manifest" (boolean) case-insensitively.
+# Stage B eval: base submit (paths + resources). Pass the full Python CLI via -append 'arguments = ...'
+# (same pattern as train.sub / report.sub in docs/COMMANDS.md). One queue 1 = one GPU job per condor_submit.
 #
 universe       = vanilla
 executable     = hpc/stoomboot/thesis_inference.sh
@@ -14,10 +7,8 @@ executable     = hpc/stoomboot/thesis_inference.sh
 EVAL_MANIFEST_CSV = /project/atlas/users/nterlind/Thesis-Code/wandb_cleanup/eval_pipeline/snapshots/2026-04-29_phase2/00_eval_manifest.csv
 EVAL_PHASE_DIR    = /project/atlas/users/nterlind/Thesis-Code/wandb_cleanup/eval_pipeline/snapshots/2026-04-29_phase2
 ROW_COUNT         = 100
-QUEUE_COUNT       = 1
-ROW_START         = 0
 
-arguments      = --manifest $(EVAL_MANIFEST_CSV) --out-dir $(EVAL_PHASE_DIR) --row-start $(ROW_START) --row-count $(ROW_COUNT)
+arguments      =
 
 initialdir     = /project/atlas/users/nterlind/Thesis-Code
 
@@ -39,4 +30,4 @@ stream_error   = True
 
 environment = "APPTAINER_CACHEDIR=/data/atlas/users/nterlind/.apptainer_cache PYTHONUNBUFFERED=1"
 
-queue $(QUEUE_COUNT)
+queue 1
