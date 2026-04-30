@@ -55,7 +55,7 @@ def benchmark_batches(
 def _forward(model: torch.nn.Module, batch: tuple[Any, ...]) -> None:
     if len(batch) == 5:
         tokens_cont, tokens_id, globs, mask, _lab = batch
-        model(tokens_cont, tokens_id, mask=mask)
+        model(tokens_cont, tokens_id, globs, mask=mask)
     else:
         int_tok, _g, mask, _lab = batch
         model(int_tok, mask=mask)

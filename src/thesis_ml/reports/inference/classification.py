@@ -121,11 +121,12 @@ def run_classification_inference(
                     tokens_cont, tokens_id, globals, mask, label = batch
                     tokens_cont = tokens_cont.to(device)
                     tokens_id = tokens_id.to(device)
+                    globals = globals.to(device)
                     mask = mask.to(device)
                     label = label.to(device)
 
                     with autocast_ctx:
-                        logits = model(tokens_cont, tokens_id, mask=mask)
+                        logits = model(tokens_cont, tokens_id, globals, mask=mask)
                 else:  # binned format (4 items)
                     integer_tokens, globals_ints, mask, label = batch
                     integer_tokens = integer_tokens.to(device)

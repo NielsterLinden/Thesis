@@ -210,8 +210,9 @@ def _extract_layer_representations(
                 tokens_cont, tokens_id, globals_t, mask, labels = batch
                 tokens_cont = tokens_cont.to(device)
                 tokens_id = tokens_id.to(device)
+                globals_t = globals_t.to(device)
                 mask = mask.to(device)
-                _ = model(tokens_cont, tokens_id, mask=mask)
+                _ = model(tokens_cont, tokens_id, globals_t, mask=mask)
             else:  # Binned format
                 if len(batch) == 3:
                     tokens, labels, mask = batch

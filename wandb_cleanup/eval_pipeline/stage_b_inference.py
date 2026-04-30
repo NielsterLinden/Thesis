@@ -194,9 +194,10 @@ def _collect_logits(
                 tokens_cont, tokens_id, globs, mask, label = batch
                 tokens_cont = tokens_cont.to(device)
                 tokens_id = tokens_id.to(device)
+                globs = globs.to(device)
                 mask = mask.to(device)
                 label = label.to(device)
-                logits = model(tokens_cont, tokens_id, mask=mask)
+                logits = model(tokens_cont, tokens_id, globs, mask=mask)
             else:
                 integer_tokens, globs, mask, label = batch
                 integer_tokens = integer_tokens.to(device)
