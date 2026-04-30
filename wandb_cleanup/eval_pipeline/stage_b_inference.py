@@ -62,8 +62,9 @@ def _setup_logging() -> None:
     _LOG.propagate = False
 
 
-def _default_shard_dir(phase_dir: Path, batch_index: int) -> Path:
-    return phase_dir / "shards" / f"batch_{batch_index:03d}"
+def _default_shard_dir(phase_dir: Path, row_start: int, row_end_excl: int) -> Path:
+    """One directory per half-open index range [row_start, row_end_excl) in the sorted evaluable list."""
+    return phase_dir / "shards" / f"rows_{row_start:05d}_{row_end_excl:05d}"
 
 
 def _tail_traceback(tb: str, max_lines: int = 20) -> str:
@@ -435,15 +436,27 @@ def main() -> None:
         type=Path,
         default=None,
         help="Directory for this job's 01_eval_results.csv, failures/, run_log.txt. "
-        "Default: <out-dir>/shards/batch_<batch-index:03d>.",
+        "Default: <out-dir>/shards/rows_<start>_<end> with end exclusive (e.g. rows_00000_00100 = indices 0..99).",
     )
     ap.add_argument("--manifest", type=Path, required=True)
     ap.add_argument("--eval-spec", type=Path, default=Path(__file__).parent / "config" / "eval_spec.yaml")
     ap.add_argument("--test-splits", type=Path, default=Path(__file__).parent / "config" / "test_splits.yaml")
     ap.add_argument("--data-root", type=Path, default=None)
     ap.add_argument("--task", type=str, default="")
-    ap.add_argument("--batch-index", type=int, default=0)
-    ap.add_argument("--batch-size", type=int, default=100)
+    ap.add_argument(
+        "--row-start",
+        type=int,
+        default=0,
+        metavar="N",
+        help="0-based start index into the sorted evaluable manifest rows (inclusive).",
+    )
+    ap.add_argument(
+        "--row-count",
+        type=int,
+        default=100,
+        metavar="K",
+        help="Number of rows to process; uses evaluable rows [row_start, row_start + row_count).",
+    )
     ap.add_argument("--resume", action="store_true", default=True)
     ap.add_argument("--no-resume", action="store_true")
     ap.add_argument("--limit", type=int, default=0)
@@ -457,7 +470,18 @@ def main() -> None:
     _setup_logging()
     resume = args.resume and not args.no_resume
 
-    shard_dir = args.shard_dir if args.shard_dir is not None else _default_shard_dir(args.out_dir, args.batch_index)
+    if args.row_start < 0:
+        raise SystemExit("--row-start must be >= 0")
+    if args.row_count < 1:
+        raise SystemExit("--row-count must be >= 1")
+    row_start = args.row_start
+    row_end_excl = args.row_start + args.row_count
+
+    shard_dir = (
+        args.shard_dir
+        if args.shard_dir is not None
+        else _default_shard_dir(args.out_dir, row_start, row_end_excl)
+    )
     shard_dir.mkdir(parents=True, exist_ok=True)
     (shard_dir / "failures").mkdir(exist_ok=True)
 
@@ -492,23 +516,23 @@ def main() -> None:
     rows.sort(key=lambda r: r.get("source_created_at", ""), reverse=True)
     if args.limit:
         rows = rows[: args.limit]
-    lo = args.batch_index * args.batch_size
-    hi = lo + args.batch_size
-    batch = rows[lo:hi]
+    batch = rows[row_start:row_end_excl]
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     set_all_seeds(args.seed)
 
     host = socket.gethostname()
     msg = (
-        f"host={host} batch_index={args.batch_index} batch_size={args.batch_size} "
+        f"host={host} evaluable_row_range=[{row_start},{row_end_excl}) "
         f"n_in_slice={len(batch)} manifest={args.manifest} shard_dir={shard_dir.resolve()}"
     )
     _LOG.info(msg)
     print(f"[stage_b] {msg}", flush=True)
 
     with log_path.open("a", encoding="utf-8") as logf:
-        logf.write(f"\n--- batch {args.batch_index} size {args.batch_size} n={len(batch)} shard={shard_dir} ---\n")
+        logf.write(
+            f"\n--- rows [{row_start},{row_end_excl}) n={len(batch)} shard={shard_dir} ---\n"
+        )
 
     need_header = not results_path.exists() or results_path.stat().st_size == 0
 
@@ -535,7 +559,10 @@ def main() -> None:
 
         if rid in done:
             _LOG.info("skip %s (already in shard CSV)", rid)
-            print(f"[batch {args.batch_index}] {i + 1}/{n_total} run_id={rid} status=skipped_resume", flush=True)
+            print(
+                f"[rows {row_start}:{row_end_excl})] {i + 1}/{n_total} run_id={rid} status=skipped_resume",
+                flush=True,
+            )
             continue
 
         try:
@@ -558,7 +585,7 @@ def main() -> None:
             done.add(rid)
             elapsed = time.perf_counter() - t_run
             st = row["eval_v2/checkpoint_status"]
-            line = f"[batch {args.batch_index}] {i + 1}/{n_total} run_id={rid} status={st} elapsed={elapsed:.1f}s"
+            line = f"[rows {row_start}:{row_end_excl})] {i + 1}/{n_total} run_id={rid} status={st} elapsed={elapsed:.1f}s"
             _LOG.info(line)
             print(line, flush=True)
             print(f"  exception_only: {exc_lines}", flush=True)
@@ -591,7 +618,7 @@ def main() -> None:
         done.add(rid)
         elapsed = time.perf_counter() - t_run
         st = row["eval_v2/checkpoint_status"]
-        line = f"[batch {args.batch_index}] {i + 1}/{n_total} run_id={rid} status={st} elapsed={elapsed:.1f}s"
+        line = f"[rows {row_start}:{row_end_excl})] {i + 1}/{n_total} run_id={rid} status={st} elapsed={elapsed:.1f}s"
         _LOG.info(line)
         print(line, flush=True)
         if not st.startswith("success"):
@@ -602,7 +629,7 @@ def main() -> None:
                 exc_tail = _tail_traceback((failures_dir / f"{rid}_traceback.txt").read_text(encoding="utf-8"))
             print(f"  traceback_tail:\n{exc_tail}", flush=True)
 
-    done_msg = f"Finished batch_index={args.batch_index}; results at {results_path}"
+    done_msg = f"Finished rows [{row_start},{row_end_excl}); results at {results_path}"
     _LOG.info(done_msg)
     print(done_msg, flush=True)
 

@@ -1,13 +1,9 @@
-# Stage B: one Condor proc = one GPU = one Python process = up to BATCH_SIZE runs per slice.
+# Stage B: one Condor proc = one GPU = one Python process over a fixed row range.
 #
-# Each job writes ONLY under: $(EVAL_PHASE_DIR)/shards/batch_<BATCH_SLICE zero-padded to 3 digits>
-# (Python derives shard path from --out-dir + --batch-index). Safe to run many jobs in parallel.
-#
-# Submit one job per batch slice (typical BATCH_SIZE=100):
-#   condor_submit hpc/stoomboot/eval_stage_b.sub EVAL_PHASE_DIR=... BATCH_SLICE=0
-#   condor_submit hpc/stoomboot/eval_stage_b.sub EVAL_PHASE_DIR=... BATCH_SLICE=1
-# Use QUEUE_COUNT>1 only if each proc must get a different ProcId as slice; otherwise prefer
-# separate submits with BATCH_SLICE=0,1,... so each job has its own ClusterId / log files.
+# Evaluable manifest rows (sorted) use HALF-OPEN indices [ROW_START, ROW_START+ROW_COUNT).
+#   Job A: ROW_START=0   ROW_COUNT=100  -> indices 0..99   -> shard .../shards/rows_00000_00100/
+#   Job B: ROW_START=100 ROW_COUNT=100 -> indices 100..199 -> shard .../shards/rows_00100_00200/
+# Pass ROW_START / ROW_COUNT on every condor_submit (no ProcId default — avoids duplicate slices).
 #
 # Condor .log = scheduler events; application progress is in stdout .out (see README).
 # Do not name a macro MANIFEST — Condor reserves "manifest" (boolean) case-insensitively.
@@ -17,11 +13,11 @@ executable     = hpc/stoomboot/thesis_inference.sh
 
 EVAL_MANIFEST_CSV = /project/atlas/users/nterlind/Thesis-Code/wandb_cleanup/eval_pipeline/snapshots/2026-04-29_phase2/00_eval_manifest.csv
 EVAL_PHASE_DIR    = /project/atlas/users/nterlind/Thesis-Code/wandb_cleanup/eval_pipeline/snapshots/2026-04-29_phase2
-BATCH_SIZE        = 100
+ROW_COUNT         = 100
 QUEUE_COUNT       = 1
-BATCH_SLICE       = $(ProcId)
+ROW_START         = 0
 
-arguments      = --manifest $(EVAL_MANIFEST_CSV) --out-dir $(EVAL_PHASE_DIR) --batch-index $(BATCH_SLICE) --batch-size $(BATCH_SIZE)
+arguments      = --manifest $(EVAL_MANIFEST_CSV) --out-dir $(EVAL_PHASE_DIR) --row-start $(ROW_START) --row-count $(ROW_COUNT)
 
 initialdir     = /project/atlas/users/nterlind/Thesis-Code
 

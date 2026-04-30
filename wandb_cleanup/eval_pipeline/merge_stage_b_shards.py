@@ -10,7 +10,7 @@ from pathlib import Path
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--phase-dir", type=Path, required=True, help="Snapshot dir containing shards/batch_*")
+    ap.add_argument("--phase-dir", type=Path, required=True, help="Snapshot dir containing shards/rows_* (or legacy batch_*)")
     ap.add_argument(
         "--out",
         type=Path,
@@ -23,14 +23,19 @@ def main() -> None:
         raise SystemExit(f"Missing shards directory: {shard_root}")
 
     paths: list[Path] = []
-    for d in sorted(shard_root.glob("batch_*")):
-        if d.is_dir():
-            p = d / "01_eval_results.csv"
-            if p.is_file() and p.stat().st_size > 0:
-                paths.append(p)
+    for d in sorted(shard_root.iterdir()):
+        if not d.is_dir():
+            continue
+        if not (d.name.startswith("rows_") or d.name.startswith("batch_")):
+            continue
+        p = d / "01_eval_results.csv"
+        if p.is_file() and p.stat().st_size > 0:
+            paths.append(p)
 
     if not paths:
-        raise SystemExit(f"No non-empty 01_eval_results.csv under {shard_root}/batch_*")
+        raise SystemExit(
+            f"No non-empty 01_eval_results.csv under {shard_root} (expected shards/rows_* or shards/batch_*)"
+        )
 
     out = args.out or (args.phase_dir / "01_eval_results_merged.csv")
     fieldnames: list[str] | None = None
