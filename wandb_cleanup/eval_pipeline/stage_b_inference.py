@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Stage B: GPU inference, append-only CSV per shard (parallel-safe)."""
+"""Stage B: GPU inference, append-only CSV per shard (parallel-safe).
+
+Resume (--resume, default): each shard CSV records completed ``run_id`` values;
+re-runs skip them. After fixing upstream code, remove failed rows from
+``<shard-dir>/01_eval_results.csv`` and resubmit the same ``--row-start`` /
+``--row-count`` job to append corrected results only for those ids.
+"""
 
 from __future__ import annotations
 
@@ -43,7 +49,10 @@ from _latency_bench import benchmark_batches  # noqa: E402
 
 from thesis_ml.data.h5_loader import make_classification_dataloaders  # noqa: E402
 from thesis_ml.reports.inference.classification_metrics import compute_classification_metrics  # noqa: E402
-from thesis_ml.reports.utils.inference import load_classifier_from_run_dir  # noqa: E402
+from thesis_ml.reports.utils.inference import (  # noqa: E402
+    checkpoint_has_binned_token_embedding_weights,
+    load_classifier_from_run_dir,
+)
 from thesis_ml.utils.seed import set_all_seeds  # noqa: E402
 
 _LOG = logging.getLogger("stage_b_inference")
@@ -76,6 +85,7 @@ def _tail_traceback(tb: str, max_lines: int = 20) -> str:
 
 DEFAULT_RESULT_KEYS = [
     "run_id",
+    "run_name",
     "eval_v2/test_loss",
     "eval_v2/test_acc",
     "eval_v2/test_f1",
@@ -193,6 +203,45 @@ def merge_eval_cfg(run_dir: Path, task_id: str, splits: OmegaConf, data_root: Pa
     else:
         c.selected_labels = list(OmegaConf.to_container(t.selected_labels, resolve=True))
     c.trainer.batch_size = int(c.trainer.get("batch_size", 512))
+
+    # Align HDF5 layout / batch shape with the checkpoint tokenizer (training loop uses 4-tuple
+    # batches + model(integer_tokens, mask=) for binned; raw tasks use 5-tuple + 3-arg forward).
+    tok_name = str(OmegaConf.select(cfg, "classifier.model.tokenizer.name", default="") or "").lower()
+    ckpt_binned = checkpoint_has_binned_token_embedding_weights(run_dir)
+    if tok_name == "binned" or ckpt_binned:
+        cfg.data.use_binned_tokens = True
+        if ckpt_binned and tok_name != "binned":
+            if not hasattr(cfg.classifier, "model"):
+                raise ValueError(f"{run_dir} has binned checkpoint weights but cfg.classifier.model is missing")
+            if not hasattr(cfg.classifier.model, "tokenizer") or cfg.classifier.model.tokenizer is None:
+                cfg.classifier.model.tokenizer = OmegaConf.create({})
+            cfg.classifier.model.tokenizer.name = "binned"
+            _LOG.info(
+                "checkpoint has binned token_embedding: set tokenizer.name=binned and use_binned_tokens=true for %s",
+                task_id,
+            )
+        if not bool(t.get("use_binned_tokens", False)):
+            alt_id = f"{task_id}_binned"
+            task_map = splits.tasks
+            if alt_id not in task_map:
+                raise ValueError(
+                    f"Binned eval requires a binned HDF5 task (checkpoint or tokenizer.name=binned) but "
+                    f"manifest task {task_id!r} has use_binned_tokens=false and test_splits has no {alt_id!r} "
+                    "entry — fix task_canonical or add a *_binned task (same labels, binned HDF5)."
+                )
+            tb = task_map[alt_id]
+            if not bool(tb.get("use_binned_tokens", False)):
+                raise ValueError(
+                    f"test_splits task {alt_id!r} must set use_binned_tokens: true when used for binned eval."
+                )
+            cfg.data.path = str(root / tb.h5_filename)
+            _LOG.info(
+                "binned eval: using HDF5 from %s for manifest task %s → %s",
+                alt_id,
+                task_id,
+                cfg.data.path,
+            )
+
     return cfg
 
 
@@ -266,6 +315,7 @@ def _param_stats(model: torch.nn.Module) -> dict[str, int]:
 
 def _eval_row(
     run_id: str,
+    run_name: str,
     run_dir: Path,
     task_id: str,
     cfg_eval: OmegaConf,
@@ -280,7 +330,7 @@ def _eval_row(
     skip_latency: bool = False,
 ) -> dict[str, str]:
     t0 = time.perf_counter()
-    row: dict[str, str] = {"run_id": run_id}
+    row: dict[str, str] = {"run_id": run_id, "run_name": run_name}
 
     n_classes = int(meta["n_classes"])
 
@@ -437,11 +487,23 @@ def _eval_row(
     return row
 
 
-def _fail_row(run_id: str, category: str, spec_version: str, ck_sha: str, ck_kind: str, keys: list[str]) -> dict[str, str]:
+def _fail_row(
+    run_id: str,
+    category: str,
+    spec_version: str,
+    ck_sha: str,
+    ck_kind: str,
+    keys: list[str],
+    *,
+    run_name: str = "",
+) -> dict[str, str]:
     row = {k: "" for k in keys}
     row["run_id"] = run_id
     for k in keys:
         if k == "run_id":
+            continue
+        if k == "run_name":
+            row[k] = run_name
             continue
         if k in (
             "eval_v2/checkpoint_status",
@@ -461,7 +523,15 @@ def _fail_row(run_id: str, category: str, spec_version: str, ck_sha: str, ck_kin
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser()
+    ap = argparse.ArgumentParser(
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""Selective rerun after failures (resume is on by default):
+  Each shard appends to <shard-dir>/01_eval_results.csv. Skips any run_id
+  already in that file. To re-evaluate failures, delete those CSV rows (or
+  all rows with eval_v2/checkpoint_status starting with "failed_"), then
+  resubmit the same Condor arguments (--manifest, --out-dir, --row-start,
+  --row-count) unchanged so only missing run_ids are processed.""",
+    )
     ap.add_argument(
         "--out-dir",
         type=Path,
@@ -539,6 +609,9 @@ def main() -> None:
                     done.add(row["run_id"])
     if fieldnames is None:
         fieldnames = list(DEFAULT_RESULT_KEYS)
+    elif "run_name" not in fieldnames and "run_id" in fieldnames:
+        i = fieldnames.index("run_id") + 1
+        fieldnames.insert(i, "run_name")
 
     rows: list[dict[str, str]] = []
     with args.manifest.open(newline="", encoding="utf-8") as f:
@@ -617,6 +690,7 @@ def main() -> None:
                 ck_sha,
                 ck_kind,
                 fieldnames,
+                run_name=mrow.get("run_name", "") or "",
             )
             append_row(row, rid)
             done.add(rid)
@@ -632,6 +706,7 @@ def main() -> None:
         try:
             row = _eval_row(
                 rid,
+                mrow.get("run_name", "") or "",
                 rd,
                 task_id,
                 cfg_eval,
@@ -649,7 +724,15 @@ def main() -> None:
             tb = traceback.format_exc()
             exc_lines = "".join(traceback.format_exception_only(type(e), e)).strip()
             (failures_dir / f"{rid}_traceback.txt").write_text(tb, encoding="utf-8")
-            row = _fail_row(rid, "runtime", str(spec.spec_version), ck_sha, ck_kind, fieldnames)
+            row = _fail_row(
+                rid,
+                "runtime",
+                str(spec.spec_version),
+                ck_sha,
+                ck_kind,
+                fieldnames,
+                run_name=mrow.get("run_name", "") or "",
+            )
 
         append_row(row, rid)
         done.add(rid)

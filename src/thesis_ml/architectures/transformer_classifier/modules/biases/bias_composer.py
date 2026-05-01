@@ -128,6 +128,12 @@ class GlobalConditionedBias(nn.Module):
         if self.mode == "global_scale":
             head_scales = self.mlp(globals_)  # [B, H]
             bias = head_scales.unsqueeze(-1).unsqueeze(-1)  # [B, H, 1, 1]
+            # BiasComposer validates against physical T×T; broadcast explicitly so a
+            # composer with only global_scale (e.g. Lorentz inactive) does not fail.
+            if tokens_cont is not None:
+                t = tokens_cont.size(1)
+                if t > 1:
+                    bias = bias.expand(-1, -1, t, t)
 
         else:  # met_direction
             if tokens_cont is None or self.cont_dim < 3:

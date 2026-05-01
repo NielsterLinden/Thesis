@@ -93,7 +93,7 @@ def _maybe_remap_legacy_encoder_flat_ffn(state_dict: dict[str, Any]) -> dict[str
     ``norm_mlp_mid`` / ``mlp_fc2`` on each ``TransformerEncoderBlock``.  Current
     code wraps these in ``StandardFFN.net`` (indices 0, 1, 4).
     """
-    if not any(".mlp_fc1." in k for k in state_dict):
+    if not any(_re_legacy_flat_ffn.match(k) for k in state_dict):
         return state_dict
     out: dict[str, Any] = {}
     n_migrated = 0
@@ -129,6 +129,115 @@ def _maybe_remap_legacy_encoder_mlp(state_dict: dict[str, Any]) -> dict[str, Any
     return out
 
 
+def _maybe_remap_pairwise_bias_net_to_lorentz_scalar(state_dict: dict[str, Any]) -> dict[str, Any]:
+    """Map legacy ``pairwise_bias_net.mlp.*`` weights into ``BiasComposer`` LorentzScalarBias path.
+
+    Older checkpoints used ``PairwiseBiasNet``; current code stores the same MLP under
+    ``bias_composer.bias_modules.lorentz_scalar.mlp.*``.  The LorentzScalarBias ``gate``
+    parameter is absent from old checkpoints; it is initialized to zeros (same as training init).
+    """
+    old_pfx = "pairwise_bias_net.mlp."
+    new_pfx = "bias_composer.bias_modules.lorentz_scalar.mlp."
+    if not any(k.startswith(old_pfx) for k in state_dict):
+        return state_dict
+    if any(k.startswith("bias_composer.bias_modules.lorentz_scalar.mlp.") for k in state_dict):
+        return state_dict
+    out: dict[str, Any] = {}
+    n = 0
+    for k, v in state_dict.items():
+        if k.startswith(old_pfx):
+            out[new_pfx + k[len(old_pfx) :]] = v
+            n += 1
+        else:
+            out[k] = v
+    gate_k = "bias_composer.bias_modules.lorentz_scalar.gate"
+    if gate_k not in out:
+        out[gate_k] = torch.zeros(1)
+    logger.info(
+        "Remapped %d pairwise_bias_net.mlp.* keys to bias_composer.bias_modules.lorentz_scalar.mlp.* (+ gate)",
+        n,
+    )
+    return out
+
+
+def checkpoint_has_binned_token_embedding_weights(run_dir: Path | str) -> bool:
+    """True if the resolved classifier weights file contains binned tokenizer embeddings."""
+    try:
+        path, _ = resolve_classifier_weights_path(run_dir)
+    except FileNotFoundError:
+        return False
+    try:
+        ckpt = torch.load(path, map_location="cpu", weights_only=False)
+    except Exception as e:
+        logger.warning("Could not peek checkpoint for binned tokenizer keys: %s", e)
+        return False
+    sd = ckpt.get("model_state_dict", ckpt) if isinstance(ckpt, dict) else ckpt
+    return isinstance(sd, dict) and "embedding.tokenizer.token_embedding.weight" in sd
+
+
+def _sync_binned_tokenizer_from_state_dict(cfg: Any, state_dict: dict[str, Any]) -> None:
+    """If weights contain a binned tokenizer table, align cfg so dataloaders and build match."""
+    binned_emb_key = "embedding.tokenizer.token_embedding.weight"
+    if binned_emb_key not in state_dict:
+        return
+    ckpt_vocab_size = int(state_dict[binned_emb_key].shape[0])
+    if not hasattr(cfg, "meta") or cfg.meta is None:
+        cfg.meta = OmegaConf.create({})
+    OmegaConf.set_struct(cfg.meta, False)
+    current = getattr(cfg.meta, "vocab_size", None)
+    if current != ckpt_vocab_size:
+        logger.info(
+            "Adjusting vocab_size from %s (config) to %s (checkpoint token_embedding shape)",
+            current,
+            ckpt_vocab_size,
+        )
+    cfg.meta.vocab_size = ckpt_vocab_size
+    cfg.data.use_binned_tokens = True
+    if not hasattr(cfg.classifier, "model"):
+        return
+    if not hasattr(cfg.classifier.model, "tokenizer") or cfg.classifier.model.tokenizer is None:
+        cfg.classifier.model.tokenizer = OmegaConf.create({})
+    OmegaConf.set_struct(cfg.classifier.model, False)
+    tn = str(cfg.classifier.model.tokenizer.get("name", "") or "").lower()
+    if tn != "binned":
+        logger.info(
+            "Adjusting tokenizer.name from %r to 'binned' (checkpoint has token_embedding)",
+            cfg.classifier.model.tokenizer.get("name", ""),
+        )
+        cfg.classifier.model.tokenizer.name = "binned"
+
+
+def _required_model_space_seq_len(cfg: Any, seq_len_tokens: int) -> int:
+    """Match ``build_from_config`` ``max_seq_length_model`` when ``positional_space=='model'``."""
+    model_cfg = cfg.classifier.model
+    if str(model_cfg.get("positional_space", "model")) != "model":
+        return int(seq_len_tokens)
+    pooling = model_cfg.get("pooling", "cls")
+    use_cls = pooling == "cls"
+    include_met = bool(cfg.classifier.get("globals", {}).get("include_met", False))
+    is_binned = getattr(cfg.meta, "vocab_size", None) is not None
+    num_met = 0 if is_binned else (2 if include_met else 0)
+    return int(seq_len_tokens) + int(use_cls) + num_met
+
+
+def _maybe_pad_learned_pos_pe_model_space(state_dict: dict[str, Any], cfg: Any, seq_len_tokens: int) -> None:
+    """Extend checkpoint ``pos_enc.pe`` if it is shorter than the eval forward sequence (avoids 19 vs 18)."""
+    key = "pos_enc.pe"
+    if key not in state_dict:
+        return
+    pe = state_dict[key]
+    if not isinstance(pe, torch.Tensor) or pe.ndim != 2:
+        return
+    need = _required_model_space_seq_len(cfg, seq_len_tokens)
+    L = int(pe.shape[0])
+    if L >= need:
+        return
+    pad = need - L
+    tail = pe[-1:, :].expand(pad, -1).to(pe.device).clone()
+    state_dict[key] = torch.cat([pe, tail], dim=0)
+    logger.info("Padded %s from %d to %d rows for eval (checkpoint shorter than model-space sequence)", key, L, need)
+
+
 def _build_classifier_from_checkpoint(
     cfg: Any,
     run_dir: Path,
@@ -145,6 +254,8 @@ def _build_classifier_from_checkpoint(
     if isinstance(state_dict, dict):
         state_dict = _maybe_remap_legacy_encoder_flat_ffn(state_dict)
         state_dict = _maybe_remap_legacy_encoder_mlp(state_dict)
+        state_dict = _maybe_remap_pairwise_bias_net_to_lorentz_scalar(state_dict)
+        _sync_binned_tokenizer_from_state_dict(cfg, state_dict)
 
     if not hasattr(cfg, "meta") or cfg.meta is None:
         train_dl, val_dl, test_dl, meta = make_classification_dataloaders(cfg)
@@ -171,19 +282,30 @@ def _build_classifier_from_checkpoint(
 
     if "pos_enc.pe" in state_dict:
         pe_shape = state_dict["pos_enc.pe"].shape
-        checkpoint_max_seq_len = pe_shape[0]
+        checkpoint_max_seq_len = int(pe_shape[0])
         pooling = cfg.classifier.model.get("pooling", "cls")
         positional_space = cfg.classifier.model.get("positional_space", "model")
         include_met = bool(cfg.classifier.get("globals", {}).get("include_met", False))
-        extra_tokens = (1 if pooling == "cls" else 0) + (2 if include_met else 0)
+        weights_binned = "embedding.tokenizer.token_embedding.weight" in state_dict
+        use_binned_data = bool(getattr(cfg.data, "use_binned_tokens", False))
+        # Raw+MET appends two sequence slots in the embedding; binned MET is inside the integer row
+        # (see build_from_config num_met_tokens for binned vs raw).
+        extra_met_slots = 0 if (weights_binned or use_binned_data) else (2 if include_met else 0)
+        extra_tokens = (1 if pooling == "cls" else 0) + extra_met_slots
         checkpoint_n_tokens = checkpoint_max_seq_len - extra_tokens if positional_space == "model" else checkpoint_max_seq_len
         if checkpoint_n_tokens != data_n_tokens:
             logger.info(
-                "Adjusting n_tokens from %s (data) to %s (checkpoint PE shape)",
-                data_n_tokens,
+                "Checkpoint pos_enc.pe implies n_tokens=%s vs dataloader meta n_tokens=%s (PE rows=%s)",
                 checkpoint_n_tokens,
+                data_n_tokens,
+                checkpoint_max_seq_len,
             )
-        cfg.meta.n_tokens = checkpoint_n_tokens
+        # Do not shrink cfg.meta.n_tokens below the dataloader: that desyncs cfg.data.n_tokens / HDF5
+        # slices from the forward sequence and causes learned PE length mismatches (e.g. 19 vs 18).
+        if checkpoint_n_tokens > data_n_tokens:
+            logger.info("Raising cfg.meta.n_tokens from %s to %s (checkpoint PE)", data_n_tokens, checkpoint_n_tokens)
+            cfg.meta.n_tokens = checkpoint_n_tokens
+        _maybe_pad_learned_pos_pe_model_space(state_dict, cfg, data_n_tokens)
 
     elif "embedding.pos_enc.pe" in state_dict:
         pe_shape = state_dict["embedding.pos_enc.pe"].shape
@@ -197,7 +319,6 @@ def _build_classifier_from_checkpoint(
         cfg.meta.n_tokens = checkpoint_n_tokens
 
     pretrained_key = "embedding.tokenizer._index_embedding.weight"
-    binned_emb_key = "embedding.tokenizer.token_embedding.weight"
     if pretrained_key in state_dict:
         if not hasattr(cfg.classifier.model, "tokenizer"):
             cfg.classifier.model.tokenizer = OmegaConf.create({})
@@ -244,16 +365,6 @@ def _build_classifier_from_checkpoint(
                                 cfg.meta.token_feat_dim = inferred_cont_dim
             except Exception as e:
                 logger.warning("Could not infer cont_dim from VQ checkpoint %s: %s", vq_checkpoint_path, e)
-    elif binned_emb_key in state_dict:
-        ckpt_vocab_size = int(state_dict[binned_emb_key].shape[0])
-        current = getattr(cfg.meta, "vocab_size", None)
-        if current != ckpt_vocab_size:
-            logger.info(
-                "Adjusting vocab_size from %s (config) to %s (checkpoint token_embedding shape)",
-                current,
-                ckpt_vocab_size,
-            )
-        cfg.meta.vocab_size = ckpt_vocab_size
 
     proj_key = "embedding.projection.weight"
     if proj_key in state_dict:

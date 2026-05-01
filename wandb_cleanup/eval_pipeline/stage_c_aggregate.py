@@ -17,6 +17,57 @@ def _is_na(val: str, na_lit: bool) -> bool:
     return s == "" or s.lower() == "nan"
 
 
+def _dedupe_results(res: pd.DataFrame) -> pd.DataFrame:
+    if res.empty:
+        return res
+    if "eval_v2/timestamp" in res.columns:
+        return res.sort_values("eval_v2/timestamp").drop_duplicates("run_id", keep="last")
+    return res.drop_duplicates("run_id", keep="last")
+
+
+def _merge_raw_and_results(raw: pd.DataFrame, res: pd.DataFrame) -> pd.DataFrame:
+    """Left-join raw export to eval rows on ``meta_run/id`` == ``run_id``, with optional name fallback."""
+    res = _dedupe_results(res.copy())
+    drop_join = {"run_id"}
+    eval_cols = [c for c in res.columns if c not in drop_join]
+
+    merged = raw.merge(
+        res,
+        left_on="meta_run/id",
+        right_on="run_id",
+        how="left",
+        suffixes=("", "_eval"),
+    )
+    if "run_id" in merged.columns:
+        merged = merged.drop(columns=["run_id"])
+
+    marker = "eval_v2/test_auroc"
+    if "run_name" in res.columns and marker in merged.columns:
+        res_name = res.copy()
+        if "eval_v2/timestamp" in res_name.columns:
+            res_name = res_name.sort_values("eval_v2/timestamp")
+        res_name = res_name.drop_duplicates("run_name", keep="last")
+        name_idx = res_name.set_index("run_name")
+        need = merged[marker].isna() & merged["meta_run/name"].notna()
+        if need.any():
+            for idx in merged.index[need]:
+                nm = str(merged.at[idx, "meta_run/name"]).strip()
+                if not nm or nm not in name_idx.index:
+                    continue
+                for col in eval_cols:
+                    if col == "run_name":
+                        continue
+                    if col not in merged.columns or col not in name_idx.columns:
+                        continue
+                    cur = merged.at[idx, col]
+                    if pd.isna(cur) or (isinstance(cur, str) and cur.strip() == ""):
+                        val = name_idx.at[nm, col]
+                        if pd.notna(val):
+                            merged.at[idx, col] = val
+
+    return merged
+
+
 def _validate_row(row: dict, rules: dict) -> list[str]:
     errs: list[str] = []
     for col, spec in rules.items():
@@ -43,7 +94,12 @@ def _validate_row(row: dict, rules: dict) -> list[str]:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--raw-csv", type=Path, required=True)
-    ap.add_argument("--results", type=Path, required=True, help="01_eval_results.csv")
+    ap.add_argument(
+        "--results",
+        type=Path,
+        required=True,
+        help="Merged eval CSV (e.g. 01_eval_outcomes.csv from merge_stage_b_shards.py)",
+    )
     ap.add_argument("--out-dir", type=Path, required=True)
     ap.add_argument("--schema", type=Path, default=Path(__file__).parent / "config" / "schema.yaml")
     args = ap.parse_args()
@@ -51,14 +107,7 @@ def main() -> None:
     args.out_dir.mkdir(parents=True, exist_ok=True)
     raw = pd.read_csv(args.raw_csv, low_memory=False)
     res = pd.read_csv(args.results, low_memory=False)
-    if "eval_v2/timestamp" in res.columns:
-        res = res.sort_values("eval_v2/timestamp").drop_duplicates("run_id", keep="last")
-    else:
-        res = res.drop_duplicates("run_id", keep="last")
-
-    merged = raw.merge(res, left_on="meta_run/id", right_on="run_id", how="left", suffixes=("", "_eval"))
-    if "run_id" in merged.columns:
-        merged = merged.drop(columns=["run_id"])
+    merged = _merge_raw_and_results(raw, res)
 
     merged.to_csv(args.out_dir / "02_eval_combined.csv", index=False)
 

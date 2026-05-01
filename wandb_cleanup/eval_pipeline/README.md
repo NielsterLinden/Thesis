@@ -74,18 +74,18 @@ python wandb_cleanup/eval_pipeline/merge_stage_b_shards.py \
   --phase-dir wandb_cleanup/eval_pipeline/snapshots/MY_PHASE2_RUN
 ```
 
-Writes `01_eval_results_merged.csv` in the phase dir (override with `--out`). Point Stage C at this file.
+Writes `01_eval_outcomes.csv` in the phase dir (override with `--out`): one row per `run_id`, deduped by newest `eval_v2/timestamp` when duplicates appear across shards. Point Stage C at this file.
 
 ## Stage C — aggregate
 
 ```bash
 python wandb_cleanup/eval_pipeline/stage_c_aggregate.py \
   --raw-csv wandb_cleanup/backfill_pipeline/snapshots/2026-04-29_raw/00_raw_export.csv \
-  --results wandb_cleanup/eval_pipeline/snapshots/MY_PHASE2_RUN/01_eval_results_merged.csv \
+  --results wandb_cleanup/eval_pipeline/snapshots/MY_PHASE2_RUN/01_eval_outcomes.csv \
   --out-dir wandb_cleanup/eval_pipeline/snapshots/MY_PHASE2_RUN
 ```
 
-Produces `02_eval_combined.csv`, `schema_validation_report.txt`, `anomalies_report.csv`.
+Produces `02_eval_combined.csv` (raw export plus all `eval_v2/*` columns and `run_name` from outcomes when present), `schema_validation_report.txt`, `anomalies_report.csv`. Join is on `meta_run/id` == outcomes `run_id`; if `run_name` is present in the outcomes file, rows that did not match by id are filled from the same outcomes row where `meta_run/name` matches.
 
 ## Stage D — W&B push
 
