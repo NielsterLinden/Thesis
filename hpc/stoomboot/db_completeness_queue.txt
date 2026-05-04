@@ -1,0 +1,144 @@
+# ── Sweep 1: seed_noise_floor (24 runs, 3 jobs) ──
+thesis_experiments/db_completeness/seed_noise_floor/d256_l6
+thesis_experiments/db_completeness/seed_noise_floor/d128_l8
+thesis_experiments/db_completeness/seed_noise_floor/d64_l6
+
+# ── Sweep 2: kan_hyperparameters (28 runs, 12+ jobs) ──
+thesis_experiments/db_completeness/kan_hyperparameters/k1_grid
+thesis_experiments/db_completeness/kan_hyperparameters/k2_order
+thesis_experiments/db_completeness/kan_hyperparameters/k1k2_corners/corner_3_2
+thesis_experiments/db_completeness/kan_hyperparameters/k1k2_corners/corner_3_4
+thesis_experiments/db_completeness/kan_hyperparameters/k1k2_corners/corner_8_2
+thesis_experiments/db_completeness/kan_hyperparameters/k1k2_corners/corner_8_4
+thesis_experiments/db_completeness/kan_hyperparameters/k1k2_corners/corner_12_3
+thesis_experiments/db_completeness/kan_hyperparameters/k4_reg
+thesis_experiments/db_completeness/kan_hyperparameters/k5_update
+thesis_experiments/db_completeness/kan_hyperparameters/k3_range
+thesis_experiments/db_completeness/kan_hyperparameters/variants
+thesis_experiments/db_completeness/kan_hyperparameters/bottleneck_d128
+
+# ── Sweep 3: moe_hyperparameters (22 runs, 8 jobs) ──
+thesis_experiments/db_completeness/moe_hyperparameters/m1_experts
+thesis_experiments/db_completeness/moe_hyperparameters/m2_topk_m1_4
+thesis_experiments/db_completeness/moe_hyperparameters/m2_topk_m1_8
+thesis_experiments/db_completeness/moe_hyperparameters/m4_balance
+thesis_experiments/db_completeness/moe_hyperparameters/m5_noisy
+thesis_experiments/db_completeness/moe_hyperparameters/scope_last2
+thesis_experiments/db_completeness/moe_hyperparameters/routing_event
+thesis_experiments/db_completeness/moe_hyperparameters/moe_kan_head
+
+# ── Sweep 4: lorentz_deepening (28 runs, 9 jobs) ──
+thesis_experiments/db_completeness/lorentz_deepening/per_head
+thesis_experiments/db_completeness/lorentz_deepening/sparse_gating
+thesis_experiments/db_completeness/lorentz_deepening/hidden_dim
+thesis_experiments/db_completeness/lorentz_deepening/new_features
+thesis_experiments/db_completeness/lorentz_deepening/model_size_d128
+thesis_experiments/db_completeness/lorentz_deepening/model_size_d384
+thesis_experiments/db_completeness/lorentz_deepening/kan_perhead
+thesis_experiments/db_completeness/lorentz_deepening/multiclass
+thesis_experiments/db_completeness/lorentz_deepening/binary_ttH
+
+# ── Sweep 5: typepair_deepening (16 runs, 5 jobs) ──
+thesis_experiments/db_completeness/typepair_deepening/gate_off
+thesis_experiments/db_completeness/typepair_deepening/kinematic_feat
+thesis_experiments/db_completeness/typepair_deepening/mask_value
+thesis_experiments/db_completeness/typepair_deepening/freeze_table
+thesis_experiments/db_completeness/typepair_deepening/multiclass
+
+# ── Sweep 6: sm_deepening (10 runs, 3 jobs) ──
+thesis_experiments/db_completeness/sm_deepening/mask_modes
+thesis_experiments/db_completeness/sm_deepening/multiclass
+thesis_experiments/db_completeness/sm_deepening/sm_lorentz
+
+# ── Sweep 7: global_cond_deepening (8 runs, 5 jobs) ──
+thesis_experiments/db_completeness/global_cond_deepening/kan_mlp
+thesis_experiments/db_completeness/global_cond_deepening/global_dim
+thesis_experiments/db_completeness/global_cond_deepening/cross_task_ttH
+thesis_experiments/db_completeness/global_cond_deepening/cross_task_mc
+thesis_experiments/db_completeness/global_cond_deepening/global_lorentz
+
+# ── Sweep 8: bias_cartesian (24 runs, 4 jobs) ──
+thesis_experiments/db_completeness/bias_cartesian/missing_combos
+thesis_experiments/db_completeness/bias_cartesian/undertested_seeds
+thesis_experiments/db_completeness/bias_cartesian/single_bias_seeds
+thesis_experiments/db_completeness/bias_cartesian/all4on_seeds
+
+# ── Sweep 9: architectural_breadth (28 runs, 16 jobs) ──
+thesis_experiments/db_completeness/architectural_breadth/head_dim_cells/d64_h1
+thesis_experiments/db_completeness/architectural_breadth/head_dim_cells/d64_h2
+thesis_experiments/db_completeness/architectural_breadth/head_dim_cells/d64_h16
+thesis_experiments/db_completeness/architectural_breadth/head_dim_cells/d128_h2
+thesis_experiments/db_completeness/architectural_breadth/head_dim_cells/d128_h16
+thesis_experiments/db_completeness/architectural_breadth/head_dim_cells/d128_h32
+thesis_experiments/db_completeness/architectural_breadth/head_dim_cells/d256_h1
+thesis_experiments/db_completeness/architectural_breadth/head_dim_cells/d256_h2
+thesis_experiments/db_completeness/architectural_breadth/head_dim_cells/d256_h16
+thesis_experiments/db_completeness/architectural_breadth/head_dim_cells/d256_h32
+thesis_experiments/db_completeness/architectural_breadth/confirm_d256
+thesis_experiments/db_completeness/architectural_breadth/confirm_d128
+thesis_experiments/db_completeness/architectural_breadth/dropout_zero_d256
+thesis_experiments/db_completeness/architectural_breadth/dropout_zero_bias
+thesis_experiments/db_completeness/architectural_breadth/dropout_fine
+thesis_experiments/db_completeness/architectural_breadth/dropout_small
+
+# ── Sweep 10: normalization (14 runs, 8 jobs) ──
+thesis_experiments/db_completeness/normalization/rmsnorm_d256
+thesis_experiments/db_completeness/normalization/rmsnorm_d128_l8
+thesis_experiments/db_completeness/normalization/rmsnorm_d64
+thesis_experiments/db_completeness/normalization/rmsnorm_d384_l4
+thesis_experiments/db_completeness/normalization/normformer_seeds
+thesis_experiments/db_completeness/normalization/attn_norm
+thesis_experiments/db_completeness/normalization/rms_normformer
+thesis_experiments/db_completeness/normalization/post_small
+
+# ── Sweep 11: positional_encoding (18 runs, 9 jobs) ──
+thesis_experiments/db_completeness/positional_encoding/rotary_base
+thesis_experiments/db_completeness/positional_encoding/rotary_heads
+thesis_experiments/db_completeness/positional_encoding/token_space
+thesis_experiments/db_completeness/positional_encoding/learned_bias
+thesis_experiments/db_completeness/positional_encoding/pe_none_d64
+thesis_experiments/db_completeness/positional_encoding/pe_none_d128
+thesis_experiments/db_completeness/positional_encoding/pe_none_d256
+thesis_experiments/db_completeness/positional_encoding/rotary_multiclass
+thesis_experiments/db_completeness/positional_encoding/dim_mask_cleanup
+
+# ── Sweep 12: tokenizer (12 runs, 7 jobs) ──
+thesis_experiments/db_completeness/tokenizer/binned_sizes/d256
+thesis_experiments/db_completeness/tokenizer/binned_sizes/d128_l8
+thesis_experiments/db_completeness/tokenizer/binned_sizes/d64_l6
+thesis_experiments/db_completeness/tokenizer/pid_modes_d256
+thesis_experiments/db_completeness/tokenizer/pid_modes_d128
+thesis_experiments/db_completeness/tokenizer/embed_dim
+thesis_experiments/db_completeness/tokenizer/pretrained
+
+# ── Sweep 13: training_recipe (24 runs, 9 jobs) ──
+thesis_experiments/db_completeness/training_recipe/lr_schedule
+thesis_experiments/db_completeness/training_recipe/weight_decay
+thesis_experiments/db_completeness/training_recipe/grad_clip
+thesis_experiments/db_completeness/training_recipe/label_smooth
+thesis_experiments/db_completeness/training_recipe/warmup
+thesis_experiments/db_completeness/training_recipe/epochs_200
+thesis_experiments/db_completeness/training_recipe/early_stop
+thesis_experiments/db_completeness/training_recipe/lr_range
+thesis_experiments/db_completeness/training_recipe/batch_size
+
+# ── Sweep 14: features_and_ordering (16 runs, 9 jobs) ──
+thesis_experiments/db_completeness/features_and_ordering/drop_one
+thesis_experiments/db_completeness/features_and_ordering/drop_ept_d256
+thesis_experiments/db_completeness/features_and_ordering/drop_ept_d128
+thesis_experiments/db_completeness/features_and_ordering/token_order_4tbg
+thesis_experiments/db_completeness/features_and_ordering/token_order_ttH
+thesis_experiments/db_completeness/features_and_ordering/token_order_mc
+thesis_experiments/db_completeness/features_and_ordering/shuffle_multiclass
+thesis_experiments/db_completeness/features_and_ordering/met_no_bias
+thesis_experiments/db_completeness/features_and_ordering/drop_pt_met
+
+# ── Sweep 15: cross_task_replication (32 runs, 8 jobs) ──
+thesis_experiments/db_completeness/cross_task_replication/config1_lorentz_perhead
+thesis_experiments/db_completeness/cross_task_replication/config2_typepair_nogate
+thesis_experiments/db_completeness/cross_task_replication/config3_all4biases
+thesis_experiments/db_completeness/cross_task_replication/config4_heads4_d128
+thesis_experiments/db_completeness/cross_task_replication/config5_rmsnorm
+thesis_experiments/db_completeness/cross_task_replication/config6_rotary_base50k
+thesis_experiments/db_completeness/cross_task_replication/config7_lr3e3
+thesis_experiments/db_completeness/cross_task_replication/config8_drop_eta

@@ -1,0 +1,39 @@
+hydra:
+  mode: MULTIRUN
+
+experiment:
+  name: "kan_bottleneck_d128"
+
+classifier:
+  globals:
+    include_met: false
+  model:
+    dim: 128
+    depth: 8
+    heads: 8
+    mlp_dim: 512
+    dropout: 0.1
+    tokenizer:
+      name: identity
+      pid_mode: learned
+      id_embed_dim: 8
+    positional: sinusoidal
+    ffn:
+      type: kan
+      kan:
+        variant: bottleneck
+  trainer:
+    epochs: 50
+    seed: 42
+
+data:
+  _struct_: false
+  classifier:
+    signal_vs_background:
+      signal: 1
+      background: [2, 3, 4, 5]
+    selected_labels: null
+
+logging:
+  wandb:
+    tags: ["cohort=db_completeness_2026_05", "sweep=kan_hyperparameters"]

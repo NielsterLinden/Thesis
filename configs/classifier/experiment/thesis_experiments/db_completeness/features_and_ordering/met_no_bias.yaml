@@ -1,0 +1,38 @@
+hydra:
+  mode: MULTIRUN
+  sweeper:
+    params:
+      classifier.model.attention_biases: lorentz_scalar,typepair_kinematic,none
+
+experiment:
+  name: "fo_met_no_bias"
+
+classifier:
+  globals:
+    include_met: false
+  model:
+    dim: 256
+    depth: 6
+    heads: 8
+    mlp_dim: 1024
+    dropout: 0.1
+    tokenizer:
+      name: identity
+      pid_mode: learned
+      id_embed_dim: 8
+    positional: sinusoidal
+  trainer:
+    epochs: 50
+    seed: 42
+
+data:
+  _struct_: false
+  classifier:
+    signal_vs_background:
+      signal: 1
+      background: [2, 3, 4, 5]
+    selected_labels: null
+
+logging:
+  wandb:
+    tags: ["cohort=db_completeness_2026_05", "sweep=features_and_ordering"]

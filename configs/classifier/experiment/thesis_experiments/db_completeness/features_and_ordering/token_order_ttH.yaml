@@ -1,0 +1,33 @@
+hydra:
+  mode: MULTIRUN
+
+experiment:
+  name: "fo_token_order_ttH"
+
+classifier:
+  globals:
+    include_met: true
+  model:
+    dim: 256
+    depth: 6
+    heads: 8
+    mlp_dim: 1024
+    dropout: 0.1
+    tokenizer:
+      name: identity
+      pid_mode: learned
+      id_embed_dim: 8
+    positional: sinusoidal
+  trainer:
+    epochs: 50
+    seed: 42
+
+data:
+  _struct_: false
+  sort_tokens_by: pt
+  classifier:
+    selected_labels: [1, 2]
+
+logging:
+  wandb:
+    tags: ["cohort=db_completeness_2026_05", "sweep=features_and_ordering"]
