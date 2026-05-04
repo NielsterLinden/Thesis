@@ -99,11 +99,16 @@ def _load_v2_axes_runtime() -> tuple[Any, Any] | tuple[None, None]:
         return _V2_DERIVE_CACHE
 
     try:
+        import sys
+
         spec = importlib.util.spec_from_file_location("thesis_v2_axes_runtime", mod_path)
         if spec is None or spec.loader is None:
             _V2_DERIVE_CACHE = (None, None)
             return _V2_DERIVE_CACHE
         mod = importlib.util.module_from_spec(spec)
+        # Register before exec so get_type_hints() can resolve annotations
+        # (needed because v2_axes.py uses `from __future__ import annotations` + @dataclass)
+        sys.modules[spec.name] = mod
         spec.loader.exec_module(mod)
         derive_v2_axes = getattr(mod, "derive_v2_axes", None)
         v2_axes = getattr(mod, "V2_AXES", None)
