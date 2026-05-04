@@ -44,7 +44,7 @@ echo ""
 
 while IFS= read -r line; do
   # Skip comments, blank lines, already-submitted entries
-  [[ -z "$line" || "$line" == "#"* || "$line" == "DONE:"* ]] && continue
+  if [[ -z "$line" || "$line" == "#"* || "$line" == "DONE:"* ]]; then continue; fi
 
   exp_path="$line"
 
