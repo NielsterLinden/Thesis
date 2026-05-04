@@ -1,0 +1,65 @@
+\chapter{Introduction}
+\label{chapter:Introduction}
+
+The
+
+
+\section{Physics Motivation}
+\label{sec:intro_physics_motivation}
+
+\subsection{Multi-top quark production at the LHC}
+Four-top-quark production (tttt) is one of the rarest Standard Model processes currently accessible at the LHC, with a small but non-zero predicted cross-section.
+Its observation provides a direct handle on the top-quark Yukawa coupling, and deviations from the SM prediction would signal new physics beyond the Standard Model.
+
+\subsection{Why classification matters}
+Extracting a signal like tttt from its backgrounds (ttH, ttW, ttZ, ttWW) requires powerful event-level discrimination.
+Even modest improvements in classifier performance translate into meaningful gains in signal significance at fixed luminosity.
+
+\cite{collaborationObservationFourtopquarkProduction2023}
+
+\section{Machine Learning Challenge}
+\label{sec:intro_ml_challenge}
+
+\subsection{Particle events as variable-length sets}
+A collision event is a collection of reconstructed objects --- jets, leptons, and missing transverse energy --- with no natural ordering and varying multiplicity per event.
+This set-structured data is awkward for architectures that assume fixed-size inputs or sequential ordering.
+
+\subsection{Transformers as a natural fit}
+Self-attention is permutation-equivariant by construction, making transformers well-suited to set-valued inputs.
+The attention mechanism can in principle learn to weight particle pairs by their physics relevance without any explicit ordering assumption.
+
+\section{Thesis Statement}
+\label{sec:intro_thesis_statement}
+
+\subsection{From single model to configurable workbench}
+Rather than producing one optimised classifier, this thesis builds a single modular codebase in which every meaningful architectural decision is exposed as a switchable axis.
+We introduce 33 orthogonal architectural axes as the organising principle of the entire experimental programme.
+
+\subsection{Controlled ablation as scientific method}
+By varying one axis at a time while holding all others fixed, each experiment becomes a controlled ablation.
+The central question is not which configuration achieves the highest AUROC, but what architectural choices matter, and why.
+
+\section{Deliverables}
+\label{sec:intro_deliverables}
+
+\subsection{Modular codebase}
+The primary engineering output is a Hydra-driven Python package in which every architecture variant is reproducible from a single configuration file.
+Any run appearing in this thesis can be regenerated with a single CLI command.
+
+\subsection{Experiment database}
+A Weights \& Biases project serves as a structured record of all training runs, storing hyperparameters, metrics, and axis settings in a queryable format.
+This database is the raw evidence underlying every quantitative claim in the thesis.
+
+\subsection{Thesis document}
+This document is a curated, interpretable distillation of the experiment database: not an exhaustive log of all runs, but a set of focused scientific arguments each anchored to a specific axis group.
+
+\section{Reader's Guide}
+\label{sec:intro_readers_guide}
+
+\subsection{Structure of the thesis}
+The thesis is organised in three parts: Part~I frames the problem and the workbench (Chapters~2--3); Part~II addresses one focused scientific question per chapter, each mapped to a specific axis group (Chapters~4--9); Part~III synthesises the findings into a recommended configuration and outlook (Chapters~10--11).
+
+\subsection{How to read the results}
+Throughout the thesis, AUROC is the primary metric, reported as a seed-averaged mean with error bars.
+Axis groups are referred to by their labels (D, A, B, P, H), which correspond directly to config namespaces in the codebase.
+Each Part~II chapter is framed by one of three evaluation lenses --- performance, interpretability, or efficiency --- which is stated explicitly at the chapter opening.

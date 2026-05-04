@@ -1,0 +1,75 @@
+\chapter{The Best Model and Its Physics Reach}
+
+This chapter does two things. First, it assembles the recommended
+configuration from the Ch.\,8 analysis, trains it at the Pareto-optimal
+scale from Ch.\,9, and compares it against a simple baseline and the
+external MIParT benchmark. Second, it attempts to translate the AUROC
+improvement into a physics statement: how much does a better classifier
+actually matter in units of LHC luminosity?
+
+% ──────────────────────────────────────────────
+\section{The recommended model (Exp.\ 10A)}
+
+The recommended configuration is taken directly from the Ch.\,8
+surrogate analysis. It is trained at the Pareto-optimal model size
+from Ch.\,9 using five seeds to reduce Monte Carlo uncertainty on the
+final performance estimate. Two baselines are included for comparison:
+the simplest possible transformer (T1=\texttt{raw}, no biases, smallest
+preset) and MIParT (Li et al., 2024) evaluated on the same dataset and
+task.
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{llr}
+\toprule
+Model & Description & Runs \\
+\midrule
+Recommended & best config from Ch.\,8, Pareto size from Ch.\,9 & 5 \\
+Simple baseline & T1=\texttt{raw}, no biases, \texttt{d32\_L3} & 3 \\
+MIParT reference & Li et al.\ on same dataset & 3 \\
+\midrule
+Total & & \textbf{11} \\
+\bottomrule
+\end{tabular}
+\caption{Exp.\ 10A. Both tasks (4t vs.\ background and 4t vs.\ ttH)
+are evaluated for all three models.}
+\end{table}
+
+Outputs: AUROC and signal efficiency at $1/B = 50$ for all three
+models on both tasks, with seed-averaged means and error bars. This
+is the thesis headline number.
+
+% ──────────────────────────────────────────────
+\section{From AUROC to physics sensitivity (Exp.\ 10B)}
+
+\textit{Note: this section describes machinery I am still working
+through and may not appear in the final thesis, depending on whether
+the results are meaningful and the methodology is sufficiently under
+control. It is included here as a planning placeholder.}
+
+The quantity a physics analysis actually cares about is not AUROC but
+sensitivity to the four-top-quark production cross-section. The
+connection is made through a simplified profile likelihood: given the
+classifier score for each event, a binned discriminant is constructed,
+signal and background yields are scaled to a target luminosity, and
+the expected significance is computed under the asymptotic
+approximation of Cowan et al.\ (2011). In the absence of systematics
+this reduces to the familiar form
+
+\begin{equation}
+Z \approx \frac{S}{\sqrt{B}},
+\end{equation}
+
+where $S$ and $B$ are the expected signal and background yields at
+the chosen working point.
+
+The main output is a luminosity-versus-significance curve for the
+recommended model, the simple baseline, and MIParT. The headline
+number is $\mathcal{L}_{5\sigma}$, the luminosity at which each
+classifier first reaches $Z = 5$. A reduction in $\mathcal{L}_{5\sigma}$
+directly quantifies how much LHC running time the architectural
+improvements of this thesis are worth.
+
+All numbers are relative comparisons between classifiers at the same
+luminosity assumption, using MC yields only with no systematic
+uncertainties. They should not be read as absolute physics predictions.

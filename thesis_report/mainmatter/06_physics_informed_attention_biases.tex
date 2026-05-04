@@ -1,0 +1,162 @@
+\chapter{Physics-Informed Attention Biases}
+
+Standard self-attention assigns relevance purely from learned query--key
+inner products, treating all token pairs equally. In a multi-top event,
+however, particles that share a decay vertex, are close in angular
+separation, or interact via a specific SM coupling are physically more
+related than arbitrary pairs. This chapter asks whether injecting such
+structure as additive biases on the attention logits improves
+classification, and what the learned bias weights reveal about how the
+model organises particle interactions.
+
+Four bias families are available: a Lorentz-scalar network mapping
+pairwise invariants to bias scores~(B1-L), a learnable type-pair
+interaction table optionally seeded from SM coupling structure~(B1-T),
+a fixed SM interaction prior~(B1-S), and a MET-conditioned global
+modulation~(B1-G). All families share a zero-initialised scalar gate,
+so adding any bias leaves the baseline unchanged at initialisation.
+All experiments in this chapter fix D02~=~\texttt{true}: MET is always
+present, which is required for B1-G and motivated by the Ch.\,4 finding.
+
+The primary lens is \textit{interpretability}: performance differences
+are expected to be small, and the main contribution is understanding
+what the models learn.
+
+% ──────────────────────────────────────────────
+\section{Bias family comparison (Exp.\ 5A)}
+
+Compares each bias family individually and in full combination against
+an unbiased baseline. Identifies which family, if any, provides a
+consistent performance benefit, and whether the full stack beats the
+sum of its parts.
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{llr}
+\toprule
+Axis & Values & Config \\
+\midrule
+B1 — Bias selector & \texttt{none} & 6 \\
+ & \texttt{lorentz\_scalar} & \\
+ & \texttt{typepair\_kinematic} & \\
+ & \texttt{sm\_interaction} & \\
+ & \texttt{global\_conditioned} & \\
+ & \texttt{lorentz+typepair+sm+global} & \\
+Seeds & & 3 \\
+\midrule
+Total & & \textbf{18} \\
+\bottomrule
+\end{tabular}
+\caption{Exp.\ 5A. All other axes at chapter baseline:
+T1=\texttt{identity}, D02=\texttt{true}, E1=\texttt{sinusoidal}.}
+\end{table}
+
+Output: seed-averaged AUROC bar chart. Attention maps extracted at
+inference time for the \texttt{none} baseline and full combination,
+averaged over a fixed held-out batch and labelled by particle type.
+
+% ──────────────────────────────────────────────
+\section{Lorentz feature set and bias network (Exp.\ 5B)}
+
+Isolates the Lorentz-scalar family to ask two questions: which pairwise
+invariants are most informative (B1-L1), and whether replacing the
+pointwise MLP with a KAN improves the learned response (B1-L2). Sparse
+gating (B1-L5) adds per-feature sigmoid gates that directly expose
+learned feature importance without ablation. The KAN activation curves
+and converged gate values are extracted post-hoc from checkpoints ---
+no re-training required.
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{llr}
+\toprule
+Axis & Values & Config \\
+\midrule
+B1-L1 — Feature set & \texttt{[m2]} & 5 \\
+ & \texttt{[deltaR]} & \\
+ & \texttt{[m2, deltaR]} & \\
+ & \texttt{[log\_kt, z, deltaR, log\_m2]} & \\
+ & \texttt{[m2, deltaR, log\_m2, log\_kt, z, deltaR\_ptw]} & \\
+B1-L2 — MLP type & \texttt{standard}, \texttt{kan} & 2 \\
+B1-L5 — Sparse gating & \texttt{false}, \texttt{true} & 2 \\
+Seeds & & 3 \\
+\midrule
+Total & & \textbf{60} \\
+\bottomrule
+\end{tabular}
+\caption{Exp.\ 5B. B1=\texttt{lorentz\_scalar} throughout.}
+\end{table}
+
+% ──────────────────────────────────────────────
+\section{Type-pair initialisation and freeze (Exp.\ 5C)}
+
+The type-pair table is an $N_\text{type} \times N_\text{type}$ matrix
+of learnable per-type-pair attention scores. This experiment asks
+whether seeding it from SM coupling structure accelerates learning, and
+whether a frozen physics prior alone is sufficient. The converged table
+is visualised as a heatmap and compared across initialisation conditions.
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{llr}
+\toprule
+Axis & Values & Config \\
+\midrule
+B1-T2 — Init & \texttt{none} & 5 \\
+ & \texttt{binary} & \\
+ & \texttt{binary} (frozen) & \\
+ & \texttt{fixed\_coupling} & \\
+ & \texttt{fixed\_coupling} (frozen) & \\
+B1-T3 — Freeze & \texttt{false}, \texttt{true} & \\
+Seeds & & 3 \\
+\midrule
+Total & & \textbf{15} \\
+\bottomrule
+\end{tabular}
+\caption{Exp.\ 5C. Combination \texttt{init=none, freeze=true} excluded.
+B1=\texttt{typepair\_kinematic} throughout.}
+\end{table}
+
+% ──────────────────────────────────────────────
+\section{SM interaction mode (Exp.\ 5D)}
+
+Tests whether increasing physical fidelity in the SM interaction
+prior --- from a binary coupling mask through fixed coupling constants
+to running couplings --- translates into measurable performance gains.
+Expected to be a null result; feeds directly into Ch.\,8.\\
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{llr}
+\toprule
+Axis & Values & Config \\
+\midrule
+B1-S1 — SM mode & \texttt{binary} & 3 \\
+ & \texttt{fixed\_coupling} & \\
+ & \texttt{running\_coupling} & \\
+Seeds & & 3 \\
+\midrule
+Total & & \textbf{9} \\
+\bottomrule
+\end{tabular}
+\caption{Exp.\ 5D. B1=\texttt{sm\_interaction} throughout.}
+\end{table}
+
+
+\subsection*{Chapter ran summary}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{llr}
+\toprule
+Experiment & Primary axes & Runs \\
+\midrule
+5A — Family comparison    & B1          & 18 \\
+5B — Lorentz ablation     & B1-L1, B1-L2, B1-L5 & 60 \\
+5C — Type-pair table      & B1-T2, B1-T3 & 15 \\
+5D — SM interaction mode  & B1-S1        &  9 \\
+\midrule
+\textbf{Total} & & \textbf{102} \\
+\bottomrule
+\end{tabular}
+\end{table}

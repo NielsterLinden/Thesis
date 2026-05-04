@@ -8,6 +8,7 @@
       - id: check-yaml
       - id: mixed-line-ending
       - id: check-added-large-files
+        args: ["--maxkb", "5120"]
   - repo: https://github.com/psf/black
     rev: 25.9.0
     hooks:

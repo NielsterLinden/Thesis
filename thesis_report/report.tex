@@ -1,0 +1,84 @@
+\documentclass{tudelft-report}
+
+%% Set up the bibliography
+\usepackage{biblatex}
+\addbibresource{report.bib}
+
+%% Additional packages and commands
+\usepackage{parskip}
+\setlist{itemsep=-2pt} % Reducing white space in lists slightly
+\renewcommand{\deg}{\si{\degree}\xspace} % Use \deg easily, everywhere
+
+%% ----------------------------------------------------------------------
+%%    Begin of document + Frontmatter (Roman page numbering)
+%% ----------------------------------------------------------------------
+
+\begin{document}
+
+\frontmatter
+
+%% Define the main parameters
+\title{Why chose?}
+\subtitle{A configurable Transformer Workbench for Multi-Top Quark Classification at the LHC}
+\author{Niels ter Linden}
+
+\affiliation{Delft University of Technology} % Cover only
+\coverimage{figures/cover.jpg} % Aspect ratio of 2:3 (portrait) recommended
+\definecolor{title}{HTML}{4884d6} % Color for cover title
+
+% \makecover
+
+\input{frontmatter/title-report}
+\input{frontmatter/preface}
+\input{frontmatter/summary}
+
+\tableofcontents
+%\listoffigures
+%\listoftables
+
+% \input{frontmatter/nomenclature}
+
+%% ----------------------------------------------------------------------
+%%    Mainmatter (Arabic page numbering)
+%% ----------------------------------------------------------------------
+
+\mainmatter
+
+\part{Framing}
+\input{mainmatter/01_introduction}
+\input{mainmatter/02_dataset_and_task_definition}
+\input{mainmatter/03_workbench_architecture_and_axes}
+
+\part{Thesis Questions}
+\input{mainmatter/04_best_input_representation}
+\input{mainmatter/06_physics_informed_attention_biases}
+\input{mainmatter/07_(differential)_attention}
+
+\input{mainmatter/08_model_scaling_and_efficiency}
+
+\part{Synthesis}
+\input{mainmatter/09_what_does_not_matter}
+\input{mainmatter/10_best_model}
+\input{mainmatter/11_conclusion_and_outlook}
+
+
+%% Prevent urls running into margins in bibliography
+\setcounter{biburlnumpenalty}{7000}
+\setcounter{biburllcpenalty}{7000}
+\setcounter{biburlucpenalty}{7000}
+
+%% Add bibliography
+\printbibliography[heading=bibintoc,title=References]
+
+%% ----------------------------------------------------------------------
+%%    Appendix (Letters for chapters)
+%% ----------------------------------------------------------------------
+
+\appendix
+
+\input{appendix/appendix-a}
+\input{appendix/appendix-b}
+\input{appendix/appendix-c}
+%\input{appendix/appendix-c} % Create file to add
+
+\end{document}

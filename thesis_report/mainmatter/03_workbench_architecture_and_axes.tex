@@ -1,0 +1,309 @@
+\chapter{The Workbench: Architecture and Axes}
+
+\section{Design philosophy}
+
+Rather than committing to a single architecture, the workbench exposes
+every meaningful design choice as a switchable configuration parameter.
+This makes fair comparison possible by construction: when one axis
+changes, everything else is held fixed, so any observed difference in
+AUROC is attributable to that choice alone. The entire architecture is
+specified by a Hydra configuration tree, where each axis corresponds to
+a named key in a structured YAML hierarchy. Any run in the experiment
+database can be regenerated from a single command-line invocation.
+
+\section{The base transformer}
+
+The base model follows the standard transformer encoder pipeline:
+particle tokens are embedded into a fixed-dimensional space, passed
+through a stack of attention-plus-FFN blocks, aggregated into a single
+event-level vector by a pooling operation, and classified by a head
+network. This skeleton is fixed across all experiments; the axes
+control what happens inside each stage.
+
+Each particle token, a raw kinematic vector plus an optional
+particle-type identifier, is projected into the model dimension $d$
+by a linear embedding layer. The encoder consists of $L$ identical
+blocks, each containing a multi-head self-attention layer followed by
+a position-wise feed-forward network, with residual connections and
+normalisation at positions controlled by axes A1 and A2. The pooled
+vector is passed to a classifier head that produces the final logit.
+
+\section{Axis groups}
+
+The axes are organised into ten groups. Groups G and D define the
+experimental conditions and data treatment. Groups T, E, P, A, F, B,
+and C define the architecture. Group H sets model capacity. Three
+cross-cutting shared parameter blocks (§K, §M, §S) are consumed by
+multiple modules simultaneously and are documented at the end of this
+section. Groups §R and §L cover training protocol and logging
+respectively and are not architectural axes.
+
+% ──────────────────────────────────────────────
+\subsection*{G \quad Study framing}
+
+G axes define what is being classified and with which model family.
+They are not architectural choices and are not varied in the ablation
+programme; they set the experimental conditions under which all other
+axes are evaluated.
+
+\textbf{G01 -- Task type.} Selects the training loop: supervised
+classification or anomaly detection (autoencoder, GAN-AE, diffusion-AE).
+This thesis focuses exclusively on supervised classification;
+the anomaly detection loops are available in the workbench but not
+studied here.
+
+\textbf{G02 -- Model family.} Selects the model architecture family:
+transformer, MLP, BDT, or autoencoder. All Part II chapters use the
+transformer family; the BDT appears only in Ch.\,8 as a surrogate
+model for configuration prediction, not as a classifier.
+
+\textbf{G03 -- Classification task.} Defines which processes are
+treated as signal and background. Five processes are available:
+four-top-quark production ($tttt$), associated production with a Higgs
+boson ($ttH$), with a $W$ boson ($ttW$), with two $W$ bosons ($ttWW$),
+and with a $Z$ boson ($ttZ$). Three task definitions are used in this
+thesis: $tttt$ vs.\ combined background ($ttH + ttW + ttWW + ttZ$) as
+the primary task, $tttt$ vs.\ $ttH$ as a harder secondary task, and
+all-five multiclass as an exploratory task.
+
+% ──────────────────────────────────────────────
+\subsection*{D \quad Data treatment}
+
+D axes control what the model sees before any architectural processing.
+
+\textbf{D01 -- Feature set.} Selects which kinematic features are
+included in each token. The default is the four-feature set
+(E, Pt, $\eta$, $\phi$); energy can be omitted to test whether the
+model relies on explicit $E$ or whether Pt, $\eta$, and $\phi$ already
+provide sufficient kinematic information.
+
+\textbf{D02 -- MET treatment.} Controls whether missing transverse
+energy is excluded or included as an event-level global. Tests how much
+the invisible neutrino system contributes beyond the particle tokens.
+
+\textbf{D03 -- Token ordering.} Sets whether tokens are presented in
+input order, sorted by decreasing Pt, or randomly shuffled per event.
+Tests whether the model exploits ordering as an implicit positional
+signal.
+
+% ──────────────────────────────────────────────
+\subsection*{T \quad Tokenizer}
+
+T axes control how raw particle features are converted into token
+embeddings.
+
+\textbf{T1 -- Tokenizer family.} Selects between \texttt{raw}
+(kinematics only), \texttt{identity} (kinematics plus an explicit
+particle-type label), and \texttt{binned} (discrete token, no
+continuous features). Tests whether explicit particle identity is
+necessary or recoverable from kinematics alone.
+
+\textbf{T1-a -- PID embedding mode.} When T1 = \texttt{identity},
+selects how the particle-type label is encoded: \texttt{learned},
+\texttt{one\_hot}, or \texttt{fixed\_random}. Tests whether particle
+identity needs a learned geometry or only a categorical code.
+
+\textbf{T1-b -- PID embedding dimension.} Sets the capacity of the
+PID embedding to 8, 16, or 32 dimensions. Tests the trade-off between
+representational capacity and overfitting for the type sub-embedding.
+
+% ──────────────────────────────────────────────
+\subsection*{E \quad Positional encoding}
+
+E axes control how position information is injected into the token
+stream.
+
+\textbf{E1 -- PE type.} Selects among \texttt{none},
+\texttt{sinusoidal}, \texttt{learned}, and \texttt{rotary}. Tests
+whether injecting position information helps a set-based classifier at
+all.
+
+\textbf{E1-a -- PE space.} Controls whether the positional signal is
+applied before or after the input projection. Prerequisite: E1
+$\in$ \{sinusoidal, learned\}.
+
+\textbf{E1-a1 -- PE dimension mask.} Allows the positional encoding to
+act selectively on a subset of feature dimensions. Prerequisite:
+E1-a = \texttt{token}.
+
+% ──────────────────────────────────────────────
+\subsection*{P \quad Pre-encoder modules}
+
+P axes add optional modules applied to raw particle features before the
+main transformer encoder. Both require T1 $\in$ \{raw, identity\}.
+
+\textbf{P1 -- Nodewise mass patch.} Optionally enriches each token with
+invariant-mass features computed from its $k$-nearest neighbours in
+Lorentz space, following Li et al. Tests whether explicit local mass
+structure before the encoder improves token representations. Requires
+D01 to include energy (index 0).
+
+\textbf{P2 -- MIA pre-encoder.} Optionally inserts MIParT-style
+interaction-attention blocks before the main encoder, where attention
+is driven by pairwise interaction features rather than query-key
+similarity. Tests whether physics-driven message passing as a
+pre-encoder stage adds information beyond standard self-attention.
+
+\textbf{P2-a -- MIA placement.} Controls whether MIA blocks are
+prepended or appended relative to the main encoder. Prerequisite:
+P2 = \texttt{true}.
+
+% ──────────────────────────────────────────────
+\subsection*{A \quad Attention and encoder block}
+
+A axes control the internal design of each encoder block.
+
+\textbf{A1 -- Normalisation policy.} Selects pre-norm, post-norm, or
+NormFormer placement of layer normalisation within each block. Tests
+whether normalisation position affects training stability for
+particle-level inputs.
+
+\textbf{A2 -- Normalisation type.} Chooses between LayerNorm and
+RMSNorm. Tests whether removing the mean-subtraction step improves
+efficiency without degrading performance.
+
+\textbf{A3 -- Attention type.} Selects standard multi-head attention
+or differential attention, which computes the difference of two softmax
+maps to suppress diffuse attention patterns. Tests whether this
+mechanism transfers from NLP to particle classification.
+
+\textbf{A3-a -- Differential bias mode.} When A3 =
+\texttt{differential}, controls how additive physics biases interact
+with the two attention branches: \texttt{none}, \texttt{shared}, or
+\texttt{split}. Prerequisite: A3 = \texttt{differential}.
+
+\textbf{A4 -- Attention-internal normalisation.} Optionally applies
+LayerNorm or RMSNorm per head after the weighted sum, before head
+merging. Tests whether per-head normalisation stabilises attention
+output scales. Applies to both standard and differential attention.
+
+\textbf{A5 -- Causal masking.} Optionally applies an autoregressive
+mask to the attention matrix. Tests whether imposing sequential
+structure on an inherently unordered set of particles hurts, helps,
+or is neutral.
+
+% ──────────────────────────────────────────────
+\subsection*{F \quad Encoder FFN realization}
+
+F axes control the feed-forward network inside each encoder block. The
+effective realization follows a priority rule: MoE $>$ KAN $>$ standard.
+
+\textbf{F1 -- FFN realization.} Selects between a standard two-layer
+MLP, a Kolmogorov--Arnold Network (KAN), and a Mixture-of-Experts (MoE)
+FFN. Tests whether learnable spline activations or conditional
+computation improve per-token transformations.
+
+\textbf{F1-a -- KAN FFN variant.} When F1 = \texttt{kan}, selects
+among \texttt{hybrid}, \texttt{bottleneck}, and \texttt{pure}
+architectures. Prerequisite: F1 = \texttt{kan}.
+
+\textbf{F1-b -- MoE scope.} Controls whether expert routing applies
+to encoder FFNs, the classifier head, or both. Prerequisite:
+F1 = \texttt{moe}.
+
+% ──────────────────────────────────────────────
+\subsection*{B \quad Physics-informed attention biases}
+
+B axes inject physics structure as additive biases on the attention
+logits. All families require T1 $\in$ \{raw, identity\} and share a
+zero-initialised scalar gate, so adding any bias leaves the baseline
+unchanged at initialisation. Multiple families can be active
+simultaneously using \texttt{+} notation.
+
+\textbf{B1 -- Bias activation set.} The master switch selecting which
+bias families are active: \texttt{lorentz\_scalar},
+\texttt{typepair\_kinematic}, \texttt{sm\_interaction},
+\texttt{global\_conditioned}, or combinations thereof.
+
+\textbf{B1-L1 -- Lorentz feature set.} Selects the subset of pairwise
+Lorentz-invariant features fed into the bias network, from the minimal
+set \{m$^2$, $\Delta R$\} through the MIParT basis to the full feature
+set. Active when \texttt{lorentz\_scalar} $\in$ B1.
+
+\textbf{B1-L2 -- Lorentz MLP type.} Selects whether the network
+mapping Lorentz features to bias scores uses a standard MLP or a KAN.
+Active when \texttt{lorentz\_scalar} $\in$ B1.
+
+\textbf{B1-L5 -- Lorentz sparse gating.} Adds per-feature sigmoid
+gates providing a direct measure of learned feature importance. Active
+when \texttt{lorentz\_scalar} $\in$ B1.
+
+\textbf{B1-T2 -- Type-pair initialisation.} Controls how the learnable
+$N_\text{type} \times N_\text{type}$ interaction table is initialised:
+from scratch, from a binary SM mask, or from fixed SM coupling
+constants. Active when \texttt{typepair\_kinematic} $\in$ B1.
+
+\textbf{B1-T3 -- Type-pair freeze.} Controls whether the type-pair
+table is frozen after initialisation or remains trainable. Tests
+whether the table is better used as a fixed physics prior or a
+learnable parameter. Active when \texttt{typepair\_kinematic} $\in$ B1.
+
+\textbf{B1-S1 -- SM interaction mode.} Selects the fidelity of the SM
+interaction prior: \texttt{binary}, \texttt{fixed\_coupling}, or
+\texttt{running\_coupling}. Active when \texttt{sm\_interaction}
+$\in$ B1.
+
+\textbf{B1-G1 -- Global-conditioned mode.} Controls how MET modulates
+pairwise attention biases: as a global scale factor or as a directional
+signal. Requires D02 = \texttt{true}. Active when
+\texttt{global\_conditioned} $\in$ B1.
+
+% ──────────────────────────────────────────────
+\subsection*{C \quad Classifier head}
+
+C axes control the final mapping from the pooled event representation
+to class logits.
+
+\textbf{C1 -- Head realization.} Selects between a \texttt{linear}
+head, a \texttt{kan} head, and a \texttt{moe} head. Tests whether
+specialised nonlinearities or conditional computation at the decision
+boundary improve discrimination.
+
+\textbf{C2 -- Pooling strategy.} Selects how the token sequence is
+aggregated into a single event-level vector: \texttt{cls} token,
+\texttt{mean} pooling, or \texttt{max} pooling. Placed here because
+pooling is logically part of the readout stage rather than the encoder
+block.
+
+% ──────────────────────────────────────────────
+\subsection*{H \quad Model-size hyperparameters}
+
+H axes set model capacity and are not architectural design choices in
+the sense of the other groups. They are tracked separately and are the
+primary axis of variation in Ch.\,9. The convenience key
+\texttt{model\_size\_key} bundles dim ($d$), depth ($L$), heads, and
+FFN hidden dim into named presets spanning roughly 50k to 4M
+parameters.
+
+% ──────────────────────────────────────────────
+\subsection*{Cross-cutting blocks: §K, §M, §S}
+
+Three shared parameter blocks are consumed simultaneously by multiple
+modules. §K (KAN hyperparameters: grid size, spline order, grid range)
+affects every active KAN module, including the encoder FFN, classifier
+head, and Lorentz bias network. §M (MoE hyperparameters: number of
+experts, top-k, routing level) affects all active MoE sites. §S (shared
+pairwise backbone) computes the pairwise feature matrix $F_{ij}$ once
+per forward pass and shares it across all active B1 families and the
+MIA pre-encoder.
+
+\section{Experimental methodology}
+
+Each axis is studied in isolation: one axis is varied across its
+settings while all others are held at their defaults, forming an
+orthogonal sweep. This ensures observed differences are attributable to
+the axis under study and keeps the number of required experiments
+linear in the number of axes rather than exponential.
+
+Every result reported in this thesis is averaged over at least three
+independently seeded runs, with error bars representing the standard
+deviation across seeds. The area under the ROC curve (AUROC) is the
+primary evaluation metric throughout: it measures the probability that
+the classifier assigns a higher score to a signal event than to a
+background event, and is threshold-independent. Signal efficiency at
+fixed background rejection is reported as a complementary metric in
+selected chapters.
+
+All runs are tracked in a Weights \& Biases project where every axis
+setting, hyperparameter, and evaluation metric is logged under a
+structured key scheme mirroring the axis reference directly.
