@@ -18,16 +18,20 @@ DRY_RUN=0
 STATUS_ONLY=0
 
 for arg in "$@"; do
-  [[ "$arg" == "--dry-run"  ]] && DRY_RUN=1
-  [[ "$arg" == "--status"   ]] && STATUS_ONLY=1
+  if [[ "$arg" == "--dry-run"  ]]; then DRY_RUN=1; fi
+  if [[ "$arg" == "--status"   ]]; then STATUS_ONLY=1; fi
 done
 
 condor_running() {
-  condor_q 2>/dev/null | grep "^[0-9]" | wc -l | tr -d ' '
+  local n
+  n=$(condor_q 2>/dev/null | grep -c "^[0-9]") || n=0
+  echo "$n"
 }
 
 pending_count() {
-  grep -c "^thesis_experiments" "$QUEUE" 2>/dev/null || echo 0
+  local n
+  n=$(grep -c "^thesis_experiments" "$QUEUE" 2>/dev/null) || n=0
+  echo "$n"
 }
 
 if [[ $STATUS_ONLY -eq 1 ]]; then
