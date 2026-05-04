@@ -13,7 +13,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 QUEUE="$SCRIPT_DIR/db_completeness_queue.txt"
-MAX_JOBS=4
+MAX_JOBS=3
 DRY_RUN=0
 STATUS_ONLY=0
 
