@@ -24,7 +24,8 @@ done
 
 condor_running() {
   local n
-  n=$(condor_q 2>/dev/null | grep -c "^[0-9]") || n=0
+  # HTCondor job lines look like "  123.0  owner ..." — match N.N with optional leading space
+  n=$(condor_q 2>/dev/null | grep -cE "^[[:space:]]*[0-9]+\.[0-9]") || n=0
   echo "$n"
 }
 
