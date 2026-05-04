@@ -4,5 +4,6 @@ defaults:
   - default
 
 use_wandb: true
+eval_v2_enabled: true
 wandb:
   mode: "online"

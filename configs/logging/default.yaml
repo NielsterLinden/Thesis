@@ -44,6 +44,7 @@ enable_tags: []  # e.g., ["core"]
 # - presets: logging=wandb_online / logging=wandb_offline
 # - or explicit overrides: logging.use_wandb=true|false, logging.wandb.mode=online|offline
 use_wandb: true
+eval_v2_enabled: true  # run benchmark inference and push eval_v2/* after training
 wandb:
   project: "${env.wandb_project}"
   entity: ""  # Set to your W&B username/team, or leave empty for default

@@ -1173,6 +1173,12 @@ def train(cfg: DictConfig) -> dict:
         step=int(cfg.classifier.trainer.epochs),
     )
 
+    # eval_v2: benchmark inference + push metrics to open W&B run (must run before finish_wandb)
+    if wandb_run is not None and outdir and cfg.logging.get("eval_v2_enabled", True):
+        from thesis_ml.utils.eval_v2 import run_eval_v2
+
+        run_eval_v2(wandb_run, Path(outdir), cfg, device)
+
     # Finish W&B run
     finish_wandb(wandb_run)
 
