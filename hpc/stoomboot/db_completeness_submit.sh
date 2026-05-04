@@ -23,8 +23,7 @@ for arg in "$@"; do
 done
 
 condor_running() {
-  # Count active HTCondor jobs for current user
-  condor_q 2>/dev/null | grep -c "^[0-9]" || echo 0
+  condor_q 2>/dev/null | grep "^[0-9]" | wc -l | tr -d ' '
 }
 
 pending_count() {
