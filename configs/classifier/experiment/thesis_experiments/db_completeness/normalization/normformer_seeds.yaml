@@ -1,21 +1,27 @@
 # @package _global_
 hydra:
   mode: MULTIRUN
+  job:
+    chdir: true
+    name: ${experiment.name}
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
   sweeper:
     params:
       classifier.trainer.seed: 42,123,314
-
 experiment:
-  name: "norm_normformer_seeds"
-
+  name: norm_normformer_seeds
 classifier:
   globals:
     include_met: false
   model:
-    dim: 256
-    depth: 6
-    heads: 8
-    mlp_dim: 1024
+    dim: 64
+    depth: 3
+    heads: 4
+    mlp_dim: 256
     dropout: 0.1
     tokenizer:
       name: identity
@@ -27,15 +33,20 @@ classifier:
   trainer:
     epochs: 50
     seed: 42
-
+    batch_size: 1024
 data:
   _struct_: false
   classifier:
     signal_vs_background:
       signal: 1
-      background: [2, 3, 4, 5]
+      background:
+      - 2
+      - 3
+      - 4
+      - 5
     selected_labels: null
-
 logging:
   wandb:
-    tags: ["cohort=db_completeness_2026_05", "sweep=normalization"]
+    tags:
+    - cohort=db_completeness_2026_05
+    - sweep=normalization

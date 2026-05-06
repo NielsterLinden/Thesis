@@ -146,8 +146,8 @@ condor_submit $SUB -append 'arguments = --manifest $(EVAL_MANIFEST_CSV) --out-di
 Merge shard CSVs for Stage C:
 
 ```bash
-python wandb_cleanup/eval_pipeline/merge_stage_b_shards.py \
-  --phase-dir /project/atlas/users/nterlind/Thesis-Code/wandb_cleanup/eval_pipeline/snapshots/2026-04-29_phase2
+python scripts/wandb/eval_pipeline/merge_stage_b_shards.py \
+  --phase-dir /project/atlas/users/nterlind/Thesis-Code/scripts/wandb/eval_pipeline/snapshots/2026-04-29_phase2
 ```
 
 ---

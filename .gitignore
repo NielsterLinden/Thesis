@@ -5,9 +5,10 @@ Thumbs.db
 .idea/
 .cursor/
 
-# AI tool files
+# Agent / AI tool caches and local state (do not commit — large binaries + noise)
+.agent-state/
+.claude/
 .cursorrules
-CLAUDE.md
 docs/archive/
 docs/AXES_AUDIT_LOG.md
 docs/*.plan.md
@@ -41,5 +42,14 @@ mlruns/
 hpc/stoomboot/*.log
 *.sub.backup
 hpc/stoomboot/.wandb_env
+**/.nfs*
 
-wandb_cleanup/eval_pipeline/snapshots/
+# W&B: GPU eval shards + large one-off exports / pilot dumps (keep code + small schema only)
+scripts/wandb/eval_pipeline/snapshots/
+scripts/wandb/archive/
+scripts/wandb/export/snapshots/
+phase2_upload_log.csv
+
+# Thesis results: only the frozen analysis CSV is tracked
+thesis_results/*
+!thesis_results/03_analysis_ready.csv

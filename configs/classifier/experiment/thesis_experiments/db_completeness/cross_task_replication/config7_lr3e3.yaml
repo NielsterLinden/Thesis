@@ -1,22 +1,28 @@
 # @package _global_
 hydra:
   mode: MULTIRUN
+  job:
+    chdir: true
+    name: ${experiment.name}
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
   sweeper:
     params:
-      data.classifier.selected_labels: "[1,2],[1,2,3,4,5]"
+      data.classifier.selected_labels: '[1,2],[1,2,3,4,5]'
       classifier.trainer.seed: 42,123
-
 experiment:
-  name: "config7_lr3e3"
-
+  name: config7_lr3e3
 classifier:
   globals:
     include_met: true
   model:
-    dim: 256
-    depth: 6
-    heads: 8
-    mlp_dim: 1024
+    dim: 64
+    depth: 3
+    heads: 4
+    mlp_dim: 256
     dropout: 0.1
     tokenizer:
       name: identity
@@ -26,14 +32,15 @@ classifier:
   trainer:
     epochs: 50
     seed: 42
-    lr: 3e-3
-
+    lr: 0.003
+    batch_size: 1024
 data:
   _struct_: false
   classifier:
     signal_vs_background: null
     selected_labels: null
-
 logging:
   wandb:
-    tags: ["cohort=db_completeness_2026_05", "sweep=cross_task_replication"]
+    tags:
+    - cohort=db_completeness_2026_05
+    - sweep=cross_task_replication

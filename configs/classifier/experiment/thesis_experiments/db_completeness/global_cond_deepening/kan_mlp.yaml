@@ -1,21 +1,27 @@
 # @package _global_
 hydra:
   mode: MULTIRUN
+  job:
+    chdir: true
+    name: ${experiment.name}
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
   sweeper:
     params:
       classifier.model.bias_config.global_conditioned.mode: met_direction,global_scale
-
 experiment:
-  name: "gc_kan_mlp"
-
+  name: gc_kan_mlp
 classifier:
   globals:
     include_met: true
   model:
-    dim: 256
-    depth: 6
-    heads: 8
-    mlp_dim: 1024
+    dim: 64
+    depth: 2
+    heads: 4
+    mlp_dim: 256
     dropout: 0.1
     tokenizer:
       name: identity
@@ -26,18 +32,26 @@ classifier:
     bias_config:
       global_conditioned:
         mlp_type: kan
+    kan:
+      grid_size: 3
+      spline_order: 2
   trainer:
     epochs: 50
     seed: 42
-
+    batch_size: 1024
 data:
   _struct_: false
   classifier:
     signal_vs_background:
       signal: 1
-      background: [2, 3, 4, 5]
+      background:
+      - 2
+      - 3
+      - 4
+      - 5
     selected_labels: null
-
 logging:
   wandb:
-    tags: ["cohort=db_completeness_2026_05", "sweep=global_cond_deepening"]
+    tags:
+    - cohort=db_completeness_2026_05
+    - sweep=global_cond_deepening

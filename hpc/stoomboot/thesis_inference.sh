@@ -22,7 +22,7 @@ echo "Python version: $(python --version)"
 
 export PYTHONPATH=/project/atlas/users/nterlind/Thesis-Code/src
 echo "Starting stage_b_inference.py ..."
-python wandb_cleanup/eval_pipeline/stage_b_inference.py "$@"
+python scripts/wandb/eval_pipeline/stage_b_inference.py "$@"
 
 EXIT_CODE=$?
 echo "Job completed at: $(date) with exit code: $EXIT_CODE"

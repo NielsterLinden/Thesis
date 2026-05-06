@@ -1,7 +1,6 @@
 """Tier-1 metrics for the eval_v2 pipeline.
 
-Moved from wandb_cleanup/eval_pipeline/metrics_eval.py so both the inline
-training path and the batch backfill share one implementation.
+Shared by inline training and ``scripts/wandb/eval_pipeline`` batch inference.
 """
 
 from __future__ import annotations

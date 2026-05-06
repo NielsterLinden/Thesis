@@ -1,18 +1,24 @@
 # @package _global_
 hydra:
   mode: MULTIRUN
-
+  job:
+    chdir: true
+    name: ${experiment.name}
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
 experiment:
-  name: "fo_token_order_ttH"
-
+  name: fo_token_order_ttH
 classifier:
   globals:
     include_met: true
   model:
-    dim: 256
-    depth: 6
-    heads: 8
-    mlp_dim: 1024
+    dim: 64
+    depth: 3
+    heads: 4
+    mlp_dim: 256
     dropout: 0.1
     tokenizer:
       name: identity
@@ -22,13 +28,16 @@ classifier:
   trainer:
     epochs: 50
     seed: 42
-
+    batch_size: 1024
 data:
   _struct_: false
   sort_tokens_by: pt
   classifier:
-    selected_labels: [1, 2]
-
+    selected_labels:
+    - 1
+    - 2
 logging:
   wandb:
-    tags: ["cohort=db_completeness_2026_05", "sweep=features_and_ordering"]
+    tags:
+    - cohort=db_completeness_2026_05
+    - sweep=features_and_ordering

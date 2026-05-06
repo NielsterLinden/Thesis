@@ -1,0 +1,516 @@
+column_name,kind
+_runtime,summary
+_step,summary
+_timestamp,summary
+_wandb,summary
+data/seq_length_tokens,summary
+epoch,summary
+interpretability/lambda/layer_0,summary
+interpretability/lambda/layer_1,summary
+interpretability/lambda/layer_2,summary
+interpretability/lambda/layer_3,summary
+interpretability/lambda/layer_4,summary
+interpretability/lambda/layer_5,summary
+model/num_parameters,summary
+moe/train_aux_loss,summary
+moe/train_expert_utilization,summary
+moe/val_aux_loss,summary
+moe/val_expert_utilization,summary
+perf/data_time_s,summary
+perf/epoch_time_s,summary
+perf/epoch_total_s,summary
+perf/eval_time_s,summary
+perf/max_memory_mib,summary
+perf/throughput,summary
+perf/throughput_samples_sec,summary
+perf/train_time_s,summary
+test/acc,summary
+test/auroc,summary
+test/f1,summary
+test/loss,summary
+test/perplex,summary
+test/rec_tokens,summary
+train/acc,summary
+train/f1,summary
+train/loss,summary
+train/perplex,summary
+train/rec_tokens,summary
+training/lr_current,summary
+val/acc,summary
+val/auroc,summary
+val/codebook,summary
+val/f1,summary
+val/loss,summary
+val/perplex,summary
+val/rec_globals,summary
+val/rec_tokens,summary
+_wandb,config
+ae/globals_beta,config
+attention/diff_bias_mode,config
+attention/norm,config
+attention/type,config
+axes/A1_Normalization Policy,config
+axes/A2_Normalization Type,config
+axes/A3-a_Differential Attention Bias Mode,config
+axes/A3_Attention Type,config
+axes/A4_Attention Internal Normalization,config
+axes/A5_Causal Masking,config
+axes/B1-G1_Global-Conditioned Mode,config
+axes/B1-G2_Global-Conditioned MLP Type,config
+axes/B1-G3_Global-Conditioned Global Dimension,config
+axes/B1-L1_Lorentz Feature Set,config
+axes/B1-L2_Lorentz MLP Type,config
+axes/B1-L3_Lorentz Hidden Dimension,config
+axes/B1-L4_Lorentz Per-Head Mode,config
+axes/B1-L5_Lorentz Sparse Gating,config
+axes/B1-S1_SM Interaction Mode,config
+axes/B1-S2_SM Mask Value,config
+axes/B1-T1_Type-Pair Initialization,config
+axes/B1-T2_Type-Pair Freeze Table,config
+axes/B1-T3_Type-Pair Kinematic Gate,config
+axes/B1-T4_Type-Pair Kinematic Feature,config
+axes/B1-T5_Type-Pair Mask Value,config
+axes/B1_Bias Activation Set,config
+axes/C1_Head Realization,config
+axes/C2_Pooling Strategy,config
+axes/D1_Feature Set,config
+axes/D2_MET Treatment,config
+axes/D3_Token Ordering,config
+axes/E1-a1_PE Dimension Mask,config
+axes/E1-a_PE Space,config
+axes/E1-b_Rotary Base Frequency,config
+axes/E1_PE Type,config
+axes/F1-a1_KAN FFN Bottleneck Dimension,config
+axes/F1-a_KAN FFN Variant,config
+axes/F1-b_MoE Encoder Scope,config
+axes/F1-eff_FFN Realization,config
+axes/F1-moe_MoE Enabled,config
+axes/F1_FFN Type,config
+axes/G1_Task Type,config
+axes/G2_Model Family,config
+axes/G3_Classification Task,config
+axes/H10_Model Size Label,config
+axes/H1_Model Dimension,config
+axes/H2_Encoder Depth,config
+axes/H3_Attention Heads,config
+axes/H4_FFN Hidden Dimension,config
+axes/H5_Dropout,config
+axes/K1_KAN Grid Size,config
+axes/K2_KAN Spline Order,config
+axes/K3_KAN Grid Range,config
+axes/K4_KAN Spline Regularization Weight,config
+axes/K5_KAN Grid Update Frequency,config
+axes/L1_Log PID Embeddings,config
+axes/L2_Interpretability Enabled,config
+axes/L3_Save Attention Maps,config
+axes/L4_Save KAN Splines,config
+axes/L5_Save MoE Routing,config
+axes/L6_Save Gradient Norms,config
+axes/L7_Checkpoint Epochs,config
+axes/M1_MoE Number of Experts,config
+axes/M2_MoE Top K,config
+axes/M3_MoE Routing Level,config
+axes/M4_MoE Load Balance Weight,config
+axes/M5_MoE Noisy Gating,config
+axes/P1-a_Nodewise Mass Neighbourhood Sizes,config
+axes/P1-b_Nodewise Mass Hidden Dimension,config
+axes/P1_Nodewise Mass Enabled,config
+axes/P2-a_MIA Placement,config
+axes/P2-b_MIA Number of Blocks,config
+axes/P2-c_MIA Interaction Dimension,config
+axes/P2-d_MIA Reduction Dimension,config
+axes/P2-e_MIA Dropout,config
+axes/P2_MIA Pre-Encoder Enabled,config
+axes/R10_Early Stop Enabled,config
+axes/R11_Early Stop Patience,config
+axes/R12_Early Stop Min Delta,config
+axes/R13_Restore Best Weights,config
+axes/R14_PID Schedule Mode,config
+axes/R15_PID Transition Epoch,config
+axes/R16_PID Reinit Mode,config
+axes/R17_PID Separate LR,config
+axes/R1_Epochs,config
+axes/R2_Learning Rate,config
+axes/R3_Weight Decay,config
+axes/R4_Batch Size,config
+axes/R5_Seed,config
+axes/R6_Warmup Steps,config
+axes/R7_LR Schedule,config
+axes/R8_Label Smoothing,config
+axes/R9_Gradient Clipping,config
+axes/S1_Shared Backbone Enabled,config
+axes/S2_Shared Backbone Features,config
+axes/T1-a_PID Embedding Mode,config
+axes/T1-b_PID Embedding Dimension,config
+axes/T1-c_Pretrained Model Type,config
+axes/T1_Tokenizer Family,config
+axes/attention_biases,config
+axes/attention_norm,config
+axes/attention_type,config
+axes/batch_size,config
+axes/causal_attention,config
+axes/cont_features,config
+axes/depth,config
+axes/diff_bias_mode,config
+axes/dim,config
+axes/dropout,config
+axes/epochs,config
+axes/experiment_name,config
+axes/ffn_type,config
+axes/global_conditioned_mode,config
+axes/head_type,config
+axes/heads,config
+axes/id_embed_dim,config
+axes/include_met,config
+axes/kan_ffn_variant,config
+axes/kan_grid_size,config
+axes/kan_spline_order,config
+axes/lorentz_features,config
+axes/lorentz_mlp_type,config
+axes/lorentz_per_head,config
+axes/lorentz_sparse_gating,config
+axes/lr,config
+axes/mia_enabled,config
+axes/mia_placement,config
+axes/mlp_dim,config
+axes/model_size_key,config
+axes/moe_enabled,config
+axes/moe_routing_level,config
+axes/moe_scope,config
+axes/moe_top_k,config
+axes/nodewise_mass_enabled,config
+axes/norm_policy,config
+axes/norm_type,config
+axes/pid_mode,config
+axes/pooling,config
+axes/positional,config
+axes/positional_dim_mask,config
+axes/positional_space,config
+axes/seed,config
+axes/sm_mode,config
+axes/token_order,config
+axes/tokenizer_name,config
+axes/typepair_freeze,config
+axes/typepair_init,config
+axes/typepair_kinematic_gate,config
+axes/weight_decay,config
+bias/global_mode,config
+bias/lorentz_features,config
+bias/lorentz_per_head,config
+bias/lorentz_sparse_gating,config
+bias/selector,config
+bias/sm_mode,config
+bias/typepair_freeze,config
+bias/typepair_init,config
+bias/typepair_kinematic_gate,config
+data/cont_features,config
+data/name,config
+data/shuffle_tokens,config
+data/token_order,config
+early_stop/enabled,config
+early_stop/patience,config
+ffn/kan_variant,config
+ffn/type,config
+globals/include_met,config
+head/type,config
+kan/bias_global_mlp_type,config
+kan/bias_lorentz_mlp_type,config
+kan/grid_range,config
+kan/grid_size,config
+kan/grid_update_freq,config
+kan/spline_order,config
+kan/spline_reg_weight,config
+meta.class_def_str,config
+meta.dataset_name,config
+meta.datatreatment,config
+meta.datatreatment_feature_set_version,config
+meta.datatreatment_globals_included,config
+meta.datatreatment_id_embed_dim,config
+meta.datatreatment_met_rep,config
+meta.datatreatment_normalization,config
+meta.datatreatment_pid_encoding,config
+meta.datatreatment_token_order,config
+meta.datatreatment_tokenization,config
+meta.feature_mode,config
+meta.goal,config
+meta.level,config
+meta.meta_confidence,config
+meta.meta_hash,config
+meta.model_family,config
+meta.n_classes,config
+meta.needs_review,config
+meta.process_groups,config
+meta.process_groups_key,config
+meta.row_key,config
+meta.schema_version,config
+mia/enabled,config
+mia/num_blocks,config
+mia/placement,config
+model/activation,config
+model/bdt_lr,config
+model/causal_attention,config
+model/colsample_bytree,config
+model/depth,config
+model/dim,config
+model/dropout,config
+model/heads,config
+model/hidden_sizes,config
+model/loop,config
+model/max_depth,config
+model/mlp_dim,config
+model/n_estimators,config
+model/n_layers,config
+model/params_est,config
+model/size_key,config
+model/size_label,config
+model/subsample,config
+model/type,config
+model/use_batch_norm,config
+moe/enabled,config
+moe/lb_weight,config
+moe/noisy_gating,config
+moe/num_experts,config
+moe/routing_level,config
+moe/scope,config
+moe/top_k,config
+nodewise_mass/enabled,config
+nodewise_mass/k_values,config
+norm/policy,config
+norm/type,config
+pid/schedule_mode,config
+pid/transition_epoch,config
+pooling/type,config
+pos_enc/dim_mask,config
+pos_enc/rotary_base,config
+pos_enc/space,config
+pos_enc/type,config
+raw/classifier/globals/include_met,config
+raw/classifier/model/attention/diff_bias_mode,config
+raw/classifier/model/attention/norm,config
+raw/classifier/model/attention/type,config
+raw/classifier/model/attention_biases,config
+raw/classifier/model/attn_pairwise/enabled,config
+raw/classifier/model/attn_pairwise/features,config
+raw/classifier/model/attn_pairwise/hidden_dim,config
+raw/classifier/model/attn_pairwise/per_head,config
+raw/classifier/model/attn_pairwise/per_layer,config
+raw/classifier/model/bias_config/global_conditioned/global_dim,config
+raw/classifier/model/bias_config/global_conditioned/mlp_type,config
+raw/classifier/model/bias_config/global_conditioned/mode,config
+raw/classifier/model/bias_config/lorentz_scalar/features,config
+raw/classifier/model/bias_config/lorentz_scalar/hidden_dim,config
+raw/classifier/model/bias_config/lorentz_scalar/mlp_type,config
+raw/classifier/model/bias_config/lorentz_scalar/per_head,config
+raw/classifier/model/bias_config/lorentz_scalar/sparse_gating,config
+raw/classifier/model/bias_config/sm_interaction/mask_value,config
+raw/classifier/model/bias_config/sm_interaction/mode,config
+raw/classifier/model/bias_config/typepair_kinematic/freeze_table,config
+raw/classifier/model/bias_config/typepair_kinematic/init_from_physics,config
+raw/classifier/model/bias_config/typepair_kinematic/kinematic_feature,config
+raw/classifier/model/bias_config/typepair_kinematic/kinematic_gate,config
+raw/classifier/model/bias_config/typepair_kinematic/mask_value,config
+raw/classifier/model/causal_attention,config
+raw/classifier/model/depth,config
+raw/classifier/model/dim,config
+raw/classifier/model/dropout,config
+raw/classifier/model/ffn/kan/variant,config
+raw/classifier/model/ffn/type,config
+raw/classifier/model/head/pooling,config
+raw/classifier/model/head/type,config
+raw/classifier/model/heads,config
+raw/classifier/model/hidden_sizes,config
+raw/classifier/model/kan/grid_range,config
+raw/classifier/model/kan/grid_size,config
+raw/classifier/model/kan/grid_update_freq,config
+raw/classifier/model/kan/spline_order,config
+raw/classifier/model/kan/spline_regularization_weight,config
+raw/classifier/model/mia_blocks/dropout,config
+raw/classifier/model/mia_blocks/enabled,config
+raw/classifier/model/mia_blocks/interaction_dim,config
+raw/classifier/model/mia_blocks/num_blocks,config
+raw/classifier/model/mia_blocks/placement,config
+raw/classifier/model/mia_blocks/reduction_dim,config
+raw/classifier/model/mlp_dim,config
+raw/classifier/model/moe/enabled,config
+raw/classifier/model/moe/load_balance_loss_weight,config
+raw/classifier/model/moe/noisy_gating,config
+raw/classifier/model/moe/num_experts,config
+raw/classifier/model/moe/routing_level,config
+raw/classifier/model/moe/scope,config
+raw/classifier/model/moe/top_k,config
+raw/classifier/model/nodewise_mass/enabled,config
+raw/classifier/model/nodewise_mass/hidden_dim,config
+raw/classifier/model/nodewise_mass/k_values,config
+raw/classifier/model/norm/policy,config
+raw/classifier/model/norm/type,config
+raw/classifier/model/pooling,config
+raw/classifier/model/positional,config
+raw/classifier/model/positional_space,config
+raw/classifier/model/rotary/base,config
+raw/classifier/model/shared_backbone/enabled,config
+raw/classifier/model/shared_backbone/features,config
+raw/classifier/model/tokenizer/id_embed_dim,config
+raw/classifier/model/tokenizer/name,config
+raw/classifier/model/tokenizer/pid_mode,config
+raw/classifier/selected_labels,config
+raw/classifier/trainer/batch_size,config
+raw/classifier/trainer/early_stopping/enabled,config
+raw/classifier/trainer/early_stopping/min_delta,config
+raw/classifier/trainer/early_stopping/patience,config
+raw/classifier/trainer/early_stopping/restore_best_weights,config
+raw/classifier/trainer/epochs,config
+raw/classifier/trainer/grad_clip,config
+raw/classifier/trainer/interpretability/checkpoint_epochs,config
+raw/classifier/trainer/interpretability/enabled,config
+raw/classifier/trainer/interpretability/save_attention_maps,config
+raw/classifier/trainer/interpretability/save_differential_lambda,config
+raw/classifier/trainer/interpretability/save_gradient_norms,config
+raw/classifier/trainer/interpretability/save_kan_splines,config
+raw/classifier/trainer/interpretability/save_moe_routing,config
+raw/classifier/trainer/label_smoothing,config
+raw/classifier/trainer/log_pid_embeddings,config
+raw/classifier/trainer/lr,config
+raw/classifier/trainer/lr_schedule,config
+raw/classifier/trainer/metrics,config
+raw/classifier/trainer/pid_schedule/mode,config
+raw/classifier/trainer/pid_schedule/reinit_mode,config
+raw/classifier/trainer/pid_schedule/transition_epoch,config
+raw/classifier/trainer/seed,config
+raw/classifier/trainer/warmup_steps,config
+raw/classifier/trainer/weight_decay,config
+raw/cont_features,config
+raw/data/_struct_,config
+raw/data/classifier/selected_labels,config
+raw/data/classifier/signal_vs_background/background,config
+raw/data/classifier/signal_vs_background/signal,config
+raw/data/cont_features,config
+raw/data/datasets/x_test,config
+raw/data/datasets/x_train,config
+raw/data/datasets/x_val,config
+raw/data/datasets/y_test,config
+raw/data/datasets/y_train,config
+raw/data/datasets/y_val,config
+raw/data/globals/present,config
+raw/data/globals/size,config
+raw/data/limit_samples,config
+raw/data/n_tokens,config
+raw/data/norm,config
+raw/data/num_workers,config
+raw/data/path,config
+raw/data/seed,config
+raw/data/shuffle_tokens,config
+raw/data/use_binned_tokens,config
+raw/datasets/x_test,config
+raw/datasets/x_train,config
+raw/datasets/x_val,config
+raw/datasets/y_test,config
+raw/datasets/y_train,config
+raw/datasets/y_val,config
+raw/env/data_root,config
+raw/env/output_root,config
+raw/env/vq_checkpoint_path,config
+raw/env/vq_checkpoint_path_4vec,config
+raw/env/vq_checkpoint_path_5vec,config
+raw/env/wandb_project,config
+raw/experiment/name,config
+raw/general/trainer/batch_size,config
+raw/general/trainer/device,config
+raw/general/trainer/epochs,config
+raw/general/trainer/lr,config
+raw/general/trainer/num_workers,config
+raw/general/trainer/weight_decay,config
+raw/globals/present,config
+raw/globals/size,config
+raw/limit_samples,config
+raw/logging/destinations,config
+raw/logging/dpi,config
+raw/logging/dry_run,config
+raw/logging/enable_tags,config
+raw/logging/families/adversarial,config
+raw/logging/families/codebook,config
+raw/logging/families/diffusion,config
+raw/logging/families/latency/enabled,config
+raw/logging/families/latency/mode,config
+raw/logging/families/losses,config
+raw/logging/families/metrics,config
+raw/logging/families/recon/enabled,config
+raw/logging/families/recon/mode,config
+raw/logging/fig_format,config
+raw/logging/figures_subdir,config
+raw/logging/file_naming,config
+raw/logging/make_plots,config
+raw/logging/moments/on_epoch_end_quick,config
+raw/logging/moments/on_test_end,config
+raw/logging/moments/on_train_end_full,config
+raw/logging/moments/on_validation_end,config
+raw/logging/output_root,config
+raw/logging/save_artifacts,config
+raw/logging/show_plots,config
+raw/logging/tags/core,config
+raw/logging/tags/diagnostics,config
+raw/logging/tags/heavy,config
+raw/logging/use_wandb,config
+raw/logging/wandb/dir,config
+raw/logging/wandb/entity,config
+raw/logging/wandb/group,config
+raw/logging/wandb/log_artifacts,config
+raw/logging/wandb/log_freq,config
+raw/logging/wandb/mode,config
+raw/logging/wandb/project,config
+raw/logging/wandb/run_name,config
+raw/logging/wandb/tags,config
+raw/logging/wandb/watch_model,config
+raw/loop,config
+raw/meta/goal,config
+raw/meta/has_globals,config
+raw/meta/level,config
+raw/meta/n_classes,config
+raw/meta/n_tokens,config
+raw/meta/num_types,config
+raw/meta/schema_version,config
+raw/meta/token_feat_dim,config
+raw/meta/vocab_size,config
+raw/n_tokens,config
+raw/norm,config
+raw/num_workers,config
+raw/path,config
+raw/phase1/decoder/_target_,config
+raw/phase1/decoder/activation,config
+raw/phase1/decoder/dec_hidden,config
+raw/phase1/decoder/dropout,config
+raw/phase1/decoder/globals_beta,config
+raw/phase1/decoder/globals_head,config
+raw/phase1/decoder/globals_hidden,config
+raw/phase1/encoder/_target_,config
+raw/phase1/encoder/activation,config
+raw/phase1/encoder/dropout,config
+raw/phase1/encoder/enc_hidden,config
+raw/phase1/encoder/id_embed_dim,config
+raw/phase1/latent_space/_target_,config
+raw/phase1/latent_space/latent_dim,config
+raw/phase1/trainer/batch_size,config
+raw/phase1/trainer/epochs,config
+raw/phase1/trainer/grad_clip,config
+raw/phase1/trainer/lr,config
+raw/phase1/trainer/seed,config
+raw/phase1/trainer/weight_decay,config
+raw/seed,config
+raw/use_binned_tokens,config
+recovery/broken_wandb_id,config
+recovery/config_only,config
+recovery/facts_run_folder,config
+recovery/name_suffix,config
+source/location,config
+source/run_dir,config
+tokenizer/id_embed_dim,config
+tokenizer/pid_mode,config
+tokenizer/type,config
+training/batch_size,config
+training/epochs,config
+training/grad_clip,config
+training/label_smoothing,config
+training/lr,config
+training/lr_schedule,config
+training/seed,config
+training/warmup_steps,config
+training/weight_decay,config

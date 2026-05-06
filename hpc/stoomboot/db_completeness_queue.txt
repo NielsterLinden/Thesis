@@ -1,21 +1,21 @@
 # ── Sweep 1: seed_noise_floor (24 runs, 3 jobs) ──
-thesis_experiments/db_completeness/seed_noise_floor/d256_l6
-thesis_experiments/db_completeness/seed_noise_floor/d128_l8
-thesis_experiments/db_completeness/seed_noise_floor/d64_l6
+DONE: thesis_experiments/db_completeness/seed_noise_floor/d256_l6
+DONE: thesis_experiments/db_completeness/seed_noise_floor/d128_l8
+DONE: thesis_experiments/db_completeness/seed_noise_floor/d64_l6
 
 # ── Sweep 2: kan_hyperparameters (28 runs, 12+ jobs) ──
-thesis_experiments/db_completeness/kan_hyperparameters/k1_grid
-thesis_experiments/db_completeness/kan_hyperparameters/k2_order
-thesis_experiments/db_completeness/kan_hyperparameters/k1k2_corners/corner_3_2
-thesis_experiments/db_completeness/kan_hyperparameters/k1k2_corners/corner_3_4
-thesis_experiments/db_completeness/kan_hyperparameters/k1k2_corners/corner_8_2
-thesis_experiments/db_completeness/kan_hyperparameters/k1k2_corners/corner_8_4
-thesis_experiments/db_completeness/kan_hyperparameters/k1k2_corners/corner_12_3
-thesis_experiments/db_completeness/kan_hyperparameters/k4_reg
-thesis_experiments/db_completeness/kan_hyperparameters/k5_update
-thesis_experiments/db_completeness/kan_hyperparameters/k3_range
-thesis_experiments/db_completeness/kan_hyperparameters/variants
-thesis_experiments/db_completeness/kan_hyperparameters/bottleneck_d128
+DONE: thesis_experiments/db_completeness/kan_hyperparameters/k1_grid
+DONE: thesis_experiments/db_completeness/kan_hyperparameters/k2_order
+DONE: thesis_experiments/db_completeness/kan_hyperparameters/k1k2_corners/corner_3_2
+DONE: thesis_experiments/db_completeness/kan_hyperparameters/k1k2_corners/corner_3_4
+DONE: thesis_experiments/db_completeness/kan_hyperparameters/k1k2_corners/corner_8_2
+DONE: thesis_experiments/db_completeness/kan_hyperparameters/k1k2_corners/corner_8_4
+DONE: thesis_experiments/db_completeness/kan_hyperparameters/k1k2_corners/corner_12_3
+DONE: thesis_experiments/db_completeness/kan_hyperparameters/k4_reg
+DONE: thesis_experiments/db_completeness/kan_hyperparameters/k5_update
+DONE: thesis_experiments/db_completeness/kan_hyperparameters/k3_range
+DONE: thesis_experiments/db_completeness/kan_hyperparameters/variants
+DONE: thesis_experiments/db_completeness/kan_hyperparameters/bottleneck_d128
 
 # ── Sweep 3: moe_hyperparameters (22 runs, 8 jobs) ──
 thesis_experiments/db_completeness/moe_hyperparameters/m1_experts

@@ -1,7 +1,6 @@
 """Inference latency micro-benchmark (GPU).
 
-Moved from wandb_cleanup/eval_pipeline/_latency_bench.py so both the inline
-training path and the batch backfill share one implementation.
+Shared by inline training and ``scripts/wandb/eval_pipeline`` batch inference.
 """
 
 from __future__ import annotations

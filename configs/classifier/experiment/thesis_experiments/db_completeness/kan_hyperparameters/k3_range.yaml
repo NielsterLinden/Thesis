@@ -1,20 +1,27 @@
 # @package _global_
 hydra:
   mode: MULTIRUN
+  job:
+    chdir: true
+    name: ${experiment.name}
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
   sweeper:
     params:
-      classifier.model.kan.grid_range: "[-1,1],[-4,4],[-8,8]"
+      classifier.model.kan.grid_range: '[-1,1],[-4,4],[-8,8]'
 experiment:
-  name: "kan_k3_range"
-
+  name: kan_k3_range
 classifier:
   globals:
     include_met: false
   model:
-    dim: 256
-    depth: 6
-    heads: 8
-    mlp_dim: 1024
+    dim: 36
+    depth: 2
+    heads: 4
+    mlp_dim: 144
     dropout: 0.1
     tokenizer:
       name: identity
@@ -25,18 +32,26 @@ classifier:
       type: kan
       kan:
         variant: hybrid
+    kan:
+      grid_size: 2
+      spline_order: 2
   trainer:
     epochs: 50
     seed: 42
-
+    batch_size: 1024
 data:
   _struct_: false
   classifier:
     signal_vs_background:
       signal: 1
-      background: [2, 3, 4, 5]
+      background:
+      - 2
+      - 3
+      - 4
+      - 5
     selected_labels: null
-
 logging:
   wandb:
-    tags: ["cohort=db_completeness_2026_05", "sweep=kan_hyperparameters"]
+    tags:
+    - cohort=db_completeness_2026_05
+    - sweep=kan_hyperparameters

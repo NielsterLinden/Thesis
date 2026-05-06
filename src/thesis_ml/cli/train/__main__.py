@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import hydra
@@ -20,6 +21,11 @@ CONFIGS_DIR = REPO_ROOT / "configs"
 
 @hydra.main(config_path=str(CONFIGS_DIR), config_name="config", version_base="1.3")
 def main(cfg: DictConfig):
+    if os.environ.get("THESIS_CUDA_MPS") == "1":
+        pipe = os.environ.get("CUDA_MPS_PIPE_DIRECTORY", "")
+        logd = os.environ.get("CUDA_MPS_LOG_DIRECTORY", "")
+        print(f"[thesis_ml.cli.train] THESIS_CUDA_MPS=1 pipe={pipe!r} log={logd!r}")
+
     # Guardrail: catch legacy config keys from pre-refactor code
     bad = []
     if "phase1" in cfg:

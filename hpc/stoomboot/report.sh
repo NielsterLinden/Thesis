@@ -10,8 +10,11 @@ echo "Job ID: ${CONDOR_JOB_ID:-N/A}"
 # Navigate to code directory
 cd /project/atlas/users/nterlind/Thesis-Code
 
-# WandB: write local files to large filesystem (not project dir, avoids quota)
+# WandB: write local files to large filesystem (not project dir, avoids quota).
+WANDB_CACHE_ROOT=/data/atlas/users/nterlind/outputs/wandb_cache
+mkdir -p "$WANDB_CACHE_ROOT"
 export WANDB_DIR=/data/atlas/users/nterlind/outputs/wandb
+export WANDB_CACHE_DIR="$WANDB_CACHE_ROOT"
 export WANDB_MODE=online
 
 # Activate conda environment

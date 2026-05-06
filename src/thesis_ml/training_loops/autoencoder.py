@@ -40,7 +40,9 @@ def _gather_meta(cfg: DictConfig, ds_meta: Mapping[str, Any]) -> None:
 
 def train(cfg: DictConfig):
     set_all_seeds(cfg.phase1.trainer.seed)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if not torch.cuda.is_available():
+        raise RuntimeError("CUDA unavailable — job must run on an NVIDIA GPU node.")
+    device = torch.device("cuda")
 
     # data
     train_dl, val_dl, test_dl, meta = make_dataloaders(cfg)

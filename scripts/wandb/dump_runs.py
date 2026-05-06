@@ -14,7 +14,7 @@ reads this file instead of calling the API.
 
 Output formats
 --------------
-Primary: ``wandb_cleanup/wandb_dump.jsonl`` — one JSON object per run,
+Primary: ``/data/atlas/users/nterlind/wandb_dump.jsonl`` — one JSON object per run,
 preserving nested dicts. Fields per line:
 
 .. code-block:: json
@@ -44,16 +44,16 @@ Usage
 -----
 .. code-block:: bash
 
-    # Full project dump (default output: wandb_cleanup/wandb_dump.jsonl)
+    # Full project dump (default under /data/atlas/users/nterlind/)
     python scripts/wandb/dump_runs.py
 
     # Custom output path + CSV companion
     python scripts/wandb/dump_runs.py \
-        --out wandb_cleanup/wandb_dump.jsonl --csv
+        --out /data/atlas/users/nterlind/wandb_dump.jsonl --csv
 
     # Limit to the first 20 runs (quick smoke)
     python scripts/wandb/dump_runs.py --limit 20 \
-        --out wandb_cleanup/wandb_dump_smoke.jsonl
+        --out /data/atlas/users/nterlind/wandb_dump_smoke.jsonl
 """
 
 from __future__ import annotations
@@ -256,8 +256,8 @@ def main() -> int:
     ap.add_argument("--project", default=os.environ.get("WANDB_PROJECT", "thesis-ml"))
     ap.add_argument(
         "--out",
-        default="wandb_cleanup/wandb_dump.jsonl",
-        help="Output JSONL path (default: wandb_cleanup/wandb_dump.jsonl)",
+        default="/data/atlas/users/nterlind/wandb_dump.jsonl",
+        help="Output JSONL path (default: /data/atlas/users/nterlind/wandb_dump.jsonl)",
     )
     ap.add_argument("--csv", action="store_true", help="Also emit a flat CSV at <out>.csv (lossy on nested values)")
     ap.add_argument("--limit", type=int, default=None, help="Dump only the first N runs")

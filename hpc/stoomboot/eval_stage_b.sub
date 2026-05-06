@@ -4,8 +4,8 @@
 universe       = vanilla
 executable     = hpc/stoomboot/thesis_inference.sh
 
-EVAL_MANIFEST_CSV = /project/atlas/users/nterlind/Thesis-Code/wandb_cleanup/eval_pipeline/snapshots/2026-04-29_phase2/00_eval_manifest.csv
-EVAL_PHASE_DIR    = /project/atlas/users/nterlind/Thesis-Code/wandb_cleanup/eval_pipeline/snapshots/2026-04-29_phase2
+EVAL_MANIFEST_CSV = /project/atlas/users/nterlind/Thesis-Code/scripts/wandb/eval_pipeline/snapshots/2026-04-29_phase2/00_eval_manifest.csv
+EVAL_PHASE_DIR    = /project/atlas/users/nterlind/Thesis-Code/scripts/wandb/eval_pipeline/snapshots/2026-04-29_phase2
 ROW_COUNT         = 100
 
 arguments      =

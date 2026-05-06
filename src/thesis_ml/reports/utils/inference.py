@@ -23,7 +23,9 @@ def _resolve_device(device: str | None = None) -> torch.device:
     """Resolve device from string or auto-select."""
     if device is not None:
         return torch.device(device)
-    return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if not torch.cuda.is_available():
+        raise RuntimeError("CUDA unavailable — inference requires an NVIDIA GPU node.")
+    return torch.device("cuda")
 
 
 def load_cfg_from_run_dir(run_dir: Path | str) -> Any:

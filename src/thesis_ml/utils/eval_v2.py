@@ -337,19 +337,21 @@ def _run_eval_v2_inner(wandb_run: Any, run_dir: Path, cfg: Any, device: torch.de
         first = next(iter(test_dl))
         bf: dict[int, tuple] = {}
         for bsz in _LATENCY_BATCH_SIZES:
+            # Replicate ONE sample bsz times — not the whole loader batch
+            # (otherwise bsz=512 with a 256-sample loader allocates 131k tokens → OOM).
             tiles = [first] * bsz
             if len(first) == 5:
-                tc = torch.cat([t[0] for t in tiles], dim=0)
-                tid = torch.cat([t[1] for t in tiles], dim=0)
-                gl = torch.cat([t[2] for t in tiles], dim=0)
-                ms = torch.cat([t[3] for t in tiles], dim=0)
-                lb = torch.cat([t[4] for t in tiles], dim=0)
+                tc = torch.cat([t[0][:1] for t in tiles], dim=0)
+                tid = torch.cat([t[1][:1] for t in tiles], dim=0)
+                gl = torch.cat([t[2][:1] for t in tiles], dim=0)
+                ms = torch.cat([t[3][:1] for t in tiles], dim=0)
+                lb = torch.cat([t[4][:1] for t in tiles], dim=0)
                 bat: tuple = (tc, tid, gl, ms, lb)
             else:
-                tc = torch.cat([t[0] for t in tiles], dim=0)
-                gl = torch.cat([t[1] for t in tiles], dim=0)
-                ms = torch.cat([t[2] for t in tiles], dim=0)
-                lb = torch.cat([t[3] for t in tiles], dim=0)
+                tc = torch.cat([t[0][:1] for t in tiles], dim=0)
+                gl = torch.cat([t[1][:1] for t in tiles], dim=0)
+                ms = torch.cat([t[2][:1] for t in tiles], dim=0)
+                lb = torch.cat([t[3][:1] for t in tiles], dim=0)
                 bat = (tc, gl, ms, lb)
             bf[bsz] = _clone_batch_to_device(bat, device)
 

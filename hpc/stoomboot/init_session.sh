@@ -13,6 +13,7 @@ set -e
 PROJECT_DIR="/project/atlas/users/nterlind/Thesis-Code"
 CONDA_ENV="/data/atlas/users/nterlind/venvs/thesis-ml"
 WANDB_DIR="/data/atlas/users/nterlind/outputs/wandb"
+WANDB_CACHE_DIR="/data/atlas/users/nterlind/outputs/wandb_cache"
 
 # 1. Activate conda
 set +u
@@ -33,8 +34,10 @@ echo "Project: $PROJECT_DIR"
 git pull
 echo "Branch: $(git branch --show-current)"
 
-# 4. WandB env
+# 4. WandB env (cache on /data avoids ~/.cache/wandb artifact quota on home)
 export WANDB_DIR="$WANDB_DIR"
+export WANDB_CACHE_DIR="$WANDB_CACHE_DIR"
+mkdir -p "$WANDB_CACHE_DIR" 2>/dev/null || true
 export WANDB_MODE=online
 
 # Load API key from one of these (keeps key out of repo):

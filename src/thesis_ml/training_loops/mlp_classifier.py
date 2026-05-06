@@ -309,7 +309,9 @@ def train(cfg: DictConfig) -> dict:
     """
     # Reproducibility
     set_all_seeds(cfg.classifier.trainer.seed)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if not torch.cuda.is_available():
+        raise RuntimeError("CUDA unavailable — job must run on an NVIDIA GPU node.")
+    device = torch.device("cuda")
 
     # Data
     train_dl, val_dl, test_dl, meta = make_classification_dataloaders(cfg)

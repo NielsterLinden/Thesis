@@ -1,9 +1,11 @@
 #!/bin/bash
 # db_completeness_submit.sh — Throttled HTCondor job submission.
 # Usage:
-#   bash db_completeness_submit.sh           # submit pending jobs (max 4 concurrent)
+#   bash db_completeness_submit.sh           # submit pending jobs (max MAX_JOBS concurrent, default 3)
 #   bash db_completeness_submit.sh --dry-run # print without submitting
 #   bash db_completeness_submit.sh --status  # show queue + remaining
+#
+# Training runs use hpc/stoomboot/train.sh: W&B run dir + artifact cache on /data (not $HOME).
 #
 # Already-submitted entries are marked "DONE: ..." in the queue file so
 # re-running the script after interruption is safe.

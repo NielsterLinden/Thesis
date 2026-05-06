@@ -1,7 +1,7 @@
 """Shared constants for the eval_v2 pipeline.
 
 Imported by both the inline training path (eval_v2.py) and the
-batch backfill script (wandb_cleanup/eval_pipeline/phase2_upload_to_wandb.py).
+batch backfill script (scripts/wandb/eval_pipeline/phase2_upload_to_wandb.py).
 Any change here must remain backward-compatible with W&B run summaries already
 written at spec_version = "eval_v2.1".
 """
