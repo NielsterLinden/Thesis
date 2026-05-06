@@ -18,8 +18,8 @@ DONE: thesis_experiments/db_completeness/kan_hyperparameters/variants
 DONE: thesis_experiments/db_completeness/kan_hyperparameters/bottleneck_d128
 
 # ── Sweep 3: moe_hyperparameters (22 runs, 8 jobs) ──
-thesis_experiments/db_completeness/moe_hyperparameters/m1_experts
-thesis_experiments/db_completeness/moe_hyperparameters/m2_topk_m1_4
+DONE: thesis_experiments/db_completeness/moe_hyperparameters/m1_experts
+DONE: thesis_experiments/db_completeness/moe_hyperparameters/m2_topk_m1_4
 thesis_experiments/db_completeness/moe_hyperparameters/m2_topk_m1_8
 thesis_experiments/db_completeness/moe_hyperparameters/m4_balance
 thesis_experiments/db_completeness/moe_hyperparameters/m5_noisy

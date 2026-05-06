@@ -12,6 +12,10 @@ This repository is the MSc thesis codebase for transformer-based event classific
 
 Claude Code configuration lives outside the repo: `/project/atlas/users/nterlind/.claude-config` (`CLAUDE_CONFIG_DIR`). OAuth/token files stay there, not in git.
 
+## Multi-agent contract
+
+The thesis writing and code/experiment work are split across separate Claude Code subagents with enforced boundaries. See **`AGENTS.md`** at repo root for the contract; the enforced rules live in `.claude/agents/*.md` and `.claude/skills/*/SKILL.md`. Do not inline thesis writing-style rules in this file — they belong in `.claude/agents/thesis-writer.md`.
+
 ## Working rules
 
 - Plan before editing; prefer small, inspectable changes.

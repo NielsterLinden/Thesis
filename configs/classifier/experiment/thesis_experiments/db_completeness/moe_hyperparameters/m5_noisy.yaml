@@ -18,10 +18,10 @@ classifier:
   globals:
     include_met: false
   model:
-    dim: 28
+    dim: 168
     depth: 2
     heads: 4
-    mlp_dim: 112
+    mlp_dim: 672
     dropout: 0.1
     tokenizer:
       name: identity
