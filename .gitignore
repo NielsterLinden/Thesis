@@ -41,7 +41,9 @@ mlruns/
 # HPC-specific
 hpc/stoomboot/*.log
 *.sub.backup
+# Local W&B credentials (never commit)
 hpc/stoomboot/.wandb_env
+**/.wandb_env
 **/.nfs*
 
 # W&B: GPU eval shards + large one-off exports / pilot dumps (keep code + small schema only)
