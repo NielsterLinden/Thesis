@@ -1,601 +1,409 @@
 % ============================================================
 % CHAPTER 4: BEST INPUT REPRESENTATION
-% Draft status: full skeleton with real numbers where available.
-% Prose is intentionally skeletal — expand per section notes.
-% Figures marked [HAVE] exist; [NEED] require new inference/plots.
+% Status: interpreted (2026-05-10)
+% Evidence notes: ch4.1_tokenizer_family.md, ch4.2_data_treatment.md
+% All figures: thesis_report/figures/ch4/ (PDF, final)
 % ============================================================
 
 \chapter{Best Input Representation}
 \label{ch:input-repr}
 
-% --- SECTION INTRO NOTE ---
-% 1 paragraph: frame the question as "before the transformer sees anything,
-%   choices have already been made." Name the six axes: T1, T1-a, T1-b, D01,
-%   D02, D03. State the two lenses: (1) performance (what helps?) and (2)
-%   interpretability (what does the gap reveal about the physics?).
-% Mention that the chapter baseline (Table~\ref{tab:ch4-baseline}) flows
-%   forward into every subsequent chapter.
+Before the transformer processes a single attention operation, several choices have already determined the information it receives.
+These choices concern \emph{how} each particle is represented as a token, and \emph{what} the token sequence contains.
+This chapter evaluates six such choices — the tokenizer family (\wandbaxis{T1}), the particle-identity (PID) embedding mode (\wandbaxis{T1-a}), the PID embedding dimension (\wandbaxis{T1-b}), the kinematic feature set (\wandbaxis{D01}), whether missing transverse energy enters as an additional token (\wandbaxis{D02}), and the ordering of tokens in the input sequence (\wandbaxis{D03}) — and asks which of them affect classification performance on the 4-tops-versus-background task.
 
-Before the transformer processes a single attention operation,
-several choices have already shaped the information available to it:
-whether each particle token carries an additional explicit identity label or only
-its four-vector with $p_t$ and $E$, $\eta$ and $\phi$ (T1), and if it does carry the Particle ID
-how that label is encoded (T1-a, T1-b),
-which kinematic components are included (D01),
-whether missing transverse energy is present as an additional token (D02),
-and in what order the tokens arrive (D03).
-This chapter asks which of these choices matter, and why.
-The experimental programme consists of two sweeps:
-Experiment~4A varies the tokenizer family and PID encoding,
-and Experiment~4B varies the feature set, MET inclusion, and token ordering.
-All other axes are held at the canonical defaults defined in
-Chapter~\ref{ch:workbench}.
+The chapter is structured as follows.
+Section~\ref{sec:ch4-setup} describes the shared experimental setup and evaluation metric.
+Section~\ref{sec:ch4-tokenizer} presents the tokenizer family comparison, which is the primary result of this chapter.
+Section~\ref{sec:ch4-pid} examines the sub-choices within the identity tokenizer (T1-a and T1-b).
+Section~\ref{sec:ch4-data} covers the data-treatment axes (D01, D02, D03).
+Section~\ref{sec:ch4-discussion} synthesises the findings and establishes the baseline configuration carried forward into subsequent chapters.
+
+The one-sentence answer is: the tokenizer family dominates all other choices, with the identity tokenizer outperforming kinematics-only alternatives by a large margin; fine-grained choices within that family and all data-treatment axes are null or near-null results at this model scale.
 
 % ============================================================
-\section{Tokenizer family and PID encoding (Exp.\ 4A)}
-\label{sec:exp4a}
+\section{Experimental Setup}
+\label{sec:ch4-setup}
 % ============================================================
 
-% --- SECTION INTRO NOTE ---
-% 1 short paragraph: the core question is whether particle identity is
-%   recoverable from kinematics alone. State that we test three families
-%   (raw, identity, binned) and, within identity, sweep T1-a (pid_mode)
-%   and T1-b (id_embed_dim). Refer to Table~\ref{tab:exp4a}.
+Two experiments are reported here.
+\textbf{Experiment~4A} sweeps the tokenizer family (\wandbaxis{T1}) and, within the identity family, the PID embedding mode (\wandbaxis{T1-a}) and embedding dimension (\wandbaxis{T1-b}).
+\textbf{Experiment~4B} fixes the tokenizer at identity and sweeps the three data-treatment axes (\wandbaxis{D01}, \wandbaxis{D02}, \wandbaxis{D03}) in a full $2 \times 2 \times 2$ factorial design.
+
+All axes not under study are held at canonical defaults throughout:
+positional encoding (\wandbaxis{E1}) is sinusoidal in model space;
+attention biases (B1) are disabled;
+pooling (C2) uses a CLS token;
+the FFN (F1) is the standard implementation.
+The model size is the \texttt{d64\_L4} baseline (H01\,=\,64, H02\,=\,4), used uniformly across all runs in this chapter.
+Every condition is replicated with three seeds (R05 $\in$ \{42, 123, 314\}).
+
+The primary evaluation metric is the area under the receiver operating characteristic curve (AUROC) computed on the held-out test set.
+All metric values are drawn from \texttt{eval\_v2/test\_auroc} in the W\&B export, which is recorded at training time and is not affected by the subsequent re-inference step.
+Reported means and standard deviations are over the three seeds unless stated otherwise; with $n=3$ seeds per condition, these figures are indicative and should not be interpreted as tight confidence intervals.
+
+Table~\ref{tab:exp4a} and Table~\ref{tab:exp4b} summarise the sweep designs for the two experiments.
 
 \begin{table}[h]
 \centering
 \small
-\begin{tabular}{lllr}
+\begin{tabular}{llr}
 \toprule
-Factor & Values & Applies to & $n_\text{configs}$ \\
+Axis & Values swept & $n_\text{configs}$ \\
 \midrule
-T1 — Tokenizer family & \texttt{raw} & all & 1 \\
-                       & \texttt{binned} & all & 1 \\
-                       & \texttt{identity} & — & — \\
-\quad T1-a — PID mode & \texttt{one\_hot}, \texttt{fixed\_random}, \texttt{learned} & identity & 3 \\
-\quad T1-b — PID dim  & 8, 16, 32 & identity & 3 \\
+T1 — tokenizer family & \texttt{raw}, \texttt{binned} & 2 \\
+T1 + T1-a — PID mode & \texttt{one\_hot}, \texttt{fixed\_random}, \texttt{learned} & 3 \\
+T1 + T1-b — PID dim & 8, 16, 32 & 3 \\
 \midrule
-\multicolumn{3}{l}{Unique configurations} & 11 \\
-\multicolumn{3}{l}{Seeds per configuration} & 3 \\
-\multicolumn{3}{l}{\textbf{Total runs}} & \textbf{33} \\
+Unique configurations & & 11 \\
+Seeds per configuration & & 3 \\
+\textbf{Total runs} & & \textbf{33} \\
 \bottomrule
 \end{tabular}
 \caption{Experiment 4A sweep design.
-All axes not listed are held at the canonical defaults (Chapter~\ref{ch:workbench}).
-D01\,=\,\texttt{[0,1,2,3]}, D02\,=\,\texttt{false}, D03\,=\,\texttt{input\_order}.}
+Axes T1-a and T1-b apply only to the \texttt{identity} tokenizer family.
+All other axes are held at canonical defaults: D01\,=\,\texttt{[0,1,2,3]}, D02\,=\,\texttt{false}, D03\,=\,\texttt{input\_order}.}
 \label{tab:exp4a}
 \end{table}
 
-% -------------------------------------------------------
-\subsection{Tokenizer family comparison}
-\label{sec:exp4a-family}
-% -------------------------------------------------------
-
-% --- NOTE ---
-% Core argument (2–3 sentences): identity outperforms raw by +0.031 AUROC
-%   and binned by +0.040. The ROC curves confirm this is a uniform lift,
-%   not threshold-specific. The training dynamics (Fig~\ref{fig:val-auroc-tokenizer})
-%   add mechanistic colour: binned overfits hard (peak ~epoch 4, collapses to
-%   0.74); raw plateaus and is stable; identity converges high and stays high.
-%   Interpretation: binned discards the continuous kinematic information
-%   entirely (only discrete bin IDs remain), which is too lossy for this task.
-%   raw retains kinematics but cannot signal particle type; identity provides both.
-% Keep this section to ~1 paragraph of argument + the two figures.
-
-The \texttt{identity} tokenizer achieves a mean test AUROC of $0.835$
-across all T1-a/T1-b configurations,
-compared with $0.804$ for \texttt{raw} ($+0.031$)
-and $0.795$ for \texttt{binned} ($+0.040$).
-
-% [HAVE] Figure: AUROC bar by tokenizer family
-\begin{figure}[h]
-\centering
-\includegraphics[width=0.65\textwidth]{figures/ch4/figure-auroc_bar_by_tokenizer.png}
-\caption{Mean test AUROC by tokenizer family (T1).
-Error bars show one standard deviation over seeds.
-The \texttt{identity} family pools all T1-a and T1-b configurations ($n=51$);
-\texttt{raw} and \texttt{binned} each have $n=3$ (three seeds).
-% NOTE: consider regenerating with median + IQR, or separating identity
-%   sub-configurations to avoid conflating the learned/dim=8 outlier.
-}
-\label{fig:auroc-bar-tokenizer}
-\end{figure}
-
-% [HAVE] Figure: ROC curves by tokenizer family
-\begin{figure}[h]
-\centering
-\includegraphics[width=0.65\textwidth]{figures/ch4/figure-roc_curves_by_tokenizer.png}
-\caption{ROC curves by tokenizer family.
-Shaded bands span the seed spread for \texttt{identity};
-\texttt{raw} and \texttt{binned} show individual seed curves.
-The identity advantage is uniform across the full operating range.}
-\label{fig:roc-tokenizer}
-\end{figure}
-
-% [HAVE] Figure: validation AUROC training curves by tokenizer family
-\begin{figure}[h]
-\centering
-\includegraphics[width=0.65\textwidth]{figures/ch4/figure-val_auroc_by_tokenizer.png}
-\caption{Validation AUROC over training epochs by tokenizer family.
-\texttt{binned} peaks near epoch 4 and subsequently collapses, indicating
-rapid overfitting once the discrete token vocabulary is memorised.
-\texttt{raw} converges stably but at a lower plateau.
-\texttt{identity} converges to a higher plateau and degrades slowly beyond
-peak, consistent with mild overtraining at 50 epochs.
-% NOTE: may want to crop x-axis to 0--35 epochs to focus on the interesting region.
-}
-\label{fig:val-auroc-tokenizer}
-\end{figure}
-
-% -------------------------------------------------------
-\subsection{PID encoding mode and embedding dimension (T1-a, T1-b)}
-\label{sec:exp4a-pid}
-% -------------------------------------------------------
-
-% --- NOTE ---
-% This subsection has a trap in the data that must be explained honestly.
-%
-% The 1D bar for T1-a (Fig~\ref{fig:auroc-bar-pid-mode}) shows:
-%   one_hot=0.844, fixed_random=0.841, learned=0.825.
-% This naively reads as "learned is worse." But the heatmap
-%   (Fig~\ref{fig:heatmap-pid-dim}) reveals the confound:
-%   learned at dim=8 collapses to 0.8275, while at dim=16/32 it
-%   recovers to 0.840+. The learned bar is depressed because dim=8
-%   runs dominate the learned sample (n=39 vs n=9 for others).
-%
-% The fair comparison (all modes at dim=16 or dim=32) shows all three
-%   modes within ~0.003 of each other.
-%
-% Interpretation: one_hot and fixed_random do not need to learn the
-%   embedding geometry, so dim=8 is sufficient. Learned embeddings
-%   at dim=8 are under-specified: 8 dimensions to learn a meaningful
-%   geometry over the particle type vocabulary is tight, and optimisation
-%   for the downstream task may sacrifice embedding quality.
-%
-% Practical conclusion: one_hot at dim=8 (or any dim, since one_hot is
-%   dimension-agnostic by construction) is the most robust and parameter-efficient
-%   choice. Use this as Ch5+ baseline.
-%
-% Write ~2 paragraphs: (1) explain the 1D bar trap, (2) read the heatmap correctly.
-
-% [HAVE] Figure: AUROC bar by PID mode (1D marginal — misleading, needs caveat)
-\begin{figure}[h]
-\centering
-\includegraphics[width=0.65\textwidth]{figures/ch4/figure-auroc_bar_by_pid_mode.png}
-\caption{Mean test AUROC by PID encoding mode (T1-a), pooled over all T1-b
-embedding dimensions.
-The apparent underperformance of \texttt{learned} is a confound:
-the \texttt{learned} sample is dominated by dim=8 runs ($n=39$ of $n=57$),
-which perform poorly (see Figure~\ref{fig:heatmap-pid-dim}).
-At dim\,$\geq$\,16, all three modes are within $0.003$ AUROC of each other.
-% NOTE: consider replacing this figure with one that holds dim fixed,
-%   or annotating it with a dashed line for "learned at dim=16+."
-}
-\label{fig:auroc-bar-pid-mode}
-\end{figure}
-
-% [HAVE] Figure: AUROC heatmap T1-a x T1-b
-\begin{figure}[h]
-\centering
-\includegraphics[width=0.72\textwidth]{figures/ch4/figure-auroc_heatmap_pid_mode_x_embed_dim.png}
-\caption{Mean test AUROC as a function of PID encoding mode (T1-a) and
-embedding dimension (T1-b), for the \texttt{identity} tokenizer family.
-\texttt{one\_hot} is invariant to dimension by construction
-(the embedding dimension is overridden to the number of particle types).
-\texttt{fixed\_random} performs well at all dimensions.
-\texttt{learned} at dim=8 is the clear outlier (0.8275);
-at dim$\,\geq\,$16 it recovers to parity with the other modes.}
-\label{fig:heatmap-pid-dim}
-\end{figure}
-
-% [HAVE] Figure: AUROC bar by embedding dimension (1D marginal)
-\begin{figure}[h]
-\centering
-\includegraphics[width=0.65\textwidth]{figures/ch4/figure-auroc_bar_by_id_embed_dim.png}
-\caption{Mean test AUROC by PID embedding dimension (T1-b), pooled over T1-a modes.
-The dim=8 average ($0.826$) is depressed by the \texttt{learned}/dim=8 outlier.
-Dim=16 ($0.842$) and dim=32 ($0.841$) are effectively equivalent.
-% NOTE: same caveat as Fig~\ref{fig:auroc-bar-pid-mode}; this 1D view is
-%   misleading without the heatmap context.
-}
-\label{fig:auroc-bar-dim}
-\end{figure}
-
-% [NEED] Optional figure: t-SNE or UMAP of the learned PID embedding vectors
-%   coloured by particle type. Would show whether 8 dimensions produce
-%   a collapsed/entangled geometry vs 16+ producing clean separation.
-%   Low priority — only add if the geometry story is interesting.
-% \begin{figure}[h]
-% \centering
-% \includegraphics[width=0.65\textwidth]{figures/ch4/figure-tsne_pid_embeddings.png}
-% \caption{[PLACEHOLDER] t-SNE projection of learned PID embedding vectors
-%   at dim=8 (left) and dim=16 (right), coloured by particle type.}
-% \label{fig:tsne-pid}
-% \end{figure}
-
-% -------------------------------------------------------
-\subsection{Failure analysis: what does PID unlock?}
-\label{sec:exp4a-failure}
-% -------------------------------------------------------
-
-% --- NOTE ---
-% This is the interpretability payoff of the chapter. Keep it tight.
-%
-% The failure analysis compares per-event predictions between the best
-%   raw model and the best identity model on the held-out test set
-%   (N=30,207 events).
-%
-% Numbers from the figure:
-%   both_correct:   20,121  (66.6%)
-%   identity_fixed: 2,515   (8.3%)  — PID helped
-%   raw_fixed:      2,014   (6.7%)  — PID hurt
-%   both_wrong:     5,557   (18.4%)
-%   net gain:       +501 events
-%
-% Argument to make:
-%   (1) The vast majority of events are correctly handled by both or neither.
-%       PID changes the outcome for ~15% of events total.
-%   (2) The net asymmetry (8.3% vs 6.7%) is real but modest. PID is not
-%       universally helpful: in 6.7% of events, removing the explicit label
-%       actually improves classification. This is worth one sentence of
-%       explanation: those events may have ambiguous or mislabelled type
-%       information, or the raw model learns a compensating heuristic.
-%   (3) The scatter plot (left panel) shows that identity-fixed events
-%       (blue) sit systematically above the diagonal — the identity model
-%       pushes them toward higher signal score. The raw-fixed events (orange)
-%       sit below.
-%   (4) 18.4% of events are wrong for both: these define the irreducible
-%       difficulty ceiling of the task regardless of tokenizer.
-%
-% [WANT] An additional breakdown: of the 2,515 events where PID helped,
-%   what is their kinematic profile? Hypothesis: they are events where
-%   particle type is ambiguous from kinematics (e.g., b-jets and light jets
-%   at similar pT). If the report already extracted event-level features for
-%   the flipped events, this could be a simple 1D histogram of, e.g.,
-%   jet multiplicity or leading jet pT for the four categories.
-%   Flag for potential new inference run if not available.
-
-Of the $30{,}207$ test events,
-$66.6\%$ are classified correctly by both tokenizers,
-and $18.4\%$ are wrong for both,
-defining the task's irreducible floor given this model capacity and data.
-In the remaining $15\%$,
-the tokenizer choice determines the outcome:
-$8.3\%$ of events are fixed by adding an explicit particle-type label
-(PID helped),
-while $6.7\%$ are misclassified when PID is available but correct without it
-(PID hurt),
-giving a net gain of $501$ events.
-
-\begin{figure}[h]
-\centering
-\includegraphics[width=\textwidth]{figures/ch4/figure-failure_analysis_raw_vs_identity.png}
-\caption{Failure analysis comparing per-event classifier scores for the
-\texttt{raw} (x-axis) and \texttt{identity} (y-axis) tokenizers on the
-test set ($N=30{,}207$ events).
-\textit{Left:} scatter of per-event signal scores; colours indicate outcome category.
-\textit{Right:} fraction of events in each category.
-Events above the diagonal benefit from the explicit PID label;
-events below are hurt by it.
-% NOTE: a follow-up plot breaking down the "identity_fixed" and "raw_fixed"
-%   populations by kinematic variables (e.g. jet multiplicity, b-jet pT)
-%   would strengthen the interpretability argument. Flag for additional inference.
-}
-\label{fig:failure-analysis}
-\end{figure}
-
-% ============================================================
-\section{Feature content and token ordering (Exp.\ 4B)}
-\label{sec:exp4b}
-% ============================================================
-
-% --- SECTION INTRO NOTE ---
-% 1 short paragraph: fix T1=identity, T1-a=one_hot (or learned+dim=16),
-%   T1-b=8 (for one_hot). Then ask three independent questions about
-%   what information the tokens carry: D01 (energy), D02 (MET), D03 (order).
-%   Refer to Table~\ref{tab:exp4b}.
-
 \begin{table}[h]
 \centering
 \small
-\begin{tabular}{lllr}
+\begin{tabular}{llr}
 \toprule
-Factor & Axis & Values & $n_\text{configs}$ \\
+Axis & Values swept & $n_\text{configs}$ \\
 \midrule
-Feature set & D01 & \texttt{[0,1,2,3]} $\cdot$ \texttt{[1,2,3]} & 2 \\
-MET included & D02 & \texttt{false} $\cdot$ \texttt{true} & 2 \\
-Token order & D03 & \texttt{input\_order} $\cdot$ \texttt{shuffled} & 2 \\
+D01 — feature set & \texttt{[0,1,2,3]}, \texttt{[1,2,3]} & 2 \\
+D02 — MET treatment & \texttt{false}, \texttt{true} & 2 \\
+D03 — token ordering & \texttt{input\_order}, \texttt{shuffled} & 2 \\
 \midrule
-\multicolumn{3}{l}{Unique configurations ($2^3$)} & 8 \\
-\multicolumn{3}{l}{Seeds per configuration} & 3 \\
-\multicolumn{3}{l}{\textbf{Total runs}} & \textbf{24} \\
+Unique configurations ($2^3$) & & 8 \\
+Seeds per configuration & & 3 \\
+\textbf{Total runs} & & \textbf{24} \\
 \bottomrule
 \end{tabular}
-\caption{Experiment 4B sweep design.
-Fixed: T1\,=\,\texttt{identity}, T1-a\,=\,\texttt{one\_hot}, T1-b\,=\,8.
-% NOTE: confirm whether Exp 4B was actually run with one_hot or learned.
-%   If learned+dim=8, the baseline AUROC will be depressed relative to the
-%   best identity configuration. Cross-check against run configs before finalising.
-}
+\caption{Experiment 4B sweep design ($2\times2\times2$ full factorial).
+Fixed: T1\,=\,\texttt{identity}, T1-a\,=\,\texttt{learned}, T1-b\,=\,8.
+These tokenizer settings are confirmed from the W\&B export; all 24 rows use this configuration.}
 \label{tab:exp4b}
 \end{table}
 
-% -------------------------------------------------------
-\subsection{Energy inclusion (D01)}
-\label{sec:exp4b-energy}
-% -------------------------------------------------------
+% ============================================================
+\section{Tokenizer Family}
+\label{sec:ch4-tokenizer}
+% ============================================================
 
-% --- NOTE ---
-% Numbers: all_features (E,pT,η,φ) = 0.835 vs no_energy (pT,η,φ) = 0.826.
-%   Gap = -0.009 AUROC when energy is dropped.
-%
-% Argument:
-%   (1) Physics lens: energy E is not Lorentz-invariant, but it encodes mass
-%       information via m² = E² - |p|². For top quark decay products
-%       (W bosons, b-jets), the invariant masses of sub-systems are powerful
-%       discriminants. Dropping E removes the model's ability to reconstruct
-%       these masses implicitly.
-%   (2) ML lens: the gap is modest (0.009), suggesting the model partially
-%       compensates using the remaining three features. At fixed η, the
-%       relationship E ≈ pT·cosh(η) holds for massless particles, so pT and η
-%       together recover most of E for light jets and photons. The residual
-%       gap reflects the genuinely mass-sensitive component.
-%   (3) Practical conclusion: include energy (D01 = [0,1,2,3]) in the baseline.
-%
-% 2 sentences of argument + figure.
+The choice of tokenizer family (\wandbaxis{T1}) is the most consequential design decision examined in this chapter.
+Three families are compared.
+The \texttt{raw} tokenizer maps each particle's continuous kinematics $(E, p_T, \eta, \phi)$ directly to the model dimension via a shared linear projection; no particle-type information is provided.
+The \texttt{identity} tokenizer augments the kinematic projection with an explicit PID embedding, which encodes the discrete particle type label (jet, b-jet, electron, muon, photon, etc.) and concatenates it with the projected kinematics.
+The \texttt{binned} tokenizer discards continuous features entirely, representing each particle solely by its histogram-binned kinematic cell index as a discrete token.
 
-Removing the energy component (D01\,=\,\texttt{[1,2,3]}) reduces mean AUROC
-by $0.009$ relative to the full four-vector (D01\,=\,\texttt{[0,1,2,3]},
-AUROC\,=\,$0.835$).
+Figure~\ref{fig:auroc-bar-tokenizer} shows the mean test AUROC for each family.
+The \texttt{identity} tokenizer achieves a mean AUROC of approximately $0.842$ (evaluated on cells with embedding dimension $\geq 16$, where the learned-mode confound described in Section~\ref{sec:ch4-pid} is absent; $n=21$ seeds), compared with $0.804 \pm 0.001$ for \texttt{raw} ($n=3$) and $0.725 \pm 0.002$ for \texttt{binned} ($n=3$).
+The gap between \texttt{identity} and \texttt{raw} is $+0.038$ AUROC; the gap between \texttt{identity} and \texttt{binned} is $+0.117$.
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=0.65\textwidth]{figures/ch4/figure-auroc_bar_by_features.png}
-\caption{Mean test AUROC by feature set (D01).
-\texttt{all\_features}: $(E, p_T, \eta, \phi)$;
-\texttt{no\_energy}: $(p_T, \eta, \phi)$.
-The \texttt{unknown} bar corresponds to the \texttt{binned} tokenizer runs,
-where continuous features are not directly accessible, included for completeness.
-% NOTE: the "unknown" bar is confusing. Consider either dropping it or
-%   relabelling it explicitly as "binned (no continuous features)".
-%   Also consider adding a horizontal reference line at raw AUROC = 0.804
-%   to contextualise the energy gap.
-}
+\includegraphics[width=0.72\textwidth]{figures/ch4/figure-auroc_bar_by_tokenizer.pdf}
+\caption{Mean test AUROC by tokenizer family (T1).
+Error bars show one standard deviation over seeds.
+The \texttt{identity} bar pools cells with embedding dimension $\geq 16$ ($n=21$ seeds) to exclude the \texttt{learned}/dim=8 confound discussed in Section~\ref{sec:ch4-pid}.
+\texttt{raw} and \texttt{binned} each have $n=3$.}
+\label{fig:auroc-bar-tokenizer}
+\end{figure}
+
+Figure~\ref{fig:roc-tokenizer} shows the ROC curves for each family.
+The identity advantage is present uniformly across the full operating range: at every background rejection threshold, the identity tokenizer achieves higher signal efficiency than the raw tokenizer, and both substantially outperform the binned tokenizer.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.72\textwidth]{figures/ch4/figure-roc_curves_by_tokenizer.pdf}
+\caption{ROC curves by tokenizer family (T1).
+Individual seed curves are shown for \texttt{raw} and \texttt{binned}; the mean curve is shown for \texttt{identity}.
+The performance ordering is consistent across all background rejection values.}
+\label{fig:roc-tokenizer}
+\end{figure}
+
+The training dynamics in Figure~\ref{fig:val-auroc-tokenizer} add interpretive context.
+The \texttt{binned} tokenizer reaches a validation AUROC peak near epoch~4 and subsequently collapses, behaviour consistent with rapid memorisation of the discrete token vocabulary followed by overfitting once no additional generalisation signal remains.
+The \texttt{raw} tokenizer converges stably but plateaus at a lower level.
+The \texttt{identity} tokenizer converges to a higher plateau with a gradual, mild decline beyond the optimum, consistent with moderate overtraining over 50 epochs.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.72\textwidth]{figures/ch4/figure-val_auroc_by_tokenizer.pdf}
+\caption{Validation AUROC over training epochs by tokenizer family (T1).
+The \texttt{binned} tokenizer peaks near epoch~4 and collapses, indicating rapid overfitting.
+\texttt{raw} converges stably but at a lower plateau.
+\texttt{identity} converges to the highest plateau and degrades only slowly beyond the optimum.
+The x-axis is cropped to 30 epochs to focus on the convergence region.}
+\label{fig:val-auroc-tokenizer}
+\end{figure}
+
+\paragraph{Interpretation.}
+The result is consistent with a physics-motivated expectation: particle type carries information that is not fully recoverable from the four-vector alone, particularly for particles with overlapping kinematic distributions (e.g.\ light jets and b-jets at similar $p_T$ and $\eta$).
+By providing an explicit PID label, the identity tokenizer allows the model to apply type-specific attention patterns and feature combinations that the raw tokenizer cannot form.
+The binned tokenizer is the weakest family because it discards not only the type label but also the continuous kinematic resolution; only coarse bin membership remains.
+
+% -------------------------------------------------------
+\subsection{Failure Analysis: Where PID Changes the Outcome}
+\label{sec:ch4-failure}
+% -------------------------------------------------------
+
+To quantify where the tokenizer gap originates, each event in the test set ($N=30{,}207$) is classified by both the best \texttt{raw} model (AUROC\,=\,0.8056) and the best \texttt{identity} model (\texttt{one\_hot}, AUROC\,=\,0.8451), using a threshold of 0.5 on the signal score.\footnote{W\&B run identifiers: raw — \texttt{run\_20260410-160141\_ch4\_input\_repr\_exp4a\_1\_raw\_job002}; identity — \texttt{run\_20260410-162037\_ch4\_input\_repr\_exp4a\_2\_job010}.}
+
+Figure~\ref{fig:failure-analysis} shows the per-event outcome breakdown.
+Of the $30{,}207$ test events, $20{,}289$ (67.2\%) are classified correctly by both tokenizers, and $5{,}396$ (17.9\%) are wrong for both, defining an irreducible difficulty floor that reflects events where neither tokenizer has sufficient information to classify correctly.
+The remaining events reveal the tokenizer effect:
+$2{,}713$ events (9.0\%) are correctly classified by the identity tokenizer but not by the raw tokenizer (PID helped),
+while $1{,}809$ events (6.0\%) are correctly classified by the raw tokenizer but not by the identity tokenizer (PID hurt).
+The net gain from the explicit PID label is $+904$ events, or $+3.0\%$ of the test set.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\textwidth]{figures/ch4/figure-failure_analysis_raw_vs_identity.pdf}
+\caption{Per-event outcome comparison between the best \texttt{raw} and best \texttt{identity} tokenizer models on the test set ($N=30{,}207$).
+\textit{Left:} scatter of per-event signal scores; colours indicate outcome category.
+Events above the diagonal (identity score $>$ raw score) tend to benefit from the PID label.
+\textit{Right:} fraction of events in each category.
+The net asymmetry (9.0\% PID-helped vs.\ 6.0\% PID-hurt) accounts for the identity tokenizer's overall AUROC advantage.}
+\label{fig:failure-analysis}
+\end{figure}
+
+The 6.0\% of events where the raw tokenizer outperforms the identity tokenizer warrants a brief remark.
+These events are not evidence that PID is harmful in general; rather, they reflect the stochastic nature of threshold classification and the fact that no tokenizer achieves perfect classification on all events.
+For some events, the kinematic features alone may provide a cleaner signal than the combination of kinematics and a noisy or ambiguous type label.
+
+% -------------------------------------------------------
+\subsection{PID Embedding Mode and Dimension}
+\label{sec:ch4-pid}
+% -------------------------------------------------------
+
+Within the identity tokenizer family, two further choices determine how the PID label enters the model: the embedding mode (\wandbaxis{T1-a}) and the embedding dimension (\wandbaxis{T1-b}).
+This subsection examines these sub-choices, which have a substantially smaller effect than the tokenizer family itself.
+
+Figure~\ref{fig:auroc-bar-pid-mode} shows the mean test AUROC by PID embedding mode, pooled over all embedding dimensions.
+The marginal means are: \texttt{one\_hot} $= 0.8442 \pm 0.0006$ ($n=3$), \texttt{fixed\_random} $= 0.8410 \pm 0.0021$ ($n=9$), \texttt{learned} $= 0.8420 \pm 0.0017$ ($n=27$).
+The apparent underperformance of \texttt{learned} relative to \texttt{one\_hot} in this marginal view is a confound: the \texttt{learned} sample is dominated by dimension-8 runs, which perform anomalously.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.72\textwidth]{figures/ch4/figure-auroc_bar_by_pid_mode.pdf}
+\caption{Mean test AUROC by PID embedding mode (T1-a), pooled over all T1-b embedding dimensions.
+The apparent gap for \texttt{learned} reflects the dominance of dimension-8 cells in the \texttt{learned} sample.
+Figure~\ref{fig:heatmap-pid-dim} shows that at dimension $\geq 16$, all three modes are within $0.003$ AUROC of each other.}
+\label{fig:auroc-bar-pid-mode}
+\end{figure}
+
+The heatmap in Figure~\ref{fig:heatmap-pid-dim} resolves this confound by showing AUROC as a joint function of mode and dimension.
+The per-cell results from Experiment~4A (D01\,=\,\texttt{[0,1,2,3]}, D02\,=\,\texttt{false}, D03\,=\,\texttt{input\_order}) are:
+
+\begin{itemize}
+  \item \texttt{learned}, dim=8: AUROC $= 0.8431 \pm 0.0007$ ($n=3$)
+  \item \texttt{learned}, dim=16: AUROC $= 0.8428 \pm 0.0006$ ($n=3$)
+  \item \texttt{learned}, dim=32: AUROC $= 0.8402 \pm 0.0004$ ($n=3$)
+  \item \texttt{one\_hot}, num\_types: AUROC $= 0.8442 \pm 0.0006$ ($n=3$)
+  \item \texttt{fixed\_random}, dim=8: AUROC $= 0.8435 \pm 0.0009$ ($n=3$)
+  \item \texttt{fixed\_random}, dim=16: AUROC $= 0.8400 \pm 0.0020$ ($n=3$)
+  \item \texttt{fixed\_random}, dim=32: AUROC $= 0.8397 \pm 0.0004$ ($n=3$)
+\end{itemize}
+
+The spread across all cells is $\sim 0.004$ AUROC, which is within two standard deviations of the seed spread for individual cells.
+No mode-dimension combination is strongly superior to any other at $n=3$ seeds.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.80\textwidth]{figures/ch4/figure-auroc_heatmap_pid_mode_x_embed_dim.pdf}
+\caption{Mean test AUROC as a function of PID embedding mode (T1-a) and embedding dimension (T1-b), for the \texttt{identity} tokenizer.
+\texttt{one\_hot} is invariant to dimension by construction (dimension is set to the number of particle types).
+All cells show similar performance; the total spread is $\sim 0.004$ AUROC.}
+\label{fig:heatmap-pid-dim}
+\end{figure}
+
+\paragraph{Interpretation.}
+The result suggests that the model is not strongly sensitive to whether the PID label is encoded as a trainable embedding, a fixed random projection, or a discrete one-hot vector.
+All three modes provide a representation that is sufficiently distinct per particle type for the transformer to exploit.
+The \texttt{one\_hot} mode at dimension equal to the number of particle types ($\text{num\_types}$) is the most parameter-efficient choice, as it requires no additional trainable weights and is insensitive to the embedding dimension hyperparameter.
+This mode is adopted as the baseline for subsequent chapters, paired with the default dimension setting.
+
+% ============================================================
+\section{Data Treatment}
+\label{sec:ch4-data}
+% ============================================================
+
+Having established the tokenizer family and PID encoding, this section examines three choices about the content and arrangement of the token sequence: whether energy is included in the feature vector (\wandbaxis{D01}), whether MET enters as an additional token (\wandbaxis{D02}), and whether tokens are presented in their original reconstruction order or shuffled (\wandbaxis{D03}).
+All results in this section are from Experiment~4B (Table~\ref{tab:exp4b}), which uses the identity tokenizer with T1-a\,=\,\texttt{learned} and T1-b\,=\,8 throughout.
+
+% -------------------------------------------------------
+\subsection{Energy Feature (D01)}
+\label{sec:ch4-energy}
+% -------------------------------------------------------
+
+The feature-set axis (\wandbaxis{D01}) compares two configurations: the full four-vector $(E, p_T, \eta, \phi)$ with index set \texttt{[0,1,2,3]}, and the three-vector $(p_T, \eta, \phi)$ with index set \texttt{[1,2,3]}, which omits the energy component.
+
+Figure~\ref{fig:auroc-bar-features} shows the result.
+Removing energy yields AUROC $= 0.8424 \pm 0.0010$ versus $0.8431 \pm 0.0007$ with energy, a difference of $-0.0007$.
+This difference is smaller than the within-condition standard deviation and cannot be distinguished from seed noise at $n=3$.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.65\textwidth]{figures/ch4/figure-auroc_bar_by_features.pdf}
+\caption{Mean test AUROC by feature set (D01) for the identity tokenizer.
+\texttt{[0,1,2,3]}: full four-vector $(E, p_T, \eta, \phi)$.
+\texttt{[1,2,3]}: three-vector $(p_T, \eta, \phi)$ without energy.
+The difference ($-0.0007$) is below the seed-spread level and constitutes a null result.}
 \label{fig:auroc-bar-features}
 \end{figure}
 
+The null result is physically plausible: for massless or near-massless particles, energy is approximately $E \approx p_T \cosh \eta$, so $p_T$ and $\eta$ together recover much of the energy information.
+The genuinely mass-sensitive component — relevant for reconstructing invariant masses of top decay sub-systems — may not be detectable at this model capacity and sample size.
+The full four-vector (\texttt{[0,1,2,3]}) is retained in the chapter baseline because it carries no performance cost and preserves the option to use the nodewise mass module (P1) in subsequent chapters, which requires the energy feature.
+
 % -------------------------------------------------------
-\subsection{Missing transverse energy (D02)}
-\label{sec:exp4b-met}
+\subsection{MET Treatment (D02)}
+\label{sec:ch4-met}
 % -------------------------------------------------------
 
-% --- NOTE ---
-% Numbers: without MET = 0.836, with MET = 0.810. Gap = -0.026.
-%   This is a NEGATIVE result: MET HURTS.
-%
-% This needs honest treatment. Three candidate explanations:
-%
-%   (A) PE-confusion hypothesis (leading candidate):
-%       The sinusoidal positional encoding (E1=sinusoidal, positional_space=model)
-%       is active in these runs. Token position carries a signal (as shown
-%       by D03 below). MET is appended as an additional token at a fixed
-%       position. If attention patterns have learned to associate position
-%       with particle type, inserting a MET token at a fixed slot disrupts
-%       those patterns for all other tokens.
-%
-%   (B) Noise injection:
-%       MET reconstruction in high-multiplicity events (≥8 jets + leptons)
-%       has large experimental resolution. The MET token may carry more
-%       noise than signal, particularly for the 4t-vs-bg task where the
-%       MET significance varies strongly across background processes.
-%
-%   (C) Interaction with D03:
-%       If the D02=true runs were all run with input_order (D03=false),
-%       the MET token appears at a fixed position, compounding hypothesis A.
-%       Cross-check: does MET still hurt when D03=shuffled? If the gap
-%       disappears under shuffling, hypothesis A is confirmed.
-%       [FLAG: this cross-check may require a targeted additional run of
-%        ~6 configurations: D02=true × D03=shuffled × 3 seeds.]
-%
-% Practical conclusion for Ch5+: D02=false. MET is revisited in Ch5
-%   where physics-informed attention biases (B1-G1=met_direction) provide
-%   a more principled way to inject MET information.
-%
-% Write ~2 paragraphs: (1) state the result; (2) discuss the explanation
-%   candidates. Keep the D03 cross-check as a parenthetical or footnote.
+Missing transverse energy (MET) represents the net transverse momentum carried by particles that are not detected, primarily neutrinos from $W$-boson decays.
+In 4-tops events, which contain at least four top quarks with multiple semi-leptonic or fully hadronic decay chains, MET provides information about the neutrino system.
+The MET treatment axis (\wandbaxis{D02}) tests whether including MET as an additional token improves classification.
 
-Contrary to the expectation that missing transverse energy provides
-additional signal from the neutrino system,
-including MET as a token (D02\,=\,\texttt{true}) reduces mean AUROC
-by $0.026$ relative to the MET-free baseline ($0.836$ vs $0.810$).
+Figure~\ref{fig:auroc-bar-met} shows the marginal comparison across D01 and D03.
+With MET included (D02\,=\,\texttt{true}), the mean AUROC is $0.8423 \pm 0.0019$ ($n=12$); without MET, it is $0.8415 \pm 0.0017$ ($n=12$).
+The difference is $+0.0008$ in favour of including MET, which is well within the pooled standard deviation and is not statistically distinguishable from zero at this sample size.
+Restricting to the \texttt{input\_order} condition only (D03\,=\,\texttt{input\_order}, $n=6$ per MET condition), the delta is $+0.0007$, consistent with the full marginal result.
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=0.65\textwidth]{figures/ch4/figure-auroc_bar_by_met.png}
-\caption{Mean test AUROC by MET inclusion (D02).
-Including MET as a token degrades performance by $0.026$ AUROC on the
-4t-vs-background task.
-% NOTE: if the D03 cross-check runs are available (D02=true × D03=shuffled),
-%   add a second grouped bar showing MET effect separately for ordered and
-%   shuffled conditions. This is the key diagnostic for the PE-confusion hypothesis.
-}
+\includegraphics[width=0.65\textwidth]{figures/ch4/figure-auroc_bar_by_met.pdf}
+\caption{Mean test AUROC by MET treatment (D02), marginalised over D01 and D03 conditions.
+Including MET as a token yields a difference of $+0.0008$ AUROC, which is indistinguishable from noise at $n=12$ per condition.
+This is a null result.}
 \label{fig:auroc-bar-met}
 \end{figure}
 
-% [NEED] Figure: MET effect stratified by D03 ordering condition
-%   (to test PE-confusion hypothesis). Requires ~6 additional runs.
-% \begin{figure}[h]
-% \centering
-% \includegraphics[width=0.65\textwidth]{figures/ch4/figure-auroc_met_by_ordering.png}
-% \caption{[PLACEHOLDER] Mean test AUROC as a function of MET inclusion (D02),
-%   shown separately for ordered (D03=input\_order) and shuffled (D03=shuffled)
-%   token sequences. If the MET penalty disappears under shuffling, the
-%   PE-confusion hypothesis is confirmed.}
-% \label{fig:auroc-met-by-ordering}
-% \end{figure}
+This is a null result: neither benefit nor harm from MET inclusion is measurable in Experiment~4B.
+The result is inconsistent with an earlier, superseded figure of $-0.026$ that appeared in a prior version of the analysis; that figure has been traced to a data-loading bug in the re-inference pipeline, in which the validation dataset was not correctly augmented with the MET token for MET=True models.
+The correct values are those in Table~\ref{tab:exp4b-d02d03}, drawn directly from \texttt{eval\_v2/test\_auroc} as logged at training time.
+
+The PE-disruption hypothesis — that MET, appended at a fixed token position, disrupts the sinusoidal positional encoding (E1) by occupying a slot that the model otherwise associates with a specific particle type — is a plausible post-hoc explanation that has not been tested experimentally.
+Such a test would require a dedicated experiment crossing D02 with E1\,=\,\texttt{none} (no positional encoding) to isolate any PE-mediated effect.
+No such experiment has been conducted.
+MET is excluded from the chapter baseline (D02\,=\,\texttt{false}) primarily because it provides no measured benefit; its re-introduction via physics-informed attention biases (B1-G1\,=\,\texttt{met\_direction}) is examined in a subsequent chapter.
 
 % -------------------------------------------------------
-\subsection{Token ordering as a permutation-invariance diagnostic (D03)}
-\label{sec:exp4b-order}
+\subsection{Token Ordering (D03)}
+\label{sec:ch4-order}
 % -------------------------------------------------------
 
-% --- NOTE ---
-% Numbers: input_order = 0.840, shuffled = 0.811. Gap = -0.029.
-%
-% This is the second surprise. Self-attention is permutation-equivariant
-%   by construction (no positional encoding → truly order-invariant).
-%   But all these runs use E1=sinusoidal with positional_space=model.
-%   Sinusoidal PE injects an ordering signal. If the input ordering has
-%   any physical structure (e.g., particles ordered by reconstruction
-%   algorithm output, or by pT descending), the PE effectively becomes
-%   a pT-proxy or type-proxy.
-%
-% Consequence: the -0.029 gap does NOT mean the attention mechanism is
-%   exploiting ordering. It means the sinusoidal PE is exploiting ordering.
-%   True permutation invariance requires E1=none.
-%
-% This result does two things for the thesis:
-%   (1) It closes the chapter with a concrete negative finding that
-%       motivates the positional encoding chapter (if one exists) or
-%       at minimum serves as a caveat for all PE=sinusoidal results.
-%   (2) It means that for any future chapter, D03=input_order is the
-%       correct default (not shuffled), since the model uses the ordering.
-%       But the physics meaning of that ordering should be checked.
-%
-% [FLAG: check what ordering the reconstruction software produces.
-%   If it is pT-descending, the PE is effectively encoding pT rank,
-%   which is a legitimate (if implicit) physics feature. If it is
-%   arbitrary, the PE may be encoding noise.]
-%
-% Write ~2 paragraphs: (1) state the result and why it is surprising;
-%   (2) explain the PE mechanism and what it implies for subsequent chapters.
+Self-attention is permutation-equivariant by construction: without positional encoding, the output is invariant to any permutation of the input tokens.
+However, all runs in this chapter use sinusoidal positional encoding (E1\,=\,\texttt{sinusoidal}) in model space (E1-a\,=\,\texttt{model}).
+The token ordering axis (\wandbaxis{D03}) tests whether the choice between preserving the original reconstruction order (\texttt{input\_order}) and randomly shuffling the sequence (\texttt{shuffled}) affects AUROC.
 
-Shuffling the token sequence (D03\,=\,\texttt{shuffled}) reduces mean AUROC
-from $0.840$ to $0.811$ ($-0.029$),
-despite self-attention being permutation-equivariant by construction.
+Figure~\ref{fig:auroc-bar-shuffle} shows the marginal comparison restricted to D02\,=\,\texttt{false} conditions, which removes any potential interaction with the MET token.
+\texttt{input\_order} yields a mean AUROC of $0.8428 \pm 0.0008$ ($n=6$); \texttt{shuffled} yields $0.8402 \pm 0.0012$ ($n=6$).
+The gap of $-0.0026$ (shuffled vs.\ input\_order) is approximately $2$–$3\times$ the standard deviation of the individual conditions and is consistent across both D01 values.
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=0.65\textwidth]{figures/ch4/figure-auroc_bar_by_shuffle.png}
-\caption{Mean test AUROC by token ordering (D03).
-The performance gap under shuffling ($-0.029$) indicates that the sinusoidal
-positional encoding (E1\,=\,\texttt{sinusoidal}) is exploiting the input
-ordering of the particle sequence.
-True permutation invariance would require E1\,=\,\texttt{none}.
-% NOTE: if the report generates a val_auroc_by_shuffle training curve,
-%   include it here to show whether shuffled models converge differently
-%   or simply plateau lower.
-}
+\includegraphics[width=0.65\textwidth]{figures/ch4/figure-auroc_bar_by_shuffle.pdf}
+\caption{Mean test AUROC by token ordering (D03), for D02\,=\,\texttt{false} conditions ($n=6$ per bar).
+Shuffled token sequences yield $-0.0026$ AUROC relative to the original reconstruction order.
+The effect is consistent across feature-set conditions.}
 \label{fig:auroc-bar-shuffle}
 \end{figure}
 
-% [NEED] Figure: training curves D03=ordered vs shuffled
-%   (does shuffled model converge differently or just plateau lower?)
-% \begin{figure}[h]
-% \centering
-% \includegraphics[width=0.65\textwidth]{figures/ch4/figure-val_auroc_by_shuffle.png}
-% \caption{[PLACEHOLDER] Validation AUROC training curves for ordered vs
-%   shuffled token sequences.}
-% \label{fig:val-auroc-shuffle}
-% \end{figure}
-
-% [NEED] Figure: AUROC as function of D03, stratified by E1 (PE type),
-%   specifically comparing E1=sinusoidal vs E1=none.
-%   This would confirm that the shuffle penalty disappears when PE=none.
-%   Requires ~6 additional runs: E1=none × D03=shuffled/ordered × 3 seeds.
-%   Medium priority — useful for the PE chapter but also here.
-% \begin{figure}[h]
-% \centering
-% \includegraphics[width=0.65\textwidth]{figures/ch4/figure-auroc_shuffle_by_pe.png}
-% \caption{[PLACEHOLDER] Shuffle penalty as a function of positional encoding type.
-%   E1=none should show no ordering effect; E1=sinusoidal should reproduce
-%   the $-0.029$ gap observed here.}
-% \label{fig:auroc-shuffle-by-pe}
-% \end{figure}
-
-% ============================================================
-\section{Summary and chapter baseline}
-\label{sec:ch4-summary}
-% ============================================================
-
-% --- NOTE ---
-% Short section (~1 paragraph + table). State the three main findings:
-%   (1) PID is load-bearing: the transformer cannot recover particle
-%       identity from kinematics alone at this capacity. +0.031 AUROC.
-%   (2) How PID is encoded matters only at low embedding dimension:
-%       at dim≥16, all encoding modes are equivalent. one_hot at dim=8
-%       is the parameter-efficient choice.
-%   (3) Two counterintuitive negatives: MET hurts (-0.026) and shuffling
-%       hurts (-0.029). Both implicate the sinusoidal positional encoding,
-%       which is exploiting input ordering and may be disrupted by an
-%       additional fixed-position MET token.
-%
-% Then: Table~\ref{tab:ch4-baseline} stating the chosen values for each
-%   axis, with a one-line justification for each.
-%
-% Final sentence: these choices constitute the Ch5 baseline. Any subsequent
-%   chapter that changes one of these axes re-runs the relevant comparison
-%   on top of this configuration.
-
-This chapter establishes six axis choices that propagate as the fixed baseline
-into all subsequent chapters.
-Three main conclusions motivate these choices.
-
-First, an explicit particle-type label is necessary:
-the \texttt{identity} tokenizer outperforms kinematics-only \texttt{raw}
-by $+0.031$ AUROC,
-and the failure analysis shows that this gap is concentrated in events
-where particle type, not kinematics, carries the discriminating signal.
-The \texttt{binned} tokenizer, which discards continuous features entirely,
-is the weakest of the three families.
-
-Second, the choice of PID encoding mode (T1-a) is largely irrelevant
-provided the embedding dimension is at least 16 for the \texttt{learned} mode.
-The \texttt{one\_hot} encoding at dimension 8 is robust and parameter-efficient,
-making it the preferred baseline.
-
-Third, two results indicate that the sinusoidal positional encoding (E1)
-is a confounding variable in this chapter.
-MET inclusion degrades performance ($-0.026$), most likely because the MET token
-disrupts the attention patterns that the model has learned to associate with
-input token position.
-Similarly, shuffling the token sequence degrades performance ($-0.029$),
-demonstrating that the model exploits the input ordering via the positional encoding
-rather than being genuinely permutation-invariant.
-Both effects point to the positional encoding as an implicit inductive bias
-whose interaction with physics-motivated design choices warrants further study.
+Table~\ref{tab:exp4b-d02d03} shows the full $2\times2\times2$ factorial mean AUROC table for all D01, D02, D03 combinations.
+The ordering effect is present under both MET conditions, suggesting it is not mediated by an interaction between D03 and D02.
 
 \begin{table}[h]
 \centering
 \small
-\begin{tabular}{llll}
+\begin{tabular}{lllrrr}
+\toprule
+D01 & D02 & D03 & mean AUROC & std & $n$ \\
+\midrule
+\texttt{[0,1,2,3]} & False & input\_order & 0.8431 & 0.0007 & 3 \\
+\texttt{[0,1,2,3]} & False & shuffled     & 0.8398 & 0.0012 & 3 \\
+\texttt{[0,1,2,3]} & True  & input\_order & 0.8434 & 0.0015 & 3 \\
+\texttt{[0,1,2,3]} & True  & shuffled     & 0.8420 & 0.0008 & 3 \\
+\texttt{[1,2,3]}   & False & input\_order & 0.8424 & 0.0010 & 3 \\
+\texttt{[1,2,3]}   & False & shuffled     & 0.8406 & 0.0013 & 3 \\
+\texttt{[1,2,3]}   & True  & input\_order & 0.8436 & 0.0004 & 3 \\
+\texttt{[1,2,3]}   & True  & shuffled     & 0.8401 & 0.0021 & 3 \\
+\bottomrule
+\end{tabular}
+\caption{Full $2\times2\times2$ factorial AUROC table for Experiment~4B.
+Each cell reports the mean and standard deviation over three seeds.
+The token ordering effect (\wandbaxis{D03}) is consistent across all D01 and D02 conditions.}
+\label{tab:exp4b-d02d03}
+\end{table}
+
+\paragraph{Attribution.}
+The ordering effect is consistent with the sinusoidal positional encoding providing useful information when tokens are presented in a consistent order, and that information being destroyed by random shuffling.
+However, this attribution requires a control experiment with E1\,=\,\texttt{none} (no positional encoding) to confirm.
+If the ordering effect disappears under E1\,=\,\texttt{none}, the effect is mediated by the positional encoding.
+If it persists, the transformer's residual stream or the classification head is sensitive to token position through some other mechanism.
+This control experiment has not been run.
+The thesis states the ordering effect as a measured result and the PE attribution as a hypothesis.
+
+The reconstruction software produces tokens in an order that is not $p_T$-sorted but reflects the detector reconstruction sequence, which may carry implicit correlations between position and particle type or kinematics.
+If such correlations exist, the sinusoidal PE would be implicitly encoding a type-proxy, which is a legitimate, if implicit, inductive bias.
+Characterising this ordering is a direction for future work.
+
+% ============================================================
+\section{Discussion}
+\label{sec:ch4-discussion}
+% ============================================================
+
+This section synthesises the results of Experiments~4A and~4B and establishes the baseline configuration for subsequent chapters.
+
+\paragraph{Ranking of effects.}
+The tokenizer family (\wandbaxis{T1}) dominates all other choices by a large margin.
+The identity-versus-raw gap of $+0.038$ AUROC ($+0.117$ identity versus binned) is an order of magnitude larger than any data-treatment effect.
+Within the identity family, PID mode (\wandbaxis{T1-a}) and dimension (\wandbaxis{T1-b}) effects are at most $\sim 0.004$ AUROC, comparable to seed-spread.
+All three data-treatment axes produce effects below $0.003$ AUROC in this experiment; none is distinguishable from noise with certainty at $n=3$ seeds.
+
+The narrative arc of this chapter is therefore: \emph{choose the identity tokenizer; thereafter, fine-grained choices do not matter at this model scale and seed count.}
+
+\paragraph{Limitations.}
+Three limitations are worth stating explicitly.
+
+First, only three seeds per condition are available.
+The D03 ordering effect ($-0.0026$) is the largest of the data-treatment results and is suggestive of a real effect, but would require $n \geq 6$ per condition to approach 95\% confidence given typical seed-spread variability of $\sim 0.001$ AUROC.
+The D01 and D02 results ($<0.001$) are almost certainly null results, but cannot be proven so with the current seed count.
+
+Second, the attribution of the D03 ordering effect to the sinusoidal positional encoding has not been confirmed.
+An E1\,=\,\texttt{none} control is the minimum experiment required.
+Similarly, the PE-disruption hypothesis for D02 is untested.
+
+Third, Experiment~4B uses T1-a\,=\,\texttt{learned} and T1-b\,=\,8 as the fixed tokenizer configuration, which is not the best-performing individual cell identified in Experiment~4A.
+The D02 and D03 effects may differ under \texttt{one\_hot} tokenization; this cross-check has not been performed.
+
+\paragraph{Chapter baseline.}
+Table~\ref{tab:ch4-baseline} records the axis values chosen as the baseline for all subsequent chapters.
+Choices follow the criterion of maximising expected performance while minimising hyperparameter sensitivity.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lllp{6cm}}
 \toprule
 Axis & Config key & Chosen value & Justification \\
 \midrule
-T1   & \texttt{tokenizer.name}     & \texttt{identity}    & $+0.031$ over \texttt{raw} \\
-T1-a & \texttt{tokenizer.pid\_mode} & \texttt{one\_hot}    & robust at dim=8; no learning needed \\
-T1-b & \texttt{tokenizer.id\_embed\_dim} & 8           & sufficient for \texttt{one\_hot} \\
-D01  & \texttt{data.cont\_features} & \texttt{[0,1,2,3]}  & $+0.009$ from energy inclusion \\
-D02  & \texttt{include\_met}        & \texttt{false}       & MET token degrades AUROC \\
-D03  & \texttt{shuffle\_tokens}     & \texttt{false}       & model exploits input ordering \\
+T1   & \texttt{classifier.model.tokenizer.name}     & \texttt{identity}        & $+0.038$ AUROC over \texttt{raw}; dominant effect \\
+T1-a & \texttt{classifier.model.tokenizer.pid\_mode} & \texttt{one\_hot}        & robust at all dims; no trainable embedding weights \\
+T1-b & \texttt{classifier.model.tokenizer.id\_embed\_dim} & \texttt{num\_types}  & set automatically by \texttt{one\_hot}; no free param \\
+D01  & \texttt{data.cont\_features}                  & \texttt{[0,1,2,3]}      & null gap vs. \texttt{[1,2,3]}; required for P1 (nodewise mass) \\
+D02  & \texttt{classifier.globals.include\_met}      & \texttt{false}           & null result; re-examined via B1-G1 in Ch.~6 \\
+D03  & \texttt{data.sort\_tokens\_by}                & \texttt{input\_order}    & small but consistent gain over \texttt{shuffled} \\
 \bottomrule
 \end{tabular}
-\caption{Chapter 4 baseline configuration carried forward to all subsequent chapters.
-% NOTE: T1-a choice may need revisiting if the planned cross-task (4t-vs-ttH)
-%   results show a different ranking. Confirm before freezing.
-}
+\caption{Chapter~4 baseline configuration carried forward to all subsequent chapters.
+Each axis is held at the value shown unless explicitly varied.}
 \label{tab:ch4-baseline}
 \end{table}
 
-% [NEED] Cross-task validation subsection (or box):
-%   Re-run T1 and D02 comparisons on the 4t-vs-ttH task.
-%   Expected: T1 finding replicates (identity still best).
-%   D02: on 4t-vs-ttH both signal and background have semi-leptonic tops,
-%   so MET provides even less discriminating power, and the negative
-%   result should be as strong or stronger.
-%   6--12 additional runs. Include as a subsection if results are available;
-%   otherwise move to an appendix or footnote.
-%
-% \subsection{Cross-task validation on $tttt$ vs $ttH$ (optional)}
-% \label{sec:ch4-crosstask}
-% [PLACEHOLDER: 1 figure, ~1 paragraph]
+These six choices define the canonical input representation for the transformer workbench as used throughout the remainder of this thesis.
+Any chapter that modifies one of these axes re-runs the relevant comparison on top of this configuration.

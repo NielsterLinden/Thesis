@@ -12,8 +12,11 @@ import numpy as np
 import pandas as pd
 
 from thesis_ml.monitoring.io_utils import save_figure
+from thesis_ml.reports.plots.style import apply_thesis_style, figure_size, CATEGORICAL_COLORS
 
 logger = logging.getLogger(__name__)
+
+apply_thesis_style()
 
 
 def _extract_job_number(run_id: str) -> int:
@@ -134,11 +137,12 @@ def plot_roc_curves(
     fname : str
         Base filename for saved figure
     """
-    fig, ax = plt.subplots(figsize=(10, 8))
+    fig, ax = plt.subplots(figsize=figure_size("full", aspect=1.0))
 
     # Sort run IDs numerically by job number
     sorted_run_ids = _sort_run_ids_numerically(list(inference_results.keys()))
-    colors = plt.cm.tab10(np.linspace(0, 1, len(sorted_run_ids)))
+    n = len(sorted_run_ids)
+    colors = (CATEGORICAL_COLORS * (n // len(CATEGORICAL_COLORS) + 1))[:n]
 
     for i, run_id in enumerate(sorted_run_ids):
         metrics = inference_results[run_id]
@@ -175,20 +179,11 @@ def plot_roc_curves(
             )
 
     # Diagonal reference line (random classifier)
-    ax.plot([0, 1], [0, 1], "k--", linewidth=1, alpha=0.5, label="Random (0.5)")
+    ax.plot([0, 1], [0, 1], color="gray", linestyle="--", linewidth=0.8, alpha=0.5, label="Random (0.5)")
 
-    ax.set_xlabel("False Positive Rate", fontsize=14)
-    ax.set_ylabel("True Positive Rate", fontsize=14)
-    ax.set_title("ROC Curves", fontsize=16)
-    # Place legend outside the main axes to avoid covering curves
-    ax.legend(
-        fontsize=8,
-        loc="center left",
-        bbox_to_anchor=(1.02, 0.5),
-        borderaxespad=0.0,
-        framealpha=0.9,
-    )
-    ax.grid(alpha=0.3)
+    ax.set_xlabel("False Positive Rate")
+    ax.set_ylabel("True Positive Rate")
+    ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), borderaxespad=0.0)
     ax.set_xlim([0, 1])
     ax.set_ylim([0, 1])
 
@@ -228,30 +223,22 @@ def plot_confusion_matrix(
         label_groups = metrics.get("label_groups", None)
         class_names = _get_class_names(n_classes=n_classes, label_groups=label_groups)
 
-        fig, ax = plt.subplots(figsize=(8, 6))
-        # Set colorbar limits to [0, 1] for normalized confusion matrix
+        fig, ax = plt.subplots(figsize=figure_size("full", aspect=1.0))
         im = ax.imshow(cm, interpolation="nearest", cmap=plt.cm.Blues, vmin=0, vmax=1)
         cbar = ax.figure.colorbar(im, ax=ax)
-        cbar.set_label("Normalized Count", fontsize=12)
+        cbar.set_label("Normalized Count")
 
         ax.set(
             xticks=np.arange(n_classes),
             yticks=np.arange(n_classes),
             xticklabels=class_names,
             yticklabels=class_names,
-            xlabel="Predicted",
-            ylabel="True",
-            title=f"Confusion Matrix: {run_id}",
         )
-        ax.set_xlabel("Predicted", fontsize=14)
-        ax.set_ylabel("True", fontsize=14)
-        ax.set_title(f"Confusion Matrix: {run_id}", fontsize=16)
+        ax.set_xlabel("Predicted")
+        ax.set_ylabel("True")
 
-        # Rotate x-axis labels if needed
         plt.setp(ax.get_xticklabels(), rotation=45, ha="right")
 
-        # Add text annotations
-        thresh = cm.max() / 2.0
         for i in range(n_classes):
             for j in range(n_classes):
                 ax.text(
@@ -260,8 +247,7 @@ def plot_confusion_matrix(
                     f"{cm[i, j]:.2f}",
                     ha="center",
                     va="center",
-                    color="white" if cm[i, j] > thresh else "black",
-                    fontsize=12,
+                    color="white" if cm[i, j] > 0.5 else "black",
                 )
 
         plt.tight_layout()
@@ -296,7 +282,7 @@ def plot_metrics_comparison(
     metrics_to_plot = ["accuracy", "auroc", "f1_macro"]
     colors = ["#1f77b4", "#ff7f0e", "#2ca02c"]
 
-    fig, ax = plt.subplots(figsize=(12, 6))
+    fig, ax = plt.subplots(figsize=figure_size("full"))
 
     for i, metric in enumerate(metrics_to_plot):
         values = []
@@ -316,13 +302,11 @@ def plot_metrics_comparison(
             alpha=0.7,
         )
 
-    ax.set_xlabel("Model (Run ID)", fontsize=14)
-    ax.set_ylabel("Score", fontsize=14)
-    ax.set_title("Classification Performance Comparison", fontsize=16)
+    ax.set_xlabel("Model (Run ID)")
+    ax.set_ylabel("Score")
     ax.set_xticks(x + width)
-    ax.set_xticklabels(run_ids, rotation=45, ha="right", fontsize=10)
-    ax.legend(fontsize=12)
-    ax.grid(axis="y", alpha=0.3)
+    ax.set_xticklabels(run_ids, rotation=45, ha="right")
+    ax.legend()
     ax.set_ylim([0, 1])
 
     plt.tight_layout()
@@ -387,8 +371,7 @@ def plot_score_distributions(
         signal_name = class_names[signal_class_idx]
         background_name = class_names[background_class_idx] if background_class_idx is not None else class_names[1 - signal_class_idx]
 
-        # Create figure matching anomaly detection style
-        fig, ax = plt.subplots(figsize=(10, 6))
+        fig, ax = plt.subplots(figsize=figure_size("full"))
 
         # Compute optimal threshold using Youden's J
         # Convert labels to binary: signal=1, background=0
@@ -465,12 +448,9 @@ def plot_score_distributions(
             fontsize=11,
         )
 
-        # Set labels and title
-        ax.set_xlabel("Classifier Score (p(signal | event))", fontsize=14)
-        ax.set_ylabel("bin count / N", fontsize=14)
-        ax.set_title(f"Score Distributions: {run_id}", fontsize=16)
-        ax.legend(fontsize=12)
-        ax.grid(alpha=0.3)
+        ax.set_xlabel("Classifier Score (p(signal | event))")
+        ax.set_ylabel("bin count / N")
+        ax.legend()
 
         # Set x-axis limits to tightly cover the distributions
         ax.set_xlim([score_min, score_max])
@@ -557,8 +537,7 @@ def plot_metrics_by_axis(
         logger.warning(f"No data found for axis '{axis_col}', skipping plot")
         return
 
-    # Create bar chart
-    fig, ax = plt.subplots(figsize=(10, 6))
+    fig, ax = plt.subplots(figsize=figure_size("full"))
     x = np.arange(len(axis_values))
     width = 0.6
 
@@ -568,12 +547,10 @@ def plot_metrics_by_axis(
     for i, (mean, std) in enumerate(zip(means, stds, strict=False)):
         ax.text(i, mean + std + 0.01, f"{mean:.3f}", ha="center", va="bottom", fontsize=10)
 
-    ax.set_xlabel(axis_col.replace("_", " ").title(), fontsize=14)
-    ax.set_ylabel(metric_col.replace("_", " ").title(), fontsize=14)
-    ax.set_title(title or f"{metric_col.replace('_', ' ').title()} by {axis_col.replace('_', ' ').title()}", fontsize=16)
+    ax.set_xlabel(axis_col.replace("_", " ").title())
+    ax.set_ylabel(metric_col.replace("_", " ").title())
     ax.set_xticks(x)
-    ax.set_xticklabels(labels, rotation=45, ha="right", fontsize=12)
-    ax.grid(axis="y", alpha=0.3)
+    ax.set_xticklabels(labels, rotation=45, ha="right")
 
     plt.tight_layout()
     save_figure(fig, inference_figs_dir, fname, fig_cfg)
@@ -662,7 +639,7 @@ def plot_metric_vs_hparam(
     metric_col: str,
     style: str = "line",
     show_individual: bool = True,
-    figsize: tuple[float, float] = (10, 8),
+    figsize: tuple[float, float] | None = None,
 ) -> tuple[plt.Figure, plt.Axes]:
     """Plot metric vs hyperparameter with optional grouping.
 
@@ -708,16 +685,18 @@ def plot_metric_vs_hparam(
     if len(plot_df) == 0:
         raise ValueError("No valid data after filtering NaN values")
 
+    if figsize is None:
+        figsize = figure_size("full")
     fig, ax = plt.subplots(figsize=figsize)
 
-    # Get distinct colors for groups
     if group_col:
         groups = sorted(plot_df[group_col].unique())
-        colors = plt.cm.tab10(np.linspace(0, 1, len(groups)))
+        n_g = len(groups)
+        colors = (CATEGORICAL_COLORS * (n_g // len(CATEGORICAL_COLORS) + 1))[:n_g]
         color_map = {g: colors[i] for i, g in enumerate(groups)}
     else:
         groups = [None]
-        color_map = {None: "#1f77b4"}
+        color_map = {None: CATEGORICAL_COLORS[0]}
 
     for group_val in groups:
         if group_col:
@@ -809,18 +788,14 @@ def plot_metric_vs_hparam(
                 zorder=2,
             )
 
-    # Formatting
-    ax.set_xlabel(f"{x_col.replace('_', ' ').title()} [parameters]" if "size" in x_col.lower() else f"{x_col.replace('_', ' ').title()}", fontsize=14)
-    ax.set_ylabel(f"{metric_col.replace('_', ' ').title()} [unitless]", fontsize=14)
-    ax.set_title(f"{metric_col.replace('_', ' ').title()} vs {x_col.replace('_', ' ').title()}", fontsize=16)
-    ax.legend(fontsize=12)
-    ax.grid(alpha=0.3)
+    ax.set_xlabel(f"{x_col.replace('_', ' ').title()} [parameters]" if "size" in x_col.lower() else x_col.replace('_', ' ').title())
+    ax.set_ylabel(f"{metric_col.replace('_', ' ').title()} [unitless]")
+    ax.legend()
 
     if style == "bar" and group_col:
-        # Set x-axis ticks for bar plots
         grouped_all = plot_df.groupby(x_col)[metric_col].mean()
         ax.set_xticks(np.arange(len(grouped_all)))
-        ax.set_xticklabels(grouped_all.index, rotation=45, ha="right", fontsize=12)
+        ax.set_xticklabels(grouped_all.index, rotation=45, ha="right")
 
     plt.tight_layout()
     return fig, ax
@@ -832,7 +807,7 @@ def plot_metric_heatmap(
     col_col: str,
     metric_col: str,
     annotate: bool = True,
-    figsize: tuple[float, float] = (10, 8),
+    figsize: tuple[float, float] | None = None,
 ) -> tuple[plt.Figure, plt.Axes]:
     """Plot 2D heatmap of metric across parameter combinations.
 
@@ -871,6 +846,9 @@ def plot_metric_heatmap(
     if len(plot_df) == 0:
         raise ValueError("No valid data after filtering NaN values")
 
+    if figsize is None:
+        figsize = figure_size("full", aspect=1.0)
+
     # Create pivot table (mean aggregation)
     pivot = plot_df.pivot_table(
         index=row_col,
@@ -899,22 +877,18 @@ def plot_metric_heatmap(
                         ha="center",
                         va="center",
                         color=text_color,
-                        fontsize=11,
                         fontweight="bold",
                     )
 
-    # Set ticks and labels
     ax.set_xticks(range(len(pivot.columns)))
-    ax.set_xticklabels(pivot.columns, rotation=45, ha="right", fontsize=12)
+    ax.set_xticklabels(pivot.columns, rotation=45, ha="right")
     ax.set_yticks(range(len(pivot.index)))
-    ax.set_yticklabels(pivot.index, fontsize=12)
-    ax.set_xlabel(f"{col_col.replace('_', ' ').title()}", fontsize=14)
-    ax.set_ylabel(f"{row_col.replace('_', ' ').title()}", fontsize=14)
-    ax.set_title(f"{metric_col.replace('_', ' ').title()} Heatmap", fontsize=16)
+    ax.set_yticklabels(pivot.index)
+    ax.set_xlabel(col_col.replace("_", " ").title())
+    ax.set_ylabel(row_col.replace("_", " ").title())
 
-    # Add colorbar
     cbar = fig.colorbar(im, ax=ax)
-    cbar.set_label(f"{metric_col.replace('_', ' ').title()} [unitless]", fontsize=12)
+    cbar.set_label(f"{metric_col.replace('_', ' ').title()} [unitless]")
 
     plt.tight_layout()
     return fig, ax
@@ -926,7 +900,7 @@ def plot_epoch_curves_grouped(
     y_col: str,
     x_col: str = "epoch",
     show_individual: bool = True,
-    figsize: tuple[float, float] = (10, 8),
+    figsize: tuple[float, float] | None = None,
 ) -> tuple[plt.Figure, plt.Axes]:
     """Plot epoch curves grouped by a parameter.
 
@@ -970,11 +944,13 @@ def plot_epoch_curves_grouped(
     if len(plot_df) == 0:
         raise ValueError("No valid data after filtering NaN values")
 
+    if figsize is None:
+        figsize = figure_size("full")
     fig, ax = plt.subplots(figsize=figsize)
 
-    # Get distinct colors for groups
     groups = sorted(plot_df[group_col].unique())
-    colors = plt.cm.tab10(np.linspace(0, 1, len(groups)))
+    n_g = len(groups)
+    colors = (CATEGORICAL_COLORS * (n_g // len(CATEGORICAL_COLORS) + 1))[:n_g]
     color_map = {g: colors[i] for i, g in enumerate(groups)}
 
     for group_val in groups:
@@ -985,12 +961,10 @@ def plot_epoch_curves_grouped(
 
         color = color_map[group_val]
 
-        # Plot individual runs if requested
         if show_individual:
             for _run_id, run_data in group_df.groupby(run_id_col):
                 x_vals = run_data[x_col].values
                 y_vals = run_data[y_col].values
-                # Sort by x_col for proper line plotting
                 sort_idx = np.argsort(x_vals)
                 ax.plot(
                     x_vals[sort_idx],
@@ -1035,12 +1009,9 @@ def plot_epoch_curves_grouped(
                 zorder=1,
             )
 
-    # Formatting
-    ax.set_xlabel(f"{x_col.replace('_', ' ').title()} [#]", fontsize=14)
-    ax.set_ylabel(f"{y_col.replace('_', ' ').title()} [unitless]", fontsize=14)
-    ax.set_title(f"{y_col.replace('_', ' ').title()} vs {x_col.replace('_', ' ').title()}", fontsize=16)
-    ax.legend(fontsize=12)
-    ax.grid(alpha=0.3)
+    ax.set_xlabel(f"{x_col.replace('_', ' ').title()} [#]")
+    ax.set_ylabel(f"{y_col.replace('_', ' ').title()} [unitless]")
+    ax.legend()
 
     plt.tight_layout()
     return fig, ax
@@ -1051,7 +1022,7 @@ def plot_grouped_roc_curves(
     group_col: str,
     n_points: int = 500,
     show_individual: bool = True,
-    figsize: tuple[float, float] = (10, 8),
+    figsize: tuple[float, float] | None = None,
 ) -> tuple[plt.Figure, plt.Axes]:
     """Plot ROC curves grouped by a parameter.
 
@@ -1087,11 +1058,13 @@ def plot_grouped_roc_curves(
     if not (has_fpr_tpr or has_roc_dict):
         raise ValueError("DataFrame must contain either ('fpr', 'tpr') columns or 'roc_curve' dict column")
 
+    if figsize is None:
+        figsize = figure_size("full", aspect=1.0)
     fig, ax = plt.subplots(figsize=figsize)
 
-    # Get distinct colors for groups
     groups = sorted(df[group_col].dropna().unique())
-    colors = plt.cm.tab10(np.linspace(0, 1, len(groups)))
+    n_g = len(groups)
+    colors = (CATEGORICAL_COLORS * (n_g // len(CATEGORICAL_COLORS) + 1))[:n_g]
     color_map = {g: colors[i] for i, g in enumerate(groups)}
 
     for group_val in groups:
@@ -1180,14 +1153,11 @@ def plot_grouped_roc_curves(
                 zorder=1,
             )
 
-    # Diagonal reference line (random classifier)
-    ax.plot([0, 1], [0, 1], "k--", linewidth=1, alpha=0.5, label="Random (0.5)", zorder=0)
+    ax.plot([0, 1], [0, 1], color="gray", linestyle="--", linewidth=0.8, alpha=0.5, label="Random (0.5)", zorder=0)
 
-    ax.set_xlabel("False Positive Rate [unitless]", fontsize=14)
-    ax.set_ylabel("True Positive Rate [unitless]", fontsize=14)
-    ax.set_title("ROC Curves", fontsize=16)
-    ax.legend(fontsize=12)
-    ax.grid(alpha=0.3)
+    ax.set_xlabel("False Positive Rate [unitless]")
+    ax.set_ylabel("True Positive Rate [unitless]")
+    ax.legend()
     ax.set_xlim([0, 1])
     ax.set_ylim([0, 1])
 
@@ -1201,7 +1171,7 @@ def plot_grouped_bars(
     metric_col: str,
     show_points: bool = True,
     error_bars: bool = True,
-    figsize: tuple[float, float] = (10, 6),
+    figsize: tuple[float, float] | None = None,
 ) -> tuple[plt.Figure, plt.Axes]:
     """Plot grouped bar chart comparing metrics.
 
@@ -1239,7 +1209,9 @@ def plot_grouped_bars(
     if len(plot_df) == 0:
         raise ValueError("No valid data after filtering NaN values")
 
-    # Group and aggregate
+    if figsize is None:
+        figsize = figure_size("full")
+
     grouped = plot_df.groupby(group_col)[metric_col].agg(["mean", "std", "count"])
 
     groups = grouped.index.tolist()
@@ -1291,12 +1263,10 @@ def plot_grouped_bars(
             fontsize=10,
         )
 
-    ax.set_xlabel(f"{group_col.replace('_', ' ').title()}", fontsize=14)
-    ax.set_ylabel(f"{metric_col.replace('_', ' ').title()} [unitless]", fontsize=14)
-    ax.set_title(f"{metric_col.replace('_', ' ').title()} by {group_col.replace('_', ' ').title()}", fontsize=16)
+    ax.set_xlabel(group_col.replace("_", " ").title())
+    ax.set_ylabel(f"{metric_col.replace('_', ' ').title()} [unitless]")
     ax.set_xticks(x_pos)
-    ax.set_xticklabels([str(g) for g in groups], rotation=45, ha="right", fontsize=12)
-    ax.grid(axis="y", alpha=0.3)
+    ax.set_xticklabels([str(g) for g in groups], rotation=45, ha="right")
 
     plt.tight_layout()
     return fig, ax
@@ -1347,9 +1317,8 @@ def plot_score_distributions_df(
         raise ValueError("DataFrame must contain ('per_event_scores', 'per_event_labels') or ('scores', 'labels') columns")
 
     if layout == "single":
-        # Single plot - plot all runs on one figure
         if figsize is None:
-            figsize = (10, 6)
+            figsize = figure_size("full")
 
         fig, ax = plt.subplots(figsize=figsize)
 
@@ -1407,11 +1376,9 @@ def plot_score_distributions_df(
                 alpha=0.6,
             )
 
-        ax.set_xlabel("Classifier Score (p(signal | event)) [probability]", fontsize=14)
-        ax.set_ylabel("bin count / N [unitless]", fontsize=14)
-        ax.set_title("Score Distributions", fontsize=16)
-        ax.legend(fontsize=10)
-        ax.grid(alpha=0.3)
+        ax.set_xlabel("Classifier Score (p(signal | event)) [probability]")
+        ax.set_ylabel("bin count / N [unitless]")
+        ax.legend()
 
         plt.tight_layout()
         return fig, ax
@@ -1513,13 +1480,9 @@ def plot_score_distributions_df(
                 alpha=0.8,
             )
 
-            # Title
-            title = str(group_val) if group_col else str(run_data[run_id_col])
-            ax.set_title(title, fontsize=11)
-            ax.set_xlabel("Score [probability]", fontsize=9)
-            ax.set_ylabel("Density [unitless]", fontsize=9)
-            ax.legend(fontsize=8)
-            ax.grid(alpha=0.3)
+            ax.set_xlabel("Score [probability]")
+            ax.set_ylabel("Density [unitless]")
+            ax.legend()
 
             plot_idx += 1
 
@@ -1540,7 +1503,7 @@ def plot_roc_curves_grouped_by(
     fname: str = "figure-roc_curves_grouped",
     title: str | None = None,
     show_individual: bool = True,
-    figsize: tuple[float, float] = (10, 8),
+    figsize: tuple[float, float] | None = None,
 ) -> None:
     """Plot ROC curves grouped by a parameter (PE type, norm policy, etc.).
 
@@ -1574,11 +1537,13 @@ def plot_roc_curves_grouped_by(
         logger.warning(f"Column '{group_col}' not found in runs_df, skipping ROC grouped plot")
         return
 
+    if figsize is None:
+        figsize = figure_size("full", aspect=1.0)
     fig, ax = plt.subplots(figsize=figsize)
 
-    # Get unique group values and assign colors
     groups = sorted(runs_df[group_col].dropna().unique())
-    colors = plt.cm.tab10(np.linspace(0, 1, len(groups)))
+    n_g = len(groups)
+    colors = (CATEGORICAL_COLORS * (n_g // len(CATEGORICAL_COLORS) + 1))[:n_g]
     color_map = {g: colors[i] for i, g in enumerate(groups)}
 
     n_points = 500  # Number of points for interpolation
@@ -1670,14 +1635,11 @@ def plot_roc_curves_grouped_by(
                 zorder=1,
             )
 
-    # Diagonal reference line (random classifier)
-    ax.plot([0, 1], [0, 1], "k--", linewidth=1, alpha=0.5, label="Random (0.5)", zorder=0)
+    ax.plot([0, 1], [0, 1], color="gray", linestyle="--", linewidth=0.8, alpha=0.5, label="Random (0.5)", zorder=0)
 
-    ax.set_xlabel("False Positive Rate", fontsize=14)
-    ax.set_ylabel("True Positive Rate", fontsize=14)
-    ax.set_title(title or f"ROC Curves by {group_col.replace('_', ' ').title()}", fontsize=16)
-    ax.legend(fontsize=11, loc="lower right")
-    ax.grid(alpha=0.3)
+    ax.set_xlabel("False Positive Rate")
+    ax.set_ylabel("True Positive Rate")
+    ax.legend(loc="lower right")
     ax.set_xlim([0, 1])
     ax.set_ylim([0, 1])
 
@@ -1694,7 +1656,7 @@ def plot_auroc_bar_by_group(
     fig_cfg: dict[str, Any],
     fname: str = "figure-auroc_by_group",
     title: str | None = None,
-    figsize: tuple[float, float] = (10, 6),
+    figsize: tuple[float, float] | None = None,
 ) -> None:
     """Plot AUROC bar chart grouped by a parameter.
 
@@ -1755,42 +1717,41 @@ def plot_auroc_bar_by_group(
     stds = [np.std(group_aurocs[g]) if len(group_aurocs[g]) > 1 else 0.0 for g in groups]
     counts = [len(group_aurocs[g]) for g in groups]
 
+    if figsize is None:
+        figsize = figure_size("full")
     fig, ax = plt.subplots(figsize=figsize)
 
     x_pos = np.arange(len(groups))
     width = 0.6
 
-    # Plot bars
     ax.bar(
         x_pos,
         means,
         width,
         yerr=stds if any(s > 0 for s in stds) else None,
-        capsize=5,
+        capsize=3,
         alpha=0.7,
         color="steelblue",
         edgecolor="black",
         zorder=2,
     )
 
-    # Show individual points
     for i, group_val in enumerate(groups):
         group_data = group_aurocs[group_val]
         x_jitter = np.random.normal(i, 0.05, len(group_data))
-        ax.scatter(x_jitter, group_data, color="black", alpha=0.3, s=20, zorder=3)
+        ax.scatter(x_jitter, group_data, color="black", alpha=0.5, s=20, zorder=3)
 
-    # Add value labels on bars
+    ax.axhline(0.5, color="gray", linestyle="--", linewidth=0.8, alpha=0.5)
+
     for i, (mean, std, count) in enumerate(zip(means, stds, counts, strict=False)):
         label_y = mean + std + 0.01 if std > 0 else mean + 0.01
-        ax.text(i, label_y, f"{mean:.3f}\n(n={count})", ha="center", va="bottom", fontsize=10)
+        ax.text(i, label_y, f"{mean:.3f}\n(n={count})", ha="center", va="bottom")
 
-    ax.set_xlabel(group_col.replace("_", " ").title(), fontsize=14)
-    ax.set_ylabel("AUROC", fontsize=14)
-    ax.set_title(title or f"AUROC by {group_col.replace('_', ' ').title()}", fontsize=16)
+    ax.set_xlabel(group_col.replace("_", " ").title())
+    ax.set_ylabel("AUROC")
     ax.set_xticks(x_pos)
-    ax.set_xticklabels([str(g) for g in groups], rotation=45, ha="right", fontsize=12)
+    ax.set_xticklabels([str(g) for g in groups], rotation=45, ha="right")
     ax.set_ylim([0, 1])
-    ax.grid(axis="y", alpha=0.3)
 
     plt.tight_layout()
     save_figure(fig, inference_figs_dir, fname, fig_cfg)
@@ -1804,7 +1765,7 @@ def plot_auroc_seedspread_by_group(
     fig_cfg: dict[str, Any],
     fname: str = "figure-auroc_seedspread_by_group",
     title: str | None = None,
-    figsize: tuple[float, float] = (10, 6),
+    figsize: tuple[float, float] | None = None,
 ) -> None:
     """Plot per-seed AUROC dots with mean bar, grouped by a parameter.
 
@@ -1846,8 +1807,11 @@ def plot_auroc_seedspread_by_group(
     groups = sorted(subset[group_col].unique(), key=str)
     x_pos = np.arange(len(groups))
 
+    if figsize is None:
+        figsize = figure_size("full")
     fig, ax = plt.subplots(figsize=figsize)
-    colors = plt.cm.tab10(np.linspace(0, 1, len(groups)))
+    n_g = len(groups)
+    colors = (CATEGORICAL_COLORS * (n_g // len(CATEGORICAL_COLORS) + 1))[:n_g]
 
     for i, (group_val, color) in enumerate(zip(groups, colors, strict=False)):
         vals = subset.loc[subset[group_col] == group_val, "auroc"].to_numpy()
@@ -1868,13 +1832,11 @@ def plot_auroc_seedspread_by_group(
         # Mean label
         ax.text(i, mean + std + 0.008, f"{mean:.4f}", ha="center", va="bottom", fontsize=9)
 
-    ax.set_xlabel(group_col.replace("_", " ").title(), fontsize=13)
-    ax.set_ylabel("AUROC (test)", fontsize=13)
-    ax.set_title(title or f"AUROC by {group_col.replace('_', ' ').title()} (per seed)", fontsize=15)
+    ax.set_xlabel(group_col.replace("_", " ").title())
+    ax.set_ylabel("AUROC (test)")
     ax.set_xticks(x_pos)
-    ax.set_xticklabels([str(g) for g in groups], rotation=45, ha="right", fontsize=11)
+    ax.set_xticklabels([str(g) for g in groups], rotation=45, ha="right")
     ax.set_ylim([max(0.0, subset["auroc"].min() - 0.05), min(1.0, subset["auroc"].max() + 0.06)])
-    ax.grid(axis="y", alpha=0.3)
 
     plt.tight_layout()
     save_figure(fig, inference_figs_dir, fname, fig_cfg)
@@ -1942,7 +1904,7 @@ def plot_failure_analysis(
     raw_signal = raw_probs[:, signal_class_idx]
     id_signal = identity_probs[:, signal_class_idx]
 
-    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+    fig, axes = plt.subplots(1, 2, figsize=figure_size("full"))
 
     # ── Left panel: scatter ────────────────────────────────────────────────
     ax = axes[0]
@@ -1963,13 +1925,11 @@ def plot_failure_analysis(
     ax.plot([0, 1], [0, 1], "k--", linewidth=0.8, alpha=0.4, label="equal score")
     ax.axhline(0.5, color="gray", linewidth=0.5, alpha=0.5, linestyle=":")
     ax.axvline(0.5, color="gray", linewidth=0.5, alpha=0.5, linestyle=":")
-    ax.set_xlabel("Raw model signal score", fontsize=12)
-    ax.set_ylabel("Identity model signal score", fontsize=12)
-    ax.set_title("Per-event score comparison\n(raw vs identity tokenizer)", fontsize=13)
-    ax.legend(fontsize=8, loc="lower right", markerscale=3)
+    ax.set_xlabel("Raw model signal score")
+    ax.set_ylabel("Identity model signal score")
+    ax.legend(loc="lower right", markerscale=3)
     ax.set_xlim([0, 1])
     ax.set_ylim([0, 1])
-    ax.grid(alpha=0.2)
 
     # ── Right panel: flip fractions ────────────────────────────────────────
     ax2 = axes[1]
@@ -1990,13 +1950,10 @@ def plot_failure_analysis(
 
     short_labels = ["both\ncorrect", "identity\nfixed", "raw\nfixed", "both\nwrong"]
     ax2.set_xticks(x)
-    ax2.set_xticklabels(short_labels, fontsize=11)
-    ax2.set_ylabel("Fraction of test events", fontsize=12)
-    ax2.set_title("Flip analysis: raw → identity", fontsize=13)
+    ax2.set_xticklabels(short_labels)
+    ax2.set_ylabel("Fraction of test events")
     ax2.set_ylim([0, max(fracs) + 0.1])
-    ax2.grid(axis="y", alpha=0.3)
 
-    plt.suptitle(f"Failure Analysis: Raw vs Identity Tokenizer  (N={n:,} events)", fontsize=14, y=1.01)
     plt.tight_layout()
     save_figure(fig, inference_figs_dir, fname, fig_cfg)
     plt.close(fig)

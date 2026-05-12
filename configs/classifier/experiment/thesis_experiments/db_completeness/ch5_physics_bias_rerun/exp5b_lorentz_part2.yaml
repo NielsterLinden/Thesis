@@ -1,0 +1,57 @@
+# @package _global_
+# Exp 5B part 2: Lorentz feature set and MLP type ablation (sparse_gating=true)
+# 5 feature sets × 2 mlp_types × 3 seeds = 30 runs
+hydra:
+  mode: MULTIRUN
+  job:
+    chdir: true
+    name: ${experiment.name}
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweeper:
+    params:
+      classifier.model.bias_config.lorentz_scalar.features: '[m2],[deltaR],[m2,deltaR],[log_kt,z,deltaR,log_m2],[m2,deltaR,log_m2,log_kt,z,deltaR_ptw]'
+      classifier.model.bias_config.lorentz_scalar.mlp_type: standard,kan
+      classifier.trainer.seed: 42,123,314
+experiment:
+  name: ch5_lorentz_p2
+classifier:
+  globals:
+    include_met: true
+  model:
+    dim: 128
+    depth: 3
+    heads: 4
+    mlp_dim: 256
+    dropout: 0.1
+    tokenizer:
+      name: identity
+      pid_mode: learned
+      id_embed_dim: 8
+    positional: sinusoidal
+    attention_biases: lorentz_scalar
+    bias_config:
+      lorentz_scalar:
+        sparse_gating: true
+  trainer:
+    epochs: 50
+    batch_size: 1024
+data:
+  _struct_: false
+  classifier:
+    signal_vs_background:
+      signal: 1
+      background:
+      - 2
+      - 3
+      - 4
+      - 5
+    selected_labels: null
+logging:
+  wandb:
+    tags:
+    - cohort=db_completeness_2026_05
+    - sweep=ch5_physics_bias_rerun

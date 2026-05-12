@@ -116,18 +116,14 @@ class TypePairKinematicBias(nn.Module):
         self.register_buffer("pad_mask", pad_mask)
 
         self.head_proj = nn.Linear(1, num_heads, bias=True)
-        nn.init.zeros_(self.head_proj.weight)
-        nn.init.zeros_(self.head_proj.bias)
 
         has_E = cont_dim >= 4
         self.use_kinematic_gate = kinematic_gate and (has_E or kinematic_feature not in _FEATURES_NEED_E)
         self.kinematic_feature = kinematic_feature
         if self.use_kinematic_gate:
             self.kinematic_mlp = nn.Sequential(nn.Linear(1, 8), nn.GELU(), nn.Linear(8, 1))
-            nn.init.zeros_(self.kinematic_mlp[-1].weight)
-            nn.init.zeros_(self.kinematic_mlp[-1].bias)
 
-        self.gate = nn.Parameter(torch.zeros(1))
+        self.gate = nn.Parameter(torch.full((1,), 0.1))
 
     def _symmetric_table(self) -> torch.Tensor:
         return 0.5 * (self.table_raw + self.table_raw.T) * self.pad_mask
@@ -213,10 +209,8 @@ class SMInteractionBias(nn.Module):
         self.register_buffer("itype_table", itype_tbl)
 
         self.head_proj = nn.Linear(1, num_heads, bias=True)
-        nn.init.zeros_(self.head_proj.weight)
-        nn.init.zeros_(self.head_proj.bias)
 
-        self.gate = nn.Parameter(torch.zeros(1))
+        self.gate = nn.Parameter(torch.full((1,), 0.1))
 
         if mode == "running_coupling":
             self._mu0_sq = 91.1876**2

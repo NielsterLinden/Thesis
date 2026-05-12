@@ -8,9 +8,12 @@ import numpy as np
 import pandas as pd
 
 from thesis_ml.monitoring.io_utils import save_figure
+from thesis_ml.reports.plots.style import apply_thesis_style, figure_size
+
+apply_thesis_style()
 
 
-def plot_grid_heatmap(df: pd.DataFrame, row_col: str, col_col: str, value_col: str, title: str, figs_dir: Path, fname: str, fig_cfg: dict) -> None:
+def plot_grid_heatmap(df: pd.DataFrame, row_col: str, col_col: str, value_col: str, title: str = "", figs_dir: Path = None, fname: str = None, fig_cfg: dict = None) -> None:
     """Generic grid heatmap for 2D parameter sweeps"""
     cur = df.dropna(subset=[row_col, col_col, value_col]).copy()
 
@@ -21,7 +24,7 @@ def plot_grid_heatmap(df: pd.DataFrame, row_col: str, col_col: str, value_col: s
 
     pt = cur.pivot_table(index=row_col, columns=col_col, values=value_col, aggfunc="mean")
 
-    fig, ax = plt.subplots(figsize=(8, 6))
+    fig, ax = plt.subplots(figsize=figure_size("full", aspect=1.0))
     im = ax.imshow(pt.values, aspect="auto", cmap="viridis")
 
     # Annotate cells
@@ -38,7 +41,6 @@ def plot_grid_heatmap(df: pd.DataFrame, row_col: str, col_col: str, value_col: s
     ax.set_yticklabels(pt.index)
     ax.set_xlabel(col_col)
     ax.set_ylabel(row_col)
-    ax.set_title(title)
     fig.colorbar(im, ax=ax, label=value_col)
 
     save_figure(fig, figs_dir, fname, fig_cfg)

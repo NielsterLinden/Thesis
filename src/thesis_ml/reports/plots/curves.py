@@ -8,6 +8,9 @@ import pandas as pd
 from matplotlib.lines import Line2D
 
 from thesis_ml.monitoring.io_utils import save_figure
+from thesis_ml.reports.plots.style import apply_thesis_style, figure_size, CATEGORICAL_COLORS
+
+apply_thesis_style()
 
 
 def plot_loss_vs_time(
@@ -20,7 +23,7 @@ def plot_loss_vs_time(
     fname: str = "figure-loss_vs_time",
 ) -> None:
     """Generic: plot metric vs cumulative time"""
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=figure_size("full"))
     for run_dir in order:
         if run_dir not in per_epoch:
             continue
@@ -28,10 +31,9 @@ def plot_loss_vs_time(
         cur = cur[cur["split"] == "val"] if "split" in cur.columns else cur
         cur["cum_time_s"] = cur["epoch_time_s"].astype(float).cumsum()
         ax.plot(cur["cum_time_s"], cur[metric].astype(float), label=Path(run_dir).name)
-    ax.set_xlabel("wall-clock seconds (cumulative)", fontsize=14)
-    ax.set_ylabel(metric, fontsize=14)
-    ax.set_title(f"{metric} vs time", fontsize=16)
-    ax.legend(fontsize=12)
+    ax.set_xlabel("wall-clock seconds (cumulative)")
+    ax.set_ylabel(metric)
+    ax.legend()
     save_figure(fig, figs_dir, fname, fig_cfg)
     plt.close(fig)
 
@@ -49,10 +51,10 @@ def _linestyle_for_beta(beta: float | None) -> str:
     except Exception:
         return "-"
     if abs(b) < 1e-12 or b == 0.0:
-        return ":"  # dotted for 0
+        return ":"
     if abs(b - 1.0) < 1e-9:
-        return "-"  # solid for 1
-    return "--"  # dashed for others (e.g., 10)
+        return "-"
+    return "--"
 
 
 def plot_all_val_curves(
@@ -63,13 +65,11 @@ def plot_all_val_curves(
     fname: str = "figure-all_val_curves",
 ) -> None:
     """Plot all runs' validation loss vs epoch with individual run legends."""
-    fig, ax = plt.subplots(figsize=(12, 8))
+    fig, ax = plt.subplots(figsize=figure_size("full"))
 
-    # Generate distinct colors for each run
     num_runs = len(runs_df)
     colors = plt.cm.tab20(np.linspace(0, 1, max(num_runs, 20)))
 
-    # Track runs and their best values for legend
     legend_handles = []
     run_data = []
 
@@ -85,34 +85,19 @@ def plot_all_val_curves(
         epochs = cur["epoch"].astype(int).values
         vals = cur["val_loss"].astype(float).values
 
-        # Skip if no valid values
         if len(vals) == 0 or np.all(np.isnan(vals)):
             continue
 
-        # Find best (lowest) value and its epoch
         best_idx = np.argmin(vals)
         best_val = vals[best_idx]
         best_epoch = epochs[best_idx]
 
-        # Get run name (extract from path)
         run_name = Path(rd).name
-
-        # Assign color to this run
         color = colors[idx % len(colors)]
 
-        # Plot the curve
-        ax.plot(
-            epochs,
-            vals,
-            color=color,
-            linewidth=1.5,
-            alpha=0.9,
-        )
-
-        # Store data for legend
+        ax.plot(epochs, vals, color=color, linewidth=1.5, alpha=0.9)
         run_data.append((run_name, color, best_val, best_epoch))
 
-    # Create legend with run name and best values
     for run_name, color, best_val, best_epoch in run_data:
         legend_handles.append(
             Line2D(
@@ -125,17 +110,10 @@ def plot_all_val_curves(
         )
 
     if legend_handles:
-        ax.legend(
-            handles=legend_handles,
-            loc="best",
-            fontsize=9,
-            framealpha=0.9,
-        )
+        ax.legend(handles=legend_handles, loc="best")
 
-    ax.set_xlabel("Epoch", fontsize=14)
-    ax.set_ylabel("Validation Loss", fontsize=14)
-    ax.set_title("Validation loss per run", fontsize=16)
-    ax.grid(True, alpha=0.2)
+    ax.set_xlabel("Epoch")
+    ax.set_ylabel("Validation Loss")
     save_figure(fig, figs_dir, fname, fig_cfg)
     plt.close(fig)
 
@@ -148,13 +126,11 @@ def plot_all_train_curves(
     fname: str = "figure-all_train_curves",
 ) -> None:
     """Plot all runs' training loss vs epoch with individual run legends."""
-    fig, ax = plt.subplots(figsize=(12, 8))
+    fig, ax = plt.subplots(figsize=figure_size("full"))
 
-    # Generate distinct colors for each run
     num_runs = len(runs_df)
     colors = plt.cm.tab20(np.linspace(0, 1, max(num_runs, 20)))
 
-    # Track runs and their best values for legend
     legend_handles = []
     run_data = []
 
@@ -170,34 +146,19 @@ def plot_all_train_curves(
         epochs = cur["epoch"].astype(int).values
         vals = cur["train_loss"].astype(float).values
 
-        # Skip if no valid values
         if len(vals) == 0 or np.all(np.isnan(vals)):
             continue
 
-        # Find best (lowest) value and its epoch
         best_idx = np.argmin(vals)
         best_val = vals[best_idx]
         best_epoch = epochs[best_idx]
 
-        # Get run name (extract from path)
         run_name = Path(rd).name
-
-        # Assign color to this run
         color = colors[idx % len(colors)]
 
-        # Plot the curve
-        ax.plot(
-            epochs,
-            vals,
-            color=color,
-            linewidth=1.5,
-            alpha=0.9,
-        )
-
-        # Store data for legend
+        ax.plot(epochs, vals, color=color, linewidth=1.5, alpha=0.9)
         run_data.append((run_name, color, best_val, best_epoch))
 
-    # Create legend with run name and best values
     for run_name, color, best_val, best_epoch in run_data:
         legend_handles.append(
             Line2D(
@@ -210,17 +171,10 @@ def plot_all_train_curves(
         )
 
     if legend_handles:
-        ax.legend(
-            handles=legend_handles,
-            loc="best",
-            fontsize=9,
-            framealpha=0.9,
-        )
+        ax.legend(handles=legend_handles, loc="best")
 
-    ax.set_xlabel("Epoch", fontsize=14)
-    ax.set_ylabel("Training Loss", fontsize=14)
-    ax.set_title("Training loss per run", fontsize=16)
-    ax.grid(True, alpha=0.2)
+    ax.set_xlabel("Epoch")
+    ax.set_ylabel("Training Loss")
     save_figure(fig, figs_dir, fname, fig_cfg)
     plt.close(fig)
 
@@ -235,12 +189,11 @@ def plot_curves_grouped_by(
     fname: str | None = None,
     title: str | None = None,
     show_individual: bool = True,
-    figsize: tuple[float, float] = (12, 8),
+    figsize: tuple[float, float] | None = None,
 ) -> None:
     """Plot training/validation curves grouped by a hyperparameter.
 
     Shows mean curves with optional individual run curves behind.
-    Similar to notebook-style grouped plots.
 
     Parameters
     ----------
@@ -259,20 +212,22 @@ def plot_curves_grouped_by(
     fname : str | None
         Base filename for saved figure (auto-generated if None)
     title : str | None
-        Plot title (auto-generated if None)
+        Unused — captions go in LaTeX. Kept for API compatibility.
     show_individual : bool
         If True, show individual runs behind mean curves (default: True)
-    figsize : tuple[float, float]
-        Figure size (default: (12, 8))
+    figsize : tuple[float, float] | None
+        Override figure size. Defaults to figure_size("full").
     """
+    if figsize is None:
+        figsize = figure_size("full")
+
     if group_col not in runs_df.columns:
-        return  # Skip if column doesn't exist
+        return
 
     fig, ax = plt.subplots(figsize=figsize)
 
-    # Get unique group values and assign colors
     groups = sorted(runs_df[group_col].dropna().unique())
-    colors = plt.cm.tab10(np.linspace(0, 1, len(groups)))
+    colors = (CATEGORICAL_COLORS * (len(groups) // len(CATEGORICAL_COLORS) + 1))[:len(groups)]
     color_map = {g: colors[i] for i, g in enumerate(groups)}
 
     for group_val in groups:
@@ -288,7 +243,6 @@ def plot_curves_grouped_by(
                 continue
 
             hist = per_epoch[rd].copy()
-            # Handle split column if present
             if "split" in hist.columns:
                 if "val" in metric:
                     hist = hist[hist["split"] == "val"]
@@ -301,16 +255,13 @@ def plot_curves_grouped_by(
             epochs = hist["epoch"].astype(int).values
             values = hist[metric].astype(float).values
 
-            # Plot individual curve if requested
             if show_individual:
                 ax.plot(epochs, values, color=color, alpha=0.2, linewidth=1, zorder=1)
 
             all_epochs.append(epochs)
             all_values.append(values)
 
-        # Compute and plot mean curve
         if all_values:
-            # Find common epoch range
             max_epochs = max(len(e) for e in all_epochs)
             mean_values = np.full(max_epochs, np.nan)
             std_values = np.full(max_epochs, np.nan)
@@ -335,7 +286,6 @@ def plot_curves_grouped_by(
                 zorder=2,
             )
 
-            # Add shaded error region
             if show_individual and np.any(std_values[valid_mask] > 0):
                 ax.fill_between(
                     epochs_range[valid_mask],
@@ -346,11 +296,10 @@ def plot_curves_grouped_by(
                     zorder=1,
                 )
 
-    ax.set_xlabel("Epoch", fontsize=14)
-    ax.set_ylabel(metric.replace("_", " ").title(), fontsize=14)
-    ax.set_title(title or f"{metric.replace('_', ' ').title()} by {group_col.replace('_', ' ').title()}", fontsize=16)
-    ax.legend(fontsize=11, loc="best")
-    ax.grid(True, alpha=0.3)
+    ax.set_xlabel("Epoch")
+    ax.set_ylabel(metric.replace("_", " ").title())
+    ax.set_xlim(left=0)
+    ax.legend(loc="best")
 
     save_figure(fig, figs_dir, fname or f"figure-{metric}_by_{group_col}", fig_cfg)
     plt.close(fig)
@@ -363,26 +312,9 @@ def plot_val_auroc_curves(
     fig_cfg: dict,
     fname: str = "figure-all_val_auroc_curves",
 ) -> None:
-    """Plot all runs' validation AUROC vs epoch with individual run legends.
+    """Plot all runs' validation AUROC vs epoch with individual run legends."""
+    fig, ax = plt.subplots(figsize=figure_size("full"))
 
-    Similar to plot_all_val_curves but for AUROC metric.
-
-    Parameters
-    ----------
-    runs_df : pd.DataFrame
-        DataFrame with run information
-    per_epoch : dict[str, pd.DataFrame]
-        Per-epoch metrics for each run (key is run_dir string)
-    figs_dir : Path
-        Directory to save figures
-    fig_cfg : dict
-        Figure configuration (fig_format, dpi)
-    fname : str
-        Base filename for saved figure
-    """
-    fig, ax = plt.subplots(figsize=(12, 8))
-
-    # Generate distinct colors for each run
     num_runs = len(runs_df)
     colors = plt.cm.tab20(np.linspace(0, 1, max(num_runs, 20)))
 
@@ -397,7 +329,6 @@ def plot_val_auroc_curves(
         cur = hist.copy()
         cur = cur[cur["split"] == "val"] if "split" in cur.columns else cur
 
-        # Try different AUROC column names
         auroc_col = None
         for col in ["val_auroc", "auroc", "metric_auroc"]:
             if col in cur.columns:
@@ -410,11 +341,9 @@ def plot_val_auroc_curves(
         epochs = cur["epoch"].astype(int).values
         vals = cur[auroc_col].astype(float).values
 
-        # Skip if no valid values
         if len(vals) == 0 or np.all(np.isnan(vals)):
             continue
 
-        # Find best (highest) value and its epoch
         best_idx = np.argmax(vals)
         best_val = vals[best_idx]
         best_epoch = epochs[best_idx]
@@ -425,7 +354,6 @@ def plot_val_auroc_curves(
         ax.plot(epochs, vals, color=color, linewidth=1.5, alpha=0.9)
         run_data.append((run_name, color, best_val, best_epoch))
 
-    # Create legend with run name and best values
     for run_name, color, best_val, best_epoch in run_data:
         legend_handles.append(
             Line2D(
@@ -438,13 +366,11 @@ def plot_val_auroc_curves(
         )
 
     if legend_handles:
-        ax.legend(handles=legend_handles, loc="best", fontsize=9, framealpha=0.9)
+        ax.legend(handles=legend_handles, loc="best")
 
-    ax.set_xlabel("Epoch", fontsize=14)
-    ax.set_ylabel("Validation AUROC", fontsize=14)
-    ax.set_title("Validation AUROC per run", fontsize=16)
+    ax.set_xlabel("Epoch")
+    ax.set_ylabel("Validation AUROC")
     ax.set_ylim([0, 1])
-    ax.grid(True, alpha=0.2)
     save_figure(fig, figs_dir, fname, fig_cfg)
     plt.close(fig)
 
@@ -458,7 +384,7 @@ def plot_val_auroc_grouped_by(
     fname: str | None = None,
     title: str | None = None,
     show_individual: bool = True,
-    figsize: tuple[float, float] = (12, 8),
+    figsize: tuple[float, float] | None = None,
 ) -> None:
     """Plot validation AUROC curves grouped by a hyperparameter.
 
@@ -479,15 +405,13 @@ def plot_val_auroc_grouped_by(
     fname : str | None
         Base filename for saved figure (auto-generated if None)
     title : str | None
-        Plot title (auto-generated if None)
+        Unused — captions go in LaTeX. Kept for API compatibility.
     show_individual : bool
         If True, show individual runs behind mean curves (default: True)
-    figsize : tuple[float, float]
-        Figure size (default: (12, 8))
+    figsize : tuple[float, float] | None
+        Override figure size. Defaults to figure_size("full").
     """
-    # Try different AUROC column names
     for auroc_col in ["val_auroc", "auroc", "metric_auroc"]:
-        # Check if any run has this column
         has_col = False
         for rd in per_epoch:
             if auroc_col in per_epoch[rd].columns:
@@ -502,7 +426,7 @@ def plot_val_auroc_grouped_by(
                 figs_dir=figs_dir,
                 fig_cfg=fig_cfg,
                 fname=fname or f"figure-val_auroc_by_{group_col}",
-                title=title or f"Validation AUROC by {group_col.replace('_', ' ').title()}",
+                title=title,
                 show_individual=show_individual,
                 figsize=figsize,
             )

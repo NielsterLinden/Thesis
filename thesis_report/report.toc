@@ -1,0 +1,102 @@
+\contentsline {chapter}{Preface}{i}{chapter*.1}%
+\contentsline {chapter}{Summary}{ii}{chapter*.2}%
+\contentsline {part}{I\hspace {1em}Framing}{1}{part.1}%
+\contentsline {chapter}{\numberline {1}Introduction}{2}{chapter.1}%
+\contentsline {section}{\numberline {1.1}The Standard Model and Top Quark Physics}{3}{section.1.1}%
+\contentsline {subsection}{\numberline {1.1.1}The Standard Model of particle physics}{3}{subsection.1.1.1}%
+\contentsline {subsection}{\numberline {1.1.2}The top quark}{3}{subsection.1.1.2}%
+\contentsline {subsection}{\numberline {1.1.3}Multi-top production at the LHC}{4}{subsection.1.1.3}%
+\contentsline {subsection}{\numberline {1.1.4}Sensitivity to physics beyond the Standard Model}{4}{subsection.1.1.4}%
+\contentsline {section}{\numberline {1.2}The ATLAS Experiment and Event Reconstruction}{4}{section.1.2}%
+\contentsline {subsection}{\numberline {1.2.1}The Large Hadron Collider}{4}{subsection.1.2.1}%
+\contentsline {subsection}{\numberline {1.2.2}The ATLAS detector}{4}{subsection.1.2.2}%
+\contentsline {subsection}{\numberline {1.2.3}From detector signals to physics objects}{4}{subsection.1.2.3}%
+\contentsline {subsection}{\numberline {1.2.4}Event-level classification in classical analyses}{5}{subsection.1.2.4}%
+\contentsline {section}{\numberline {1.3}Machine Learning for High-Energy Physics}{5}{section.1.3}%
+\contentsline {subsection}{\numberline {1.3.1}A brief history of machine learning in particle physics}{5}{subsection.1.3.1}%
+\contentsline {subsection}{\numberline {1.3.2}Transformers and the attention mechanism}{5}{subsection.1.3.2}%
+\contentsline {subsection}{\numberline {1.3.3}Transformers in high-energy physics}{5}{subsection.1.3.3}%
+\contentsline {subsection}{\numberline {1.3.4}Why transformers suit multi-object event classification}{6}{subsection.1.3.4}%
+\contentsline {section}{\numberline {1.4}Thesis Statement}{6}{section.1.4}%
+\contentsline {subsection}{\numberline {1.4.1}The intersection of top physics and transformer design}{6}{subsection.1.4.1}%
+\contentsline {subsection}{\numberline {1.4.2}Controlled ablation over a single optimised model}{6}{subsection.1.4.2}%
+\contentsline {subsection}{\numberline {1.4.3}A configurable workbench for architectural exploration}{6}{subsection.1.4.3}%
+\contentsline {section}{\numberline {1.5}Deliverables}{7}{section.1.5}%
+\contentsline {subsection}{\numberline {1.5.1}Modular codebase}{7}{subsection.1.5.1}%
+\contentsline {subsection}{\numberline {1.5.2}Experiment database}{7}{subsection.1.5.2}%
+\contentsline {subsection}{\numberline {1.5.3}Thesis document}{7}{subsection.1.5.3}%
+\contentsline {section}{\numberline {1.6}Reader's Guide}{7}{section.1.6}%
+\contentsline {subsection}{\numberline {1.6.1}Structure of the thesis}{7}{subsection.1.6.1}%
+\contentsline {subsection}{\numberline {1.6.2}How to read the results}{7}{subsection.1.6.2}%
+\contentsline {chapter}{\numberline {2}Dataset and Task Definition}{8}{chapter.2}%
+\contentsline {section}{\numberline {2.1}Physics Processes}{8}{section.2.1}%
+\contentsline {subsection}{\numberline {2.1.1}Signal: four-top-quark production}{8}{subsection.2.1.1}%
+\contentsline {subsection}{\numberline {2.1.2}Background processes}{8}{subsection.2.1.2}%
+\contentsline {subsection}{\numberline {2.1.3}Cross-sections and sample sizes}{8}{subsection.2.1.3}%
+\contentsline {section}{\numberline {2.2}Event Generation and Simulation}{8}{section.2.2}%
+\contentsline {subsection}{\numberline {2.2.1}Hard-scattering and parton shower}{8}{subsection.2.2.1}%
+\contentsline {subsection}{\numberline {2.2.2}Fast detector simulation}{8}{subsection.2.2.2}%
+\contentsline {subsection}{\numberline {2.2.3}Scope of this study}{8}{subsection.2.2.3}%
+\contentsline {section}{\numberline {2.3}Event and Object Selection}{8}{section.2.3}%
+\contentsline {subsection}{\numberline {2.3.1}Object selection criteria}{8}{subsection.2.3.1}%
+\contentsline {subsection}{\numberline {2.3.2}Signal region definition}{8}{subsection.2.3.2}%
+\contentsline {section}{\numberline {2.4}Data Format and Event Representation}{8}{section.2.4}%
+\contentsline {subsection}{\numberline {2.4.1}Token representation of particles}{8}{subsection.2.4.1}%
+\contentsline {subsection}{\numberline {2.4.2}Global features and missing transverse energy}{8}{subsection.2.4.2}%
+\contentsline {subsection}{\numberline {2.4.3}Padding and masking}{8}{subsection.2.4.3}%
+\contentsline {section}{\numberline {2.5}Dataset Statistics and Splits}{8}{section.2.5}%
+\contentsline {subsection}{\numberline {2.5.1}Class balance and sample counts}{8}{subsection.2.5.1}%
+\contentsline {subsection}{\numberline {2.5.2}Train, validation, and test splits}{8}{subsection.2.5.2}%
+\contentsline {section}{\numberline {2.6}Classification Tasks}{8}{section.2.6}%
+\contentsline {subsection}{\numberline {2.6.1}Primary task: $tttt$ versus combined background}{8}{subsection.2.6.1}%
+\contentsline {subsection}{\numberline {2.6.2}Secondary task: $tttt$ versus $ttH$}{8}{subsection.2.6.2}%
+\contentsline {subsection}{\numberline {2.6.3}Exploratory task: all-versus-all binary pairs, 3t, ttHH}{8}{subsection.2.6.3}%
+\contentsline {chapter}{\numberline {3}The Workbench: Architecture and Axes}{9}{chapter.3}%
+\contentsline {section}{\numberline {3.1}Design philosophy}{9}{section.3.1}%
+\contentsline {section}{\numberline {3.2}The base transformer}{9}{section.3.2}%
+\contentsline {section}{\numberline {3.3}Axis groups}{9}{section.3.3}%
+\contentsline {section}{\numberline {3.4}Experimental methodology}{12}{section.3.4}%
+\contentsline {part}{II\hspace {1em}Thesis Questions}{13}{part.2}%
+\contentsline {chapter}{\numberline {4}Best Input Representation}{14}{chapter.4}%
+\contentsline {section}{\numberline {4.1}Experimental Setup}{14}{section.4.1}%
+\contentsline {section}{\numberline {4.2}Tokenizer Family}{15}{section.4.2}%
+\contentsline {paragraph}{Interpretation.}{15}{figure.caption.8}%
+\contentsline {subsection}{\numberline {4.2.1}Failure Analysis: Where PID Changes the Outcome}{16}{subsection.4.2.1}%
+\contentsline {subsection}{\numberline {4.2.2}PID Embedding Mode and Dimension}{16}{subsection.4.2.2}%
+\contentsline {paragraph}{Interpretation.}{17}{figure.caption.11}%
+\contentsline {section}{\numberline {4.3}Data Treatment}{17}{section.4.3}%
+\contentsline {subsection}{\numberline {4.3.1}Energy Feature (D01)}{18}{subsection.4.3.1}%
+\contentsline {subsection}{\numberline {4.3.2}MET Treatment (D02)}{18}{subsection.4.3.2}%
+\contentsline {subsection}{\numberline {4.3.3}Token Ordering (D03)}{19}{subsection.4.3.3}%
+\contentsline {paragraph}{Attribution.}{19}{table.caption.15}%
+\contentsline {section}{\numberline {4.4}Discussion}{20}{section.4.4}%
+\contentsline {paragraph}{Ranking of effects.}{20}{section.4.4}%
+\contentsline {paragraph}{Limitations.}{21}{section.4.4}%
+\contentsline {paragraph}{Chapter baseline.}{21}{section.4.4}%
+\contentsline {chapter}{\numberline {5}Physics-Informed Attention Biases}{24}{chapter.5}%
+\contentsline {section}{\numberline {5.1}Bias family comparison (Exp.\ 5A)}{24}{section.5.1}%
+\contentsline {section}{\numberline {5.2}Lorentz feature set and bias network (Exp.\ 5B)}{25}{section.5.2}%
+\contentsline {section}{\numberline {5.3}Type-pair initialisation and freeze (Exp.\ 5C)}{25}{section.5.3}%
+\contentsline {section}{\numberline {5.4}SM interaction mode (Exp.\ 5D)}{25}{section.5.4}%
+\contentsline {chapter}{\numberline {6}Attention Mechanisms}{27}{chapter.6}%
+\contentsline {section}{\numberline {6.1}Attention type and internal normalisation (Exp.\ 6A)}{27}{section.6.1}%
+\contentsline {section}{\numberline {6.2}Differential bias mode (Exp.\ 6B)}{27}{section.6.2}%
+\contentsline {chapter}{\numberline {7}Model Scaling and Efficiency}{29}{chapter.7}%
+\contentsline {section}{\numberline {7.1}Scaling curves across tasks (Exp.\ 8A)}{29}{section.7.1}%
+\contentsline {section}{\numberline {7.2}Efficiency metrics (Exp.\ 8B)}{29}{section.7.2}%
+\contentsline {section}{\numberline {7.3}Axis transfer across scales (Exp.\ 8C)}{30}{section.7.3}%
+\contentsline {part}{III\hspace {1em}Synthesis}{31}{part.3}%
+\contentsline {chapter}{\numberline {8}What Matters: A Global Analysis}{32}{chapter.8}%
+\contentsline {section}{\numberline {8.1}The run database}{32}{section.8.1}%
+\contentsline {section}{\numberline {8.2}Marginal sensitivity analysis}{32}{section.8.2}%
+\contentsline {section}{\numberline {8.3}Surrogate modelling and configuration prediction}{32}{section.8.3}%
+\contentsline {section}{\numberline {8.4}Recommended configuration}{33}{section.8.4}%
+\contentsline {chapter}{\numberline {9}The Best Model and Its Physics Reach}{34}{chapter.9}%
+\contentsline {section}{\numberline {9.1}The recommended model (Exp.\ 10A)}{34}{section.9.1}%
+\contentsline {section}{\numberline {9.2}From AUROC to physics sensitivity (Exp.\ 10B)}{34}{section.9.2}%
+\contentsline {chapter}{\numberline {10}Conclusion and Outlook}{36}{chapter.10}%
+\contentsline {chapter}{References}{38}{chapter*.29}%
+\contentsline {chapter}{\numberline {A}Axes reference table}{39}{chapter.A}%
+\contentsline {chapter}{\numberline {B}Codebase Struture and Reproducibility}{40}{chapter.B}%
+\contentsline {chapter}{\numberline {C}Dataset and Feature Definitons}{41}{chapter.C}%
+\contentsfinish 

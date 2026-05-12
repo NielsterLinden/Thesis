@@ -313,7 +313,10 @@ def _simple_emit(sources: list[str], cast: str = "str", default: str = "") -> Ca
 
 
 def _emit_G1(cfg: dict, derived: dict, flags: dict) -> str:
-    return _as_lower(_read_chain(cfg, ["raw/loop", "model/loop", "meta.model_family"]))
+    v = _read_chain(cfg, ["raw/loop", "model/loop", "meta.model_family"])
+    if v:
+        return _as_lower(v)
+    return "transformer"  # all thesis runs are transformer-based
 
 
 def _emit_G2(cfg: dict, derived: dict, flags: dict) -> str:
@@ -338,7 +341,30 @@ def _emit_G2(cfg: dict, derived: dict, flags: dict) -> str:
 
 
 def _emit_G3(cfg: dict, derived: dict, flags: dict) -> str:
-    return _as_str(_read_chain(cfg, ["meta.class_def_str", "meta.process_groups_key", "meta.row_key"]))
+    v = _read_chain(cfg, ["meta.class_def_str", "meta.process_groups_key", "meta.row_key", "meta.task_id"])
+    if v:
+        return _as_str(v)
+    # Thesis runs: infer from raw/ flattened W&B config keys (set via wandb_utils raw/ prefix)
+    sig = _read_chain(cfg, ["raw/data/classifier/signal_vs_background/signal"])
+    bg_raw = _read_chain(cfg, ["raw/data/classifier/signal_vs_background/background"])
+    sel_raw = _read_chain(cfg, ["raw/data/classifier/selected_labels"])
+    if sig is not None and bg_raw is not None:
+        try:
+            bg = sorted(int(x) for x in (json.loads(bg_raw) if isinstance(bg_raw, str) else bg_raw))
+            if int(sig) == 1 and bg == [2, 3, 4, 5]:
+                return "binary_4t_vs_bg"
+        except (TypeError, ValueError):
+            pass
+    if sel_raw is not None and sel_raw not in ("null", None, ""):
+        try:
+            sel = sorted(int(x) for x in (json.loads(sel_raw) if isinstance(sel_raw, str) else sel_raw))
+            if sel == [1, 2]:
+                return "binary_4t_vs_ttH"
+            if sel == [1, 2, 3, 4, 5]:
+                return "multiclass_5way"
+        except (TypeError, ValueError):
+            pass
+    return ""
 
 
 def _emit_D1(cfg: dict, derived: dict, flags: dict) -> str:

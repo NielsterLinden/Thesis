@@ -1,0 +1,90 @@
+# @package _global_
+# MIA + MoE: routing, scope, top_k (num_experts=4). Orthogonal C backbone.
+hydra:
+  mode: MULTIRUN
+  job:
+    chdir: true
+    name: ${experiment.name}
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweeper:
+    params:
+      classifier.model.moe.routing_level: token,event
+      classifier.model.moe.scope: middle_blocks,all_blocks
+      classifier.model.moe.top_k: 1,2
+      classifier.trainer.seed: 42,123,314
+experiment:
+  name: mia_od_moe_grid
+classifier:
+  globals:
+    include_met: false
+  trainer:
+    epochs: 50
+    lr: 0.0001
+    weight_decay: 0.01
+    batch_size: 1024
+    warmup_steps: 0
+    seed: 42
+  model:
+    dim: 64
+    depth: 6
+    heads: 8
+    mlp_dim: 128
+    hidden_sizes: [448, 384]
+    dropout: 0.1
+    norm:
+      policy: post
+      type: layernorm
+    positional: none
+    positional_space: model
+    attention:
+      type: standard
+      norm: none
+      diff_bias_mode: shared
+    ffn:
+      type: standard
+    head:
+      type: linear
+      pooling: cls
+    causal_attention: false
+    attention_biases: none
+    nodewise_mass:
+      enabled: false
+    mia_blocks:
+      enabled: true
+      num_blocks: 5
+      interaction_dim: 64
+      reduction_dim: 8
+      dropout: 0.0
+      placement: prepend
+    moe:
+      enabled: true
+      num_experts: 2
+      top_k: 1
+      routing_level: token
+      scope: all_blocks
+      load_balance_loss_weight: 0.01
+      noisy_gating: false
+    tokenizer:
+      name: identity
+      pid_mode: learned
+      id_embed_dim: 8
+data:
+  _struct_: false
+  classifier:
+    signal_vs_background:
+      signal: 1
+      background:
+      - 2
+      - 3
+      - 4
+      - 5
+    selected_labels: null
+logging:
+  wandb:
+    tags:
+    - cohort=db_completeness_2026_05
+    - sweep=mia_orthogonal_density

@@ -108,37 +108,60 @@ DONE: thesis_experiments/db_completeness/tokenizer/binned_sizes/d128_l8
 DONE: thesis_experiments/db_completeness/tokenizer/binned_sizes/d64_l6
 DONE: thesis_experiments/db_completeness/tokenizer/pid_modes_d256
 DONE: thesis_experiments/db_completeness/tokenizer/pid_modes_d128
-thesis_experiments/db_completeness/tokenizer/embed_dim
-thesis_experiments/db_completeness/tokenizer/pretrained
+DONE: thesis_experiments/db_completeness/tokenizer/embed_dim
+DONE: thesis_experiments/db_completeness/tokenizer/pretrained
 
 # ── Sweep 13: training_recipe (24 runs, 9 jobs) ──
-thesis_experiments/db_completeness/training_recipe/lr_schedule
-thesis_experiments/db_completeness/training_recipe/weight_decay
-thesis_experiments/db_completeness/training_recipe/grad_clip
-thesis_experiments/db_completeness/training_recipe/label_smooth
-thesis_experiments/db_completeness/training_recipe/warmup
-thesis_experiments/db_completeness/training_recipe/epochs_200
-thesis_experiments/db_completeness/training_recipe/early_stop
-thesis_experiments/db_completeness/training_recipe/lr_range
-thesis_experiments/db_completeness/training_recipe/batch_size
+DONE: thesis_experiments/db_completeness/training_recipe/lr_schedule
+DONE: thesis_experiments/db_completeness/training_recipe/weight_decay
+DONE: thesis_experiments/db_completeness/training_recipe/grad_clip
+DONE: thesis_experiments/db_completeness/training_recipe/label_smooth
+DONE: thesis_experiments/db_completeness/training_recipe/warmup
+DONE: thesis_experiments/db_completeness/training_recipe/epochs_200
+DONE: thesis_experiments/db_completeness/training_recipe/early_stop
+DONE: thesis_experiments/db_completeness/training_recipe/lr_range
+DONE: thesis_experiments/db_completeness/training_recipe/batch_size
 
 # ── Sweep 14: features_and_ordering (16 runs, 9 jobs) ──
-thesis_experiments/db_completeness/features_and_ordering/drop_one
-thesis_experiments/db_completeness/features_and_ordering/drop_ept_d256
-thesis_experiments/db_completeness/features_and_ordering/drop_ept_d128
-thesis_experiments/db_completeness/features_and_ordering/token_order_4tbg
-thesis_experiments/db_completeness/features_and_ordering/token_order_ttH
-thesis_experiments/db_completeness/features_and_ordering/token_order_mc
-thesis_experiments/db_completeness/features_and_ordering/shuffle_multiclass
-thesis_experiments/db_completeness/features_and_ordering/met_no_bias
-thesis_experiments/db_completeness/features_and_ordering/drop_pt_met
+DONE: thesis_experiments/db_completeness/features_and_ordering/drop_one
+DONE: thesis_experiments/db_completeness/features_and_ordering/drop_ept_d256
+DONE: thesis_experiments/db_completeness/features_and_ordering/drop_ept_d128
+DONE: thesis_experiments/db_completeness/features_and_ordering/token_order_4tbg
+DONE: thesis_experiments/db_completeness/features_and_ordering/token_order_ttH
+DONE: thesis_experiments/db_completeness/features_and_ordering/token_order_mc
+DONE: thesis_experiments/db_completeness/features_and_ordering/shuffle_multiclass
+DONE: thesis_experiments/db_completeness/features_and_ordering/met_no_bias
+DONE: thesis_experiments/db_completeness/features_and_ordering/drop_pt_met
 
 # ── Sweep 15: cross_task_replication (32 runs, 8 jobs) ──
-thesis_experiments/db_completeness/cross_task_replication/config1_lorentz_perhead
-thesis_experiments/db_completeness/cross_task_replication/config2_typepair_nogate
-thesis_experiments/db_completeness/cross_task_replication/config3_all4biases
-thesis_experiments/db_completeness/cross_task_replication/config4_heads4_d128
-thesis_experiments/db_completeness/cross_task_replication/config5_rmsnorm
-thesis_experiments/db_completeness/cross_task_replication/config6_rotary_base50k
-thesis_experiments/db_completeness/cross_task_replication/config7_lr3e3
-thesis_experiments/db_completeness/cross_task_replication/config8_drop_eta
+DONE: thesis_experiments/db_completeness/cross_task_replication/config1_lorentz_perhead
+DONE: thesis_experiments/db_completeness/cross_task_replication/config2_typepair_nogate
+DONE: thesis_experiments/db_completeness/cross_task_replication/config3_all4biases
+DONE: thesis_experiments/db_completeness/cross_task_replication/config4_heads4_d128
+DONE: thesis_experiments/db_completeness/cross_task_replication/config5_rmsnorm
+DONE: thesis_experiments/db_completeness/cross_task_replication/config6_rotary_base50k
+DONE: thesis_experiments/db_completeness/cross_task_replication/config7_lr3e3
+DONE: thesis_experiments/db_completeness/cross_task_replication/config8_drop_eta
+
+# ── Sweep 16: mia_orthogonal_density (11 jobs, OrthogonalSweep_C-scale MIA / MoE / KAN) ──
+DONE: thesis_experiments/db_completeness/mia_orthogonal_density/mia_num_blocks
+DONE: thesis_experiments/db_completeness/mia_orthogonal_density/mia_interaction_dim
+DONE: thesis_experiments/db_completeness/mia_orthogonal_density/mia_placement
+DONE: thesis_experiments/db_completeness/mia_orthogonal_density/mia_dropout
+DONE: thesis_experiments/db_completeness/mia_orthogonal_density/mia_moe_grid
+DONE: thesis_experiments/db_completeness/mia_orthogonal_density/mia_moe_experts
+DONE: thesis_experiments/db_completeness/mia_orthogonal_density/mia_ffn_kan
+DONE: thesis_experiments/db_completeness/mia_orthogonal_density/mia_head_kan
+DONE: thesis_experiments/db_completeness/mia_orthogonal_density/mia_moe_kan_head
+DONE: thesis_experiments/db_completeness/mia_orthogonal_density/mia_followup_seeds
+DONE: thesis_experiments/db_completeness/mia_orthogonal_density/mia_followup_combo
+
+# ── Sweep 17: ch5_physics_bias_rerun (102 runs, 6 jobs) ──
+# Gate zero-init bug fixed: gates now init to 0.1, MLP output zero-inits removed.
+# Smaller model (dim=128, depth=3, mlp_dim=256, ~400k params) for faster iteration.
+DONE: thesis_experiments/db_completeness/ch5_physics_bias_rerun/exp5a_bias_families
+DONE: thesis_experiments/db_completeness/ch5_physics_bias_rerun/exp5b_lorentz_part1
+DONE: thesis_experiments/db_completeness/ch5_physics_bias_rerun/exp5b_lorentz_part2
+DONE: thesis_experiments/db_completeness/ch5_physics_bias_rerun/exp5c_typepair_part1
+DONE: thesis_experiments/db_completeness/ch5_physics_bias_rerun/exp5c_typepair_part2
+DONE: thesis_experiments/db_completeness/ch5_physics_bias_rerun/exp5d_sm_mode

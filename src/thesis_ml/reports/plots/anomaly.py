@@ -9,6 +9,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from thesis_ml.monitoring.io_utils import save_figure
+from thesis_ml.reports.plots.style import apply_thesis_style, figure_size, CATEGORICAL_COLORS
+
+apply_thesis_style()
 
 
 def plot_reconstruction_error_distributions(
@@ -30,7 +33,6 @@ def plot_reconstruction_error_distributions(
     fname : str
         Base filename for saved figure
     """
-    # Extract MSE means for all models and strategies
     strategies = set()
     for model_results in inference_results.values():
         strategies.update(model_results.keys())
@@ -41,20 +43,17 @@ def plot_reconstruction_error_distributions(
     strategies.remove("baseline")
     strategies = sorted(strategies)
 
-    # Plot one figure per model, or aggregate across models
     for run_id, model_results in inference_results.items():
         if "baseline" not in model_results:
             continue
 
         baseline_mse = model_results["baseline"].get("mse_mean", 0.0)
 
-        fig, ax = plt.subplots(figsize=(10, 6))
+        fig, ax = plt.subplots(figsize=figure_size("full"))
 
-        # Plot baseline as reference
-        ax.axvline(baseline_mse, color="black", linestyle="--", linewidth=2, label="Baseline (mean)")
+        ax.axvline(baseline_mse, color="gray", linestyle="--", linewidth=0.8, alpha=0.5, label="Baseline (mean)")
 
-        # Plot each corruption strategy
-        colors = plt.cm.tab10(np.linspace(0, 1, len(strategies)))
+        colors = (CATEGORICAL_COLORS * (len(strategies) // len(CATEGORICAL_COLORS) + 1))[:len(strategies)]
         for i, strategy_name in enumerate(strategies):
             if strategy_name not in model_results:
                 continue
@@ -62,15 +61,12 @@ def plot_reconstruction_error_distributions(
             strategy_mse = model_results[strategy_name].get("mse_mean", 0.0)
             strategy_std = model_results[strategy_name].get("mse_std", 0.0)
 
-            # Create histogram-like bar
             ax.barh(i, strategy_mse, xerr=strategy_std, color=colors[i], alpha=0.7, label=strategy_name)
 
         ax.set_yticks(range(len(strategies)))
         ax.set_yticklabels(strategies)
         ax.set_xlabel("MSE (Mean ± Std)")
-        ax.set_title(f"Reconstruction Error: {run_id}")
         ax.legend()
-        ax.grid(axis="x", alpha=0.3)
 
         save_figure(fig, inference_figs_dir, f"{fname}_{run_id}", fig_cfg)
         plt.close(fig)
@@ -95,7 +91,6 @@ def plot_model_comparison(
     fname : str
         Base filename for saved figure
     """
-    # Extract all strategies (excluding baseline)
     strategies = set()
     for model_results in inference_results.values():
         strategies.update(model_results.keys())
@@ -107,14 +102,13 @@ def plot_model_comparison(
     if not strategies:
         return
 
-    # Extract MSE means for each model and strategy
     run_ids = sorted(inference_results.keys())
     x = np.arange(len(run_ids))
     width = 0.8 / len(strategies)
 
-    fig, ax = plt.subplots(figsize=(12, 6))
+    fig, ax = plt.subplots(figsize=figure_size("full"))
 
-    colors = plt.cm.tab10(np.linspace(0, 1, len(strategies)))
+    colors = (CATEGORICAL_COLORS * (len(strategies) // len(CATEGORICAL_COLORS) + 1))[:len(strategies)]
 
     for i, strategy_name in enumerate(strategies):
         mse_values = []
@@ -129,11 +123,9 @@ def plot_model_comparison(
 
     ax.set_xlabel("Model (Run ID)")
     ax.set_ylabel("MSE (Mean)")
-    ax.set_title("Model Comparison: Reconstruction Error by Corruption Strategy")
     ax.set_xticks(x)
     ax.set_xticklabels(run_ids, rotation=45, ha="right")
     ax.legend()
-    ax.grid(axis="y", alpha=0.3)
 
     plt.tight_layout()
     save_figure(fig, inference_figs_dir, fname, fig_cfg)
@@ -159,7 +151,6 @@ def plot_auroc_comparison(
     fname : str
         Base filename for saved figure
     """
-    # Extract all strategies (excluding baseline)
     strategies = set()
     for model_results in inference_results.values():
         strategies.update(model_results.keys())
@@ -171,14 +162,13 @@ def plot_auroc_comparison(
     if not strategies:
         return
 
-    # Extract AUROC for each model and strategy
     run_ids = sorted(inference_results.keys())
     x = np.arange(len(run_ids))
     width = 0.8 / len(strategies)
 
-    fig, ax = plt.subplots(figsize=(12, 6))
+    fig, ax = plt.subplots(figsize=figure_size("full"))
 
-    colors = plt.cm.tab10(np.linspace(0, 1, len(strategies)))
+    colors = (CATEGORICAL_COLORS * (len(strategies) // len(CATEGORICAL_COLORS) + 1))[:len(strategies)]
 
     for i, strategy_name in enumerate(strategies):
         auroc_values = []
@@ -194,13 +184,11 @@ def plot_auroc_comparison(
 
     ax.set_xlabel("Model (Run ID)")
     ax.set_ylabel("AUROC")
-    ax.set_title("Anomaly Detection Performance: AUROC by Corruption Strategy")
     ax.set_xticks(x)
     ax.set_xticklabels(run_ids, rotation=45, ha="right")
-    ax.axhline(0.5, color="red", linestyle="--", linewidth=1, alpha=0.5, label="Random (0.5)")
+    ax.axhline(0.5, color="gray", linestyle="--", linewidth=0.8, alpha=0.5, label="Random (0.5)")
     ax.set_ylim([0, 1])
     ax.legend()
-    ax.grid(axis="y", alpha=0.3)
 
     plt.tight_layout()
     save_figure(fig, inference_figs_dir, fname, fig_cfg)

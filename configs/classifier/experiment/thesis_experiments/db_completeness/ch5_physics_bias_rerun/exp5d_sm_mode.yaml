@@ -1,0 +1,53 @@
+# @package _global_
+# Exp 5D: SM interaction mode ablation (binary vs fixed_coupling vs running_coupling)
+# 3 modes × 3 seeds = 9 runs
+hydra:
+  mode: MULTIRUN
+  job:
+    chdir: true
+    name: ${experiment.name}
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweeper:
+    params:
+      classifier.model.bias_config.sm_interaction.mode: binary,fixed_coupling,running_coupling
+      classifier.trainer.seed: 42,123,314
+experiment:
+  name: ch5_sm_mode
+classifier:
+  globals:
+    include_met: true
+  model:
+    dim: 128
+    depth: 3
+    heads: 4
+    mlp_dim: 256
+    dropout: 0.1
+    tokenizer:
+      name: identity
+      pid_mode: learned
+      id_embed_dim: 8
+    positional: sinusoidal
+    attention_biases: sm_interaction
+  trainer:
+    epochs: 50
+    batch_size: 1024
+data:
+  _struct_: false
+  classifier:
+    signal_vs_background:
+      signal: 1
+      background:
+      - 2
+      - 3
+      - 4
+      - 5
+    selected_labels: null
+logging:
+  wandb:
+    tags:
+    - cohort=db_completeness_2026_05
+    - sweep=ch5_physics_bias_rerun

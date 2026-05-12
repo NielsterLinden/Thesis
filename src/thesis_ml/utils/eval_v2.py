@@ -53,13 +53,14 @@ _LATENCY_BATCH_SIZES = [1, 64, 512]
 def _infer_task_id(cfg) -> str:
     """Map training config to canonical task ID (matches test_splits.yaml keys)."""
     use_binned = bool(getattr(cfg.data, "use_binned_tokens", False) or False)
-    svb = getattr(cfg.classifier, "signal_vs_background", None)
+    data_clf = getattr(getattr(cfg, "data", None), "classifier", None)
+    svb = getattr(data_clf, "signal_vs_background", None) if data_clf is not None else None
     if svb is not None:
         sig = int(getattr(svb, "signal", -1))
         bg = list(getattr(svb, "background", []))
         if sig == 1 and sorted(int(x) for x in bg) == [2, 3, 4, 5]:
             return "binary_4t_vs_bg_binned" if use_binned else "binary_4t_vs_bg"
-    sel = getattr(cfg.classifier, "selected_labels", None)
+    sel = getattr(data_clf, "selected_labels", None) if data_clf is not None else None
     if sel is not None:
         sel_sorted = sorted(int(x) for x in sel)
         if sel_sorted == [1, 2]:

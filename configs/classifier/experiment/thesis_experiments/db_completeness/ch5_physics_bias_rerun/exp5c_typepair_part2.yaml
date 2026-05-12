@@ -1,0 +1,54 @@
+# @package _global_
+# Exp 5C part 2: type-pair physics init × freeze ablation
+# 2 init_from_physics × 2 freeze_table × 3 seeds = 12 runs
+hydra:
+  mode: MULTIRUN
+  job:
+    chdir: true
+    name: ${experiment.name}
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweeper:
+    params:
+      classifier.model.bias_config.typepair_kinematic.init_from_physics: binary,fixed_coupling
+      classifier.model.bias_config.typepair_kinematic.freeze_table: false,true
+      classifier.trainer.seed: 42,123,314
+experiment:
+  name: ch5_typepair_p2
+classifier:
+  globals:
+    include_met: true
+  model:
+    dim: 128
+    depth: 3
+    heads: 4
+    mlp_dim: 256
+    dropout: 0.1
+    tokenizer:
+      name: identity
+      pid_mode: learned
+      id_embed_dim: 8
+    positional: sinusoidal
+    attention_biases: typepair_kinematic
+  trainer:
+    epochs: 50
+    batch_size: 1024
+data:
+  _struct_: false
+  classifier:
+    signal_vs_background:
+      signal: 1
+      background:
+      - 2
+      - 3
+      - 4
+      - 5
+    selected_labels: null
+logging:
+  wandb:
+    tags:
+    - cohort=db_completeness_2026_05
+    - sweep=ch5_physics_bias_rerun

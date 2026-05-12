@@ -109,11 +109,7 @@ class GlobalConditionedBias(nn.Module):
         in_dim = 2 if mode == "global_scale" else 5
         self.mlp = build_bias_mlp(in_dim, global_dim, num_heads, mlp_type=mlp_type, kan_cfg=kan_cfg)
 
-        if mlp_type == "standard":
-            nn.init.zeros_(self.mlp[-1].weight)
-            nn.init.zeros_(self.mlp[-1].bias)
-
-        self.gate = nn.Parameter(torch.zeros(1))
+        self.gate = nn.Parameter(torch.full((1,), 0.1))
 
     def forward(
         self,

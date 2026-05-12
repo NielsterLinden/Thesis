@@ -10,8 +10,8 @@ report_name: compare_tokenizers
 
 outputs:
   report_subdir: report
-  fig_format: png
-  dpi: 150
+  fig_format: pdf
+  dpi: 300
   which_figures: []         # Reports decide defaults; override per run
 
 thresholds: {}

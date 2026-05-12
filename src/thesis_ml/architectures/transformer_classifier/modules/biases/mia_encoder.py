@@ -272,7 +272,7 @@ class MIAEncoder(nn.Module):
             self.interaction_reduction = InteractionReduction(interaction_dim, reduction_dim)
 
         # Per-module gate for U2 output (init=0 → starts as zero bias)
-        self.gate = nn.Parameter(torch.zeros(1))
+        self.gate = nn.Parameter(torch.full((1,), 0.1))
 
     def forward(
         self,

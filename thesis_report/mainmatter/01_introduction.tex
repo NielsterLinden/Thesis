@@ -1,65 +1,266 @@
 \chapter{Introduction}
 \label{chapter:Introduction}
 
-The
+For as long as humans have studied nature, they have asked whether matter can be understood in terms of smaller constituents.
+Ancient Greek thinkers Leucippus and Democritus proposed that all matter is composed of indivisible \textit{atomoi}; a parallel tradition in Indian natural philosophy, the Vai\'{s}e\d{s}ika school, developed the concept of \textit{a\d{n}u} --- the smallest irreducible unit of substance.
+During the Islamic Golden Age, scholars such as Ibn S\={\i}n\={a} preserved and extended this Hellenistic heritage, transmitting it into the European Renaissance.
+Dalton's atomic theory gave the concept quantitative substance, Mendeleev's periodic table revealed underlying order in the elements, and Rutherford's gold-foil experiment demonstrated that atoms contain dense nuclei --- a discovery that initiated nuclear physics.
+The subsequent identification of protons, neutrons, and ultimately quarks culminated in the Standard Model of particle physics: a quantum field theory that describes the fundamental constituents of matter and three of the four known forces with extraordinary predictive precision.
+
+Modern collider experiments extend this tradition of probing matter through scattering, but at energy scales far beyond Rutherford's original experiment.
+At the Large Hadron Collider (LHC) at CERN, protons are accelerated to near light-speed and brought into collision; the resulting interactions produce short-lived particles that decay almost immediately.
+No detector records these particles directly.
+Instead, physicists \textit{reconstruct} them from the signatures they leave in the detector: charged-particle tracks in inner tracking systems, energy deposits in electromagnetic and hadronic calorimeters, displaced decay vertices, and missing transverse energy ($E_{\mathrm{T}}^{\mathrm{miss}}$) inferred from momentum imbalance.
+Identifying and classifying collision events is therefore an inference problem, not a direct-observation problem, and the complexity of the detector response shapes every step of the analysis.
+
+The Standard Model is, by any measure, a triumph of twentieth-century physics, yet it is not considered the final theory.
+Compelling open questions remain: the nature of dark matter, the origin of neutrino masses, the observed matter--antimatter asymmetry of the universe, the absence of gravity from the quantum field-theoretic framework, and the so-called hierarchy problem concerning the stability of the Higgs mass under radiative corrections.
+Precision measurements and searches for rare processes at the LHC provide indirect sensitivity to physics beyond the Standard Model (BSM), even without direct production of new particles.
+The High-Luminosity LHC (HL-LHC) programme will deliver substantially larger integrated luminosities over the coming decades, granting access to processes with smaller cross-sections than those currently measurable.
+The frontier is therefore not only at higher energies, but also in the rarest corners of already accessible data.
+
+Among the fundamental particles of the Standard Model, the top quark occupies a special position.
+It is the heaviest known elementary particle, with a mass close to the electroweak symmetry-breaking scale, and its large Yukawa coupling to the Higgs boson makes top-associated processes particularly sensitive to the Higgs sector and to BSM effects that couple preferentially to mass.
+This thesis focuses on a class of rare, top-rich processes: four-top-quark production ($t\bar{t}t\bar{t}$) and its dominant backgrounds --- $t\bar{t}H$, $t\bar{t}W$, $t\bar{t}Z$, and $t\bar{t}WW$.
+These events produce complex final states: many hadronic jets, multiple $b$-tagged jets from top and Higgs decays, possible charged leptons, and substantial $E_{\mathrm{T}}^{\mathrm{miss}}$.
+Combinatorial ambiguity is severe, since the assignment of reconstructed objects to parent particles is not unique, and the signal cross-section is small relative to the irreducible backgrounds.
+Accurate event-level classification is therefore central to any analysis targeting these processes.
+
+The core task addressed in this thesis is supervised event-level classification: assigning a scalar discriminant to each collision event such that signal-like and background-like events are separated as reliably as possible.
+From a physics perspective, the challenge arises from the rarity of the signal, the complexity of the final state, and the many-object combinatorics.
+From a machine-learning perspective, the challenge is structural: a collision event is a \textit{variable-length, unordered set} of reconstructed objects, each described by a mixture of continuous kinematic features and discrete categorical labels (particle type, charge, $b$-tag decision).
+Standard fixed-size or sequence-based architectures impose an artificial structure on this set-valued input, whereas the physical content is permutation-invariant.
+
+Machine learning has become indispensable in high-energy physics for tasks ranging from jet tagging and particle identification to full event reconstruction and classification.
+The progression from boosted decision trees and shallow neural networks to deep architectures and, more recently, to attention-based models reflects both the growing complexity of analysis tasks and the increasing availability of large simulated datasets.
+Transformers are attractive for event classification because self-attention operates over all pairs of input objects without imposing an ordering, making the mechanism structurally compatible with the set-like nature of collision events.
+Pairwise attention weights can, in principle, encode physically meaningful relations: angular separations ($\Delta R$), invariant masses of object pairs, particle-type compatibility, and global quantities such as $E_{\mathrm{T}}^{\mathrm{miss}}$.
+This structural alignment between the attention mechanism and the physics of multi-object final states motivates a careful, systematic investigation of which specific design choices --- input representation, attention biases, positional encoding, tokenisation strategy --- actually improve classification performance.
+
+This thesis investigates transformer-based classifiers for rare multi-top quark processes at the LHC.
+Rather than proposing a single optimised architecture, it develops a configurable workbench in which architectural choices are exposed as orthogonal axes and evaluated through controlled ablations.
+The central aim is to determine which physics-motivated and machine-learning-motivated design choices improve event classification, as measured primarily by AUROC and complementary efficiency metrics.
 
 
-\section{Physics Motivation}
-\label{sec:intro_physics_motivation}
+% ──────────────────────────────────────────────────────────────────────────────
+\section{The Standard Model and Top Quark Physics}
+\label{sec:intro_standard_model_and_top_quark_physics}
 
-\subsection{Multi-top quark production at the LHC}
-Four-top-quark production (tttt) is one of the rarest Standard Model processes currently accessible at the LHC, with a small but non-zero predicted cross-section.
-Its observation provides a direct handle on the top-quark Yukawa coupling, and deviations from the SM prediction would signal new physics beyond the Standard Model.
+This section provides the physics theory context for the thesis.
+It covers the Standard Model particle content and forces, the special role of the top quark, the four-top signal process and its backgrounds, and the sensitivity of rare multi-top processes to BSM physics.
 
-\subsection{Why classification matters}
-Extracting a signal like tttt from its backgrounds (ttH, ttW, ttZ, ttWW) requires powerful event-level discrimination.
-Even modest improvements in classifier performance translate into meaningful gains in signal significance at fixed luminosity.
+% ──────────────────────────────────────────────
+\subsection{The Standard Model of particle physics}
+\label{subsec:intro_standard_model}
 
-\cite{collaborationObservationFourtopquarkProduction2023}
+The Standard Model (SM) is a quantum field theory describing the elementary particles and three of the four fundamental forces: the electromagnetic, weak, and strong interactions.
+Matter consists of twelve fermions --- six quarks and six leptons --- organised into three generations of increasing mass.
+The forces are mediated by gauge bosons: the photon ($\gamma$) for electromagnetism, the $W^{\pm}$ and $Z$ bosons for the weak interaction, and eight gluons for the strong interaction.
+The Higgs boson, the quantum of the scalar field that spontaneously breaks electroweak symmetry and endows the $W$ and $Z$ bosons and the fermions with mass, completes the particle content of the theory.
 
-\section{Machine Learning Challenge}
-\label{sec:intro_ml_challenge}
+\todo{Figure: Standard Model particle table}
 
-\subsection{Particle events as variable-length sets}
-A collision event is a collection of reconstructed objects --- jets, leptons, and missing transverse energy --- with no natural ordering and varying multiplicity per event.
-This set-structured data is awkward for architectures that assume fixed-size inputs or sequential ordering.
+% ──────────────────────────────────────────────
+\subsection{The top quark}
+\label{subsec:intro_top_quark}
 
-\subsection{Transformers as a natural fit}
-Self-attention is permutation-equivariant by construction, making transformers well-suited to set-valued inputs.
-The attention mechanism can in principle learn to weight particle pairs by their physics relevance without any explicit ordering assumption.
+The top quark is the heaviest known elementary particle, with a mass of approximately $172.5\,\mathrm{GeV}$, close to the electroweak symmetry-breaking scale set by the Higgs vacuum expectation value of $246\,\mathrm{GeV}$.
+Its large Yukawa coupling to the Higgs boson --- close to unity --- makes the top quark a unique probe of the Higgs sector and of mass-generation mechanisms.
+Crucially, the top quark decays before it hadronizes, with a lifetime of approximately $5 \times 10^{-25}\,\mathrm{s}$, so its spin and other quantum numbers are transmitted directly to its decay products.
+Top quarks decay almost exclusively via $t \to Wb$, producing a $W$ boson and a $b$-quark in essentially every event.
 
+% ──────────────────────────────────────────────
+\subsection{Multi-top production at the LHC}
+\label{subsec:intro_multi_top_production}
+
+Four-top-quark production ($t\bar{t}t\bar{t}$, hereafter \textit{four-top}) is among the rarest Standard Model processes accessible at the LHC, with a predicted cross-section of approximately $12\,\mathrm{fb}$ at $13\,\mathrm{TeV}$ \cite{collaborationObservationFourtopquarkProduction2023}.
+The dominant backgrounds to four-top are associated production processes: $t\bar{t}H$, $t\bar{t}W$, $t\bar{t}Z$, and $t\bar{t}WW$, which share similar final-state topologies.
+Each four-top event produces four $b$-quark jets from the top decays, four additional jets from hadronic $W$ decays, possible charged leptons, and substantial $E_{\mathrm{T}}^{\mathrm{miss}}$ from neutrinos in leptonic $W$ decays.
+The resulting jet multiplicities can exceed ten reconstructed objects per event, and the combinatorial ambiguity in assigning jets to parent particles is a central analysis challenge.
+
+\todo{Figure: Feynman diagrams --- QCD and Higgs-mediated four-top production at tree level}
+
+% ──────────────────────────────────────────────
+\subsection{Sensitivity to physics beyond the Standard Model}
+\label{subsec:intro_bsm_sensitivity}
+
+The four-top process is particularly sensitive to BSM physics because its production rate depends on the top--Higgs Yukawa coupling at the one-loop level and receives contributions from dimension-six effective field theory (EFT) operators involving the top quark.
+New physics that modifies the top--Higgs coupling or introduces new four-fermion contact interactions can enhance the four-top cross-section by factors of a few without being excluded by other measurements.
+Precision measurement of the four-top rate thus constrains the Wilson coefficients of top-sector EFT operators independently of direct new-particle searches.
+Rare multi-top processes therefore occupy a privileged position in the BSM landscape: they are both measurable with HL-LHC luminosity and theoretically clean probes of the top--Higgs sector.
+
+
+% ──────────────────────────────────────────────────────────────────────────────
+\section{The ATLAS Experiment and Event Reconstruction}
+\label{sec:intro_atlas_experiment}
+
+This section describes the experimental apparatus and the data-processing chain that converts raw detector signals into the physics objects used as classifier inputs.
+It covers the LHC collider, the ATLAS detector subsystems, the object reconstruction pipeline, and the classical analysis strategies that motivate the machine-learning approach.
+
+% ──────────────────────────────────────────────
+\subsection{The Large Hadron Collider}
+\label{subsec:intro_lhc}
+
+The Large Hadron Collider at CERN is a circular proton--proton ($pp$) collider with a circumference of $27\,\mathrm{km}$, operating at centre-of-mass energies of $13\,\mathrm{TeV}$ (Run~2) and $13.6\,\mathrm{TeV}$ (Run~3).
+Proton beams are organised into bunches crossing at four interaction points every $25\,\mathrm{ns}$, delivering peak instantaneous luminosities of order $10^{34}\,\mathrm{cm}^{-2}\mathrm{s}^{-1}$.
+Each bunch crossing produces multiple inelastic $pp$ interactions simultaneously, a phenomenon known as pile-up, which must be disentangled from the hard-scatter interaction of interest.
+The HL-LHC upgrade, planned for the late 2020s, will increase instantaneous luminosity by approximately a factor of five, substantially increasing both the dataset size and the pile-up challenge.
+
+\todo{Figure: LHC schematic}
+
+% ──────────────────────────────────────────────
+\subsection{The ATLAS detector}
+\label{subsec:intro_atlas_detector}
+
+ATLAS (A Toroidal LHC ApparatuS) is a general-purpose particle detector surrounding one of the four LHC interaction points, designed to measure the full range of SM and BSM processes accessible at LHC energies.
+The innermost subsystem is the Inner Detector (ID), consisting of a silicon pixel detector, a silicon strip tracker, and a transition radiation tracker, which reconstructs charged-particle trajectories in a $2\,\mathrm{T}$ solenoidal magnetic field.
+Surrounding the ID are the electromagnetic and hadronic calorimeters, which absorb and measure the energy of photons, electrons, and hadrons; the hadronic calorimeter uses iron absorbers and scintillating tiles in the central region.
+The outermost system is the Muon Spectrometer, which identifies and measures muons using large toroidal magnets, providing coverage over $|\eta| < 2.7$.
+
+\todo{Figure: ATLAS detector cutaway}
+
+% ──────────────────────────────────────────────
+\subsection{From detector signals to physics objects}
+\label{subsec:intro_reconstruction}
+
+Reconstructing a physics event from raw detector signals proceeds through a sequence of steps, each translating lower-level information into higher-level objects.
+Charged-particle tracks are reconstructed in the ID from hit patterns in the silicon layers and extrapolated to identify primary and secondary vertices; displaced secondary vertices from $b$-hadron decays form the basis of $b$-tagging algorithms.
+Calorimeter energy deposits are clustered into topological clusters and calibrated to form jets using the anti-$k_t$ algorithm; $b$-jets are identified by a multivariate tagger exploiting track impact parameters and secondary vertex information.
+Electrons and muons are identified and calibrated using combined tracking and calorimeter information, while $E_{\mathrm{T}}^{\mathrm{miss}}$ is computed from the negative vector sum of all reconstructed and calibrated object momenta in the transverse plane.
+
+\todo{Figure: four-top collision evolving through the ATLAS detector (supervisor diagram)}
+
+% ──────────────────────────────────────────────
+\subsection{Event-level classification in classical analyses}
+\label{subsec:intro_classical_classification}
+
+Classical analyses separate signal from background using cut-based selections on individual object multiplicities and kinematic variables, followed by multivariate discriminants such as boosted decision trees (BDTs).
+In four-top analyses, high jet and $b$-jet multiplicity requirements reduce the dominant $t\bar{t}$+jets background by orders of magnitude while preserving a significant fraction of signal events.
+BDTs trained on a set of hand-crafted global event variables provide additional separation, but their performance degrades as the number of relevant features grows and correlations between variables become complex.
+Furthermore, the combinatorial assignment of reconstructed jets to the four top quarks is intractable to solve exactly, so classical approaches either ignore it or rely on dedicated reconstruction algorithms that introduce additional assumptions.
+
+
+% ──────────────────────────────────────────────────────────────────────────────
+\section{Machine Learning for High-Energy Physics}
+\label{sec:intro_machine_learning_for_hep}
+
+This section traces the progression of machine learning in particle physics from early shallow methods through deep learning and, finally, to the attention-based models that motivate this thesis.
+It covers the historical development, the transformer architecture, its adoption in HEP, and the structural reasons why attention-based models are well-suited to multi-object event classification.
+
+% ──────────────────────────────────────────────
+\subsection{A brief history of machine learning in particle physics}
+\label{subsec:intro_ml_history}
+
+Machine learning has been applied in particle physics since at least the 1990s, when artificial neural networks and Fisher discriminants began supplementing cut-based selections in collider analyses.
+Boosted decision trees became the dominant paradigm in the 2000s, exploiting their robustness to non-linearities and their tractable training, and remain competitive in many current analyses.
+The deep learning revolution of the 2010s, driven by convolutional neural networks and large-scale GPU computing, spread quickly into HEP: jet tagging emerged as the primary proving ground, with networks operating directly on calorimeter images or particle lists achieving substantial improvements over BDTs.
+More recently, graph neural networks and attention-based models have extended the reach of deep learning to irregularly structured inputs, enabling end-to-end event reconstruction and multi-object classification.
+
+% ──────────────────────────────────────────────
+\subsection{Transformers and the attention mechanism}
+\label{subsec:intro_transformers}
+
+The transformer architecture, introduced by Vaswani et al.\ in ``Attention Is All You Need'' \cite{vaswani2017attention}, replaces recurrence and convolution with a scaled dot-product self-attention mechanism that relates each element of a sequence to every other element simultaneously.
+Multi-head attention computes several attention functions in parallel and concatenates the results, allowing the model to attend jointly to information from different representation subspaces.
+The architecture is completed by position-wise feed-forward networks, residual connections, and layer normalisation, all of which have become standard components of modern sequence and set models.
+Transformers achieved state-of-the-art performance across natural language processing benchmarks and subsequently demonstrated strong transfer to vision, audio, and scientific domains.
+
+\todo{Figure: Transformer architecture diagram}
+
+% ──────────────────────────────────────────────
+\subsection{Transformers in high-energy physics}
+\label{subsec:intro_transformers_in_hep}
+
+The adoption of transformers in HEP accelerated with ParticleNet and its graph-based predecessors, followed by Particle Transformer (ParT), which demonstrated that attention over particle lists consistently outperforms graph-convolutional and convolutional baselines on jet tagging benchmarks.
+PELICAN introduced Lorentz-equivariant message passing, and OmniJet and related models explored large-scale pre-training on diverse jet datasets.
+These developments collectively established attention-based architectures as the leading approach for particle-level classification tasks, motivating their application to the more complex problem of full-event classification.
+The convergence on attention-based models across multiple groups and benchmarks suggests that the structural properties of self-attention, rather than incidental training advantages, are responsible for the gains.
+
+% ──────────────────────────────────────────────
+\subsection{Why transformers suit multi-object event classification}
+\label{subsec:intro_why_transformers}
+
+Self-attention is permutation-equivariant by construction: the output for each input token depends on its pairwise relations with all other tokens but not on the order in which they are presented.
+This property aligns precisely with the physics of collision events, where the set of reconstructed objects has no natural ordering and the relevant information is encoded in pairwise and global relations.
+Attention weights can be biased by physically motivated pairwise features --- angular separations ($\Delta R$), invariant masses, and particle-type compatibility --- providing a natural inductive bias without hard-coding specific interaction patterns.
+These structural considerations directly motivate the design axes explored in this thesis, particularly the input representation choices (Chapter~4) and the physics-informed attention bias families (Chapter~6).
+
+
+% ──────────────────────────────────────────────────────────────────────────────
 \section{Thesis Statement}
 \label{sec:intro_thesis_statement}
 
-\subsection{From single model to configurable workbench}
-Rather than producing one optimised classifier, this thesis builds a single modular codebase in which every meaningful architectural decision is exposed as a switchable axis.
-We introduce 33 orthogonal architectural axes as the organising principle of the entire experimental programme.
+This section articulates the research question, the methodological approach, and the organising principle of the experimental programme.
 
-\subsection{Controlled ablation as scientific method}
-By varying one axis at a time while holding all others fixed, each experiment becomes a controlled ablation.
-The central question is not which configuration achieves the highest AUROC, but what architectural choices matter, and why.
+% ──────────────────────────────────────────────
+\subsection{The intersection of top physics and transformer design}
+\label{subsec:intro_intersection}
 
+Rare multi-top production and attention-based classifiers are unusually well-matched: the physics produces variable-length, unordered sets of objects with rich pairwise structure, and the transformer processes exactly this kind of input through learned pairwise attention.
+Despite this structural compatibility, it remains unclear which specific design choices are responsible for performance gains observed in related domains, and whether physics-motivated inductive biases improve over purely data-driven attention for this task.
+This thesis addresses that gap by asking: which transformer design choices matter for event-level classification of rare multi-top processes, and does physics motivation improve or merely complicate the architecture?
+The answer requires controlled experiments that isolate individual design decisions rather than co-optimising all parameters simultaneously.
+
+% ──────────────────────────────────────────────
+\subsection{Controlled ablation over a single optimised model}
+\label{subsec:intro_controlled_ablation}
+
+The key methodological choice is to study design decisions through controlled ablations over a single, reproducible base model rather than by comparing independently optimised architectures.
+Each experiment varies exactly one axis while holding all others at their defaults, so any observed change in AUROC is attributable to that single choice.
+This avoids the confounding that arises when different architectures differ simultaneously in multiple design dimensions, a common limitation of architecture comparison studies in the literature.
+The scientific question is therefore not which configuration achieves the highest AUROC, but which design choices matter and whether their effects are consistent with the physics motivation claimed for them.
+
+% ──────────────────────────────────────────────
+\subsection{A configurable workbench for architectural exploration}
+\label{subsec:intro_workbench}
+
+The thesis organises 33 architectural design choices into orthogonal axes, each exposed as a named parameter in a Hydra configuration tree.
+Any run in the experiment database can be regenerated from a single CLI command by specifying the relevant axis overrides, ensuring full reproducibility.
+The axes are grouped into ten thematic groups --- covering data treatment, tokenisation, positional encoding, pre-encoder modules, attention and encoder block design, feed-forward network realisation, physics-informed attention biases, classifier head, and model capacity --- which map directly to the chapter structure of Part~II.
+This workbench is both the primary engineering deliverable and the experimental substrate for all quantitative claims in the thesis.
+
+
+% ──────────────────────────────────────────────────────────────────────────────
 \section{Deliverables}
 \label{sec:intro_deliverables}
 
+This thesis produces three concrete outputs, each serving a distinct purpose within the overall research programme.
+
+% ──────────────────────────────────────────────
 \subsection{Modular codebase}
+\label{subsec:intro_codebase}
+
 The primary engineering output is a Hydra-driven Python package in which every architecture variant is reproducible from a single configuration file.
 Any run appearing in this thesis can be regenerated with a single CLI command.
 
+% ──────────────────────────────────────────────
 \subsection{Experiment database}
+\label{subsec:intro_experiment_database}
+
 A Weights \& Biases project serves as a structured record of all training runs, storing hyperparameters, metrics, and axis settings in a queryable format.
 This database is the raw evidence underlying every quantitative claim in the thesis.
 
+% ──────────────────────────────────────────────
 \subsection{Thesis document}
+\label{subsec:intro_thesis_document}
+
 This document is a curated, interpretable distillation of the experiment database: not an exhaustive log of all runs, but a set of focused scientific arguments each anchored to a specific axis group.
 
+
+% ──────────────────────────────────────────────────────────────────────────────
 \section{Reader's Guide}
 \label{sec:intro_readers_guide}
 
+% ──────────────────────────────────────────────
 \subsection{Structure of the thesis}
+\label{subsec:intro_thesis_structure}
+
 The thesis is organised in three parts: Part~I frames the problem and the workbench (Chapters~2--3); Part~II addresses one focused scientific question per chapter, each mapped to a specific axis group (Chapters~4--9); Part~III synthesises the findings into a recommended configuration and outlook (Chapters~10--11).
 
+% ──────────────────────────────────────────────
 \subsection{How to read the results}
+\label{subsec:intro_how_to_read}
+
 Throughout the thesis, AUROC is the primary metric, reported as a seed-averaged mean with error bars.
 Axis groups are referred to by their labels (D, A, B, P, H), which correspond directly to config namespaces in the codebase.
 Each Part~II chapter is framed by one of three evaluation lenses --- performance, interpretability, or efficiency --- which is stated explicitly at the chapter opening.

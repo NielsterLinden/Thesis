@@ -92,8 +92,8 @@ def save_figure(fig, figures_dir: Path, base_name: str, cfg_logging: Mapping[str
     Path
         Path to saved figure
     """
-    fmt = str(cfg_logging.get("fig_format", "png"))
-    dpi = int(cfg_logging.get("dpi", 150))
+    fmt = str(cfg_logging.get("fig_format", "pdf"))
+    dpi = int(cfg_logging.get("dpi", 300))
     path = figures_dir / f"{base_name}.{fmt}"
     fig.tight_layout()
     fig.savefig(path, dpi=dpi)

@@ -64,7 +64,7 @@ outputs:
     # ── Inference: AUROC bars by axis (Exp 4A) ─────────────────────────────
     - auroc_bar_by_tokenizer      # T1
     - auroc_bar_by_pid_mode       # T1-a (identity only)
-    - auroc_bar_by_id_embed_dim   # T1-b (identity only)
+    # auroc_bar_by_id_embed_dim removed (fix 3): redundant given heatmap (reviewer 2026-05-07)
 
     # ── Inference: AUROC bars by axis (Exp 4B) ─────────────────────────────
     - auroc_bar_by_met            # D02

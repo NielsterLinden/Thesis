@@ -212,8 +212,35 @@ def _read_run_config(run: Any) -> dict:
 def _ensure_attrs_summary_is_object(run: Any) -> None:
     """``run.update()`` PATCH fails with 400 if ``_attrs['summary']`` is not a JSON object.
 
-    Migrated / API-created runs sometimes store ``summary`` as a string or null.
+    Handles: null, string, non-serializable dict (numpy/NaN values from eval metrics).
     """
+    import math
+
+    def _is_json_safe(v: Any) -> bool:
+        if v is None or isinstance(v, (bool, int, str)):
+            return True
+        if isinstance(v, float):
+            return not (math.isnan(v) or math.isinf(v))
+        if isinstance(v, dict):
+            return all(_is_json_safe(vv) for vv in v.values())
+        if isinstance(v, list):
+            return all(_is_json_safe(i) for i in v)
+        try:
+            json.dumps(v)
+            return True
+        except (TypeError, ValueError):
+            return False
+
+    def _clean_dict(d: dict) -> dict:
+        out = {}
+        for k, v in d.items():
+            if isinstance(v, dict):
+                out[k] = _clean_dict(v)
+            elif _is_json_safe(v):
+                out[k] = v
+            # drop non-serializable scalars (numpy arrays, NaN, etc.)
+        return out
+
     attrs = getattr(run, "_attrs", None)
     if attrs is None:
         return
@@ -221,14 +248,19 @@ def _ensure_attrs_summary_is_object(run: Any) -> None:
     if summ is None:
         attrs["summary"] = {}
         return
-    if isinstance(summ, dict):
-        return
     if isinstance(summ, str):
         try:
             parsed = json.loads(summ) if summ.strip() else {}
         except json.JSONDecodeError:
             parsed = {}
         attrs["summary"] = parsed if isinstance(parsed, dict) else {}
+        return
+    if isinstance(summ, dict):
+        # Verify fully serializable; scrub problematic values (NaN, numpy, etc.)
+        try:
+            json.dumps(summ)
+        except (TypeError, ValueError):
+            attrs["summary"] = _clean_dict(summ)
         return
     attrs["summary"] = {}
 

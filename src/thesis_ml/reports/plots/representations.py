@@ -15,8 +15,11 @@ import numpy as np
 import torch
 
 from thesis_ml.monitoring.io_utils import save_figure
+from thesis_ml.reports.plots.style import apply_thesis_style, figure_size
 
 logger = logging.getLogger(__name__)
+
+apply_thesis_style()
 
 
 def compute_similarity_matrix(tensor: torch.Tensor | np.ndarray) -> np.ndarray:
@@ -35,15 +38,12 @@ def compute_similarity_matrix(tensor: torch.Tensor | np.ndarray) -> np.ndarray:
     if isinstance(tensor, torch.Tensor):
         tensor = tensor.detach().cpu().numpy()
 
-    # Average over batch to get [T, D]
     token_vecs = tensor.mean(axis=0)
 
-    # Normalize vectors
     norms = np.linalg.norm(token_vecs, axis=1, keepdims=True)
     norms = np.maximum(norms, 1e-12)
     token_vecs_norm = token_vecs / norms
 
-    # Compute cosine similarity matrix
     sim_matrix = token_vecs_norm @ token_vecs_norm.T
 
     return sim_matrix
@@ -56,7 +56,7 @@ def plot_token_similarity_matrix(
     figs_dir: Path,
     fig_cfg: dict[str, Any],
     fname: str | None = None,
-    figsize: tuple[float, float] = (8, 7),
+    figsize: tuple[float, float] | None = None,
 ) -> None:
     """Plot token similarity matrix for a specific layer and PE type.
 
@@ -74,9 +74,12 @@ def plot_token_similarity_matrix(
         Figure configuration (fig_format, dpi)
     fname : str | None
         Base filename (auto-generated if None)
-    figsize : tuple[float, float]
-        Figure size (default: (8, 7))
+    figsize : tuple[float, float] | None
+        Override figure size. Defaults to figure_size("full", aspect=1.0).
     """
+    if figsize is None:
+        figsize = figure_size("full", aspect=1.0)
+
     if layer_name not in representations:
         logger.warning(f"Layer '{layer_name}' not found in representations, skipping similarity plot")
         return
@@ -88,11 +91,9 @@ def plot_token_similarity_matrix(
     fig, ax = plt.subplots(figsize=figsize)
 
     im = ax.imshow(sim_matrix, cmap="RdYlGn", vmin=-1, vmax=1, aspect="auto", interpolation="nearest")
-    ax.set_xlabel("Token Index", fontsize=14)
-    ax.set_ylabel("Token Index", fontsize=14)
-    ax.set_title(f"{pe_type.capitalize()} - Token Similarity\n{layer_name}", fontsize=16, fontweight="bold")
+    ax.set_xlabel("Token Index")
+    ax.set_ylabel("Token Index")
 
-    # Set axis ticks/labels: CLS, then tokens 1..N
     positions = np.arange(num_tokens)
     labels = ["CLS"] + [str(i) for i in range(1, num_tokens)]
     ax.set_xticks(positions)
@@ -113,7 +114,7 @@ def plot_all_similarity_matrices(
     figs_dir: Path,
     fig_cfg: dict[str, Any],
     fname: str = "figure-token_similarity_comparison",
-    figsize: tuple[float, float] = (16, 14),
+    figsize: tuple[float, float] = (12.6, 12.6),
 ) -> None:
     """Plot token similarity matrices for all PE types side by side.
 
@@ -131,7 +132,7 @@ def plot_all_similarity_matrices(
     fname : str
         Base filename for saved figure
     figsize : tuple[float, float]
-        Figure size (default: (16, 14))
+        Figure size for 2×2 panel grid (default: (12.6, 12.6)).
     """
     pe_types_ordered = ["none", "sinusoidal", "learned", "rotary"]
     pe_types_available = [pt for pt in pe_types_ordered if pt in all_representations]
@@ -150,7 +151,6 @@ def plot_all_similarity_matrices(
         ax = axes[idx]
         representations = all_representations[pe_type]
 
-        # Find appropriate layer
         if layer_name in representations:
             tensor = representations[layer_name]
             actual_layer = layer_name
@@ -165,21 +165,18 @@ def plot_all_similarity_matrices(
         num_tokens = sim_matrix.shape[0]
 
         im = ax.imshow(sim_matrix, cmap="RdYlGn", vmin=-1, vmax=1, aspect="auto", interpolation="nearest")
-        ax.set_xlabel("Token Index", fontsize=12)
-        ax.set_ylabel("Token Index", fontsize=12)
-        ax.set_title(f"{pe_type.capitalize()} - {actual_layer}", fontsize=14, fontweight="bold")
+        ax.set_xlabel("Token Index")
+        ax.set_ylabel("Token Index")
 
-        # Set axis ticks/labels
         positions = np.arange(num_tokens)
         labels = ["CLS"] + [str(i) for i in range(1, num_tokens)]
         ax.set_xticks(positions)
         ax.set_yticks(positions)
-        ax.set_xticklabels(labels[:num_tokens], rotation=90, fontsize=8)
-        ax.set_yticklabels(labels[:num_tokens], fontsize=8)
+        ax.set_xticklabels(labels[:num_tokens], rotation=90)
+        ax.set_yticklabels(labels[:num_tokens])
 
         plt.colorbar(im, ax=ax, label="Cosine Similarity")
 
-    # Hide unused subplots
     for idx in range(len(pe_types_available), 4):
         axes[idx].axis("off")
 
@@ -196,7 +193,7 @@ def plot_layer_evolution_pca(
     fig_cfg: dict[str, Any],
     layers_to_plot: list[str] | None = None,
     fname: str | None = None,
-    figsize: tuple[float, float] = (18, 12),
+    figsize: tuple[float, float] | None = None,
     pooling: str = "mean",
 ) -> None:
     """Plot PCA projections showing how class separation evolves through layers.
@@ -208,7 +205,7 @@ def plot_layer_evolution_pca(
     labels : torch.Tensor | np.ndarray
         Class labels [B]
     pe_type : str
-        Positional encoding type (for title)
+        Positional encoding type (used in filename)
     figs_dir : Path
         Directory to save figures
     fig_cfg : dict[str, Any]
@@ -217,8 +214,8 @@ def plot_layer_evolution_pca(
         List of layer names to plot. If None, auto-selects key layers.
     fname : str | None
         Base filename (auto-generated if None)
-    figsize : tuple[float, float]
-        Figure size (default: (18, 12))
+    figsize : tuple[float, float] | None
+        Override figure size. Defaults to n_cols × half-width panels.
     pooling : str
         How to pool tokens: 'mean' or 'cls' (default: 'mean')
     """
@@ -227,7 +224,6 @@ def plot_layer_evolution_pca(
     if isinstance(labels, torch.Tensor):
         labels = labels.detach().cpu().numpy()
 
-    # Auto-select layers if not provided
     if layers_to_plot is None:
         num_blocks = len([k for k in representations if "block" in k])
         layers_to_plot = ["after_embedding"]
@@ -239,6 +235,10 @@ def plot_layer_evolution_pca(
     n_plots = min(6, len(layers_to_plot))
     n_cols = min(3, n_plots)
     n_rows = (n_plots + n_cols - 1) // n_cols
+
+    if figsize is None:
+        half_w, half_h = figure_size("half")
+        figsize = (n_cols * half_w, n_rows * half_h)
 
     fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize)
     axes = np.atleast_2d(axes).flatten()
@@ -257,39 +257,31 @@ def plot_layer_evolution_pca(
         if isinstance(tensor, torch.Tensor):
             tensor = tensor.detach().cpu().numpy()
 
-        # Pool tokens
-        if pooling == "mean":
-            X = tensor.mean(axis=1)  # [B, D]
-        elif pooling == "cls":
-            X = tensor[:, 0, :]  # [B, D]
+        if pooling == "cls":
+            X = tensor[:, 0, :]
         else:
             X = tensor.mean(axis=1)
 
-        # Apply PCA
         pca = PCA(n_components=2)
         X_pca = pca.fit_transform(X)
 
-        # Plot by class
         unique_labels = np.unique(labels)
         class_names = {0: "Bkg", 1: "4t"} if len(unique_labels) == 2 else {i: f"Class {i}" for i in unique_labels}
 
         for class_idx in unique_labels:
             mask = labels == class_idx
             class_name = class_names.get(class_idx, f"Class {class_idx}")
-            ax.scatter(X_pca[mask, 0], X_pca[mask, 1], label=class_name, alpha=0.6, s=15)
+            ax.scatter(X_pca[mask, 0], X_pca[mask, 1], label=class_name, alpha=0.6, s=15, rasterized=True)
 
         var_explained = pca.explained_variance_ratio_[:2].sum()
-        ax.set_xlabel("PC1", fontsize=10)
-        ax.set_ylabel("PC2", fontsize=10)
-        ax.set_title(f"{layer_name}\nVar: {var_explained:.1%}", fontsize=12, fontweight="bold")
-        ax.legend(fontsize=9)
-        ax.grid(True, alpha=0.3)
+        ax.set_xlabel("PC1")
+        ax.set_ylabel("PC2")
+        ax.annotate(f"Var: {var_explained:.1%}", xy=(0.05, 0.95), xycoords="axes fraction", va="top")
+        ax.legend()
 
-    # Hide unused subplots
     for idx in range(n_plots, len(axes)):
         axes[idx].axis("off")
 
-    plt.suptitle(f"Layer Evolution - {pe_type.capitalize()} PE (PCA)", fontsize=16, fontweight="bold")
     plt.tight_layout()
 
     save_figure(fig, figs_dir, fname or f"figure-layer_evolution_pca_{pe_type}", fig_cfg)
@@ -304,7 +296,7 @@ def plot_layer_evolution_tsne(
     fig_cfg: dict[str, Any],
     layers_to_plot: list[str] | None = None,
     fname: str | None = None,
-    figsize: tuple[float, float] = (18, 12),
+    figsize: tuple[float, float] | None = None,
     pooling: str = "mean",
     perplexity: int = 30,
     max_iter: int = 1000,
@@ -318,7 +310,7 @@ def plot_layer_evolution_tsne(
     labels : torch.Tensor | np.ndarray
         Class labels [B]
     pe_type : str
-        Positional encoding type (for title)
+        Positional encoding type (used in filename)
     figs_dir : Path
         Directory to save figures
     fig_cfg : dict[str, Any]
@@ -327,8 +319,8 @@ def plot_layer_evolution_tsne(
         List of layer names to plot. If None, auto-selects key layers.
     fname : str | None
         Base filename (auto-generated if None)
-    figsize : tuple[float, float]
-        Figure size (default: (18, 12))
+    figsize : tuple[float, float] | None
+        Override figure size. Defaults to n_cols × half-width panels.
     pooling : str
         How to pool tokens: 'mean' or 'cls' (default: 'mean')
     perplexity : int
@@ -341,7 +333,6 @@ def plot_layer_evolution_tsne(
     if isinstance(labels, torch.Tensor):
         labels = labels.detach().cpu().numpy()
 
-    # Auto-select layers if not provided
     if layers_to_plot is None:
         num_blocks = len([k for k in representations if "block" in k])
         layers_to_plot = ["after_embedding"]
@@ -353,6 +344,10 @@ def plot_layer_evolution_tsne(
     n_plots = min(6, len(layers_to_plot))
     n_cols = min(3, n_plots)
     n_rows = (n_plots + n_cols - 1) // n_cols
+
+    if figsize is None:
+        half_w, half_h = figure_size("half")
+        figsize = (n_cols * half_w, n_rows * half_h)
 
     fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize)
     axes = np.atleast_2d(axes).flatten()
@@ -371,38 +366,29 @@ def plot_layer_evolution_tsne(
         if isinstance(tensor, torch.Tensor):
             tensor = tensor.detach().cpu().numpy()
 
-        # Pool tokens
-        if pooling == "mean":
-            X = tensor.mean(axis=1)  # [B, D]
-        elif pooling == "cls":
-            X = tensor[:, 0, :]  # [B, D]
+        if pooling == "cls":
+            X = tensor[:, 0, :]
         else:
             X = tensor.mean(axis=1)
 
-        # Apply t-SNE
         tsne = TSNE(n_components=2, perplexity=perplexity, random_state=42, max_iter=max_iter)
         X_tsne = tsne.fit_transform(X)
 
-        # Plot by class
         unique_labels = np.unique(labels)
         class_names = {0: "Bkg", 1: "4t"} if len(unique_labels) == 2 else {i: f"Class {i}" for i in unique_labels}
 
         for class_idx in unique_labels:
             mask = labels == class_idx
             class_name = class_names.get(class_idx, f"Class {class_idx}")
-            ax.scatter(X_tsne[mask, 0], X_tsne[mask, 1], label=class_name, alpha=0.6, s=15)
+            ax.scatter(X_tsne[mask, 0], X_tsne[mask, 1], label=class_name, alpha=0.6, s=15, rasterized=True)
 
-        ax.set_xlabel("t-SNE 1", fontsize=10)
-        ax.set_ylabel("t-SNE 2", fontsize=10)
-        ax.set_title(f"{layer_name}", fontsize=12, fontweight="bold")
-        ax.legend(fontsize=9)
-        ax.grid(True, alpha=0.3)
+        ax.set_xlabel("t-SNE 1")
+        ax.set_ylabel("t-SNE 2")
+        ax.legend()
 
-    # Hide unused subplots
     for idx in range(n_plots, len(axes)):
         axes[idx].axis("off")
 
-    plt.suptitle(f"Layer Evolution - {pe_type.capitalize()} PE (t-SNE)", fontsize=16, fontweight="bold")
     plt.tight_layout()
 
     save_figure(fig, figs_dir, fname or f"figure-layer_evolution_tsne_{pe_type}", fig_cfg)
@@ -415,7 +401,7 @@ def plot_l2_norms_comparison(
     fig_cfg: dict[str, Any],
     layers_to_plot: list[str] | None = None,
     fname: str = "figure-l2_norms_comparison",
-    figsize: tuple[float, float] = (16, 12),
+    figsize: tuple[float, float] = (12.6, 12.6),
 ) -> None:
     """Plot L2 norms of token representations across layers for all PE types.
 
@@ -433,13 +419,12 @@ def plot_l2_norms_comparison(
     fname : str
         Base filename for saved figure
     figsize : tuple[float, float]
-        Figure size (default: (16, 12))
+        Figure size for 2×2 panel grid (default: (12.6, 12.6)).
     """
     if not all_representations:
         logger.warning("No representations provided, skipping L2 norms plot")
         return
 
-    # Compute L2 norms for all PE types
     l2_norms: dict[str, dict[str, np.ndarray]] = {}
 
     for pe_type, layers_dict in all_representations.items():
@@ -447,13 +432,12 @@ def plot_l2_norms_comparison(
         for layer_name, tensor in layers_dict.items():
             if isinstance(tensor, torch.Tensor):
                 tensor = tensor.detach().cpu()
-                l2 = torch.norm(tensor, p=2, dim=-1)  # [B, T]
-                l2_norms[pe_type][layer_name] = l2.mean(dim=0).numpy()  # [T]
+                l2 = torch.norm(tensor, p=2, dim=-1)
+                l2_norms[pe_type][layer_name] = l2.mean(dim=0).numpy()
             else:
-                l2 = np.linalg.norm(tensor, ord=2, axis=-1)  # [B, T]
-                l2_norms[pe_type][layer_name] = l2.mean(axis=0)  # [T]
+                l2 = np.linalg.norm(tensor, ord=2, axis=-1)
+                l2_norms[pe_type][layer_name] = l2.mean(axis=0)
 
-    # Auto-select layers if not provided
     if layers_to_plot is None:
         sample_pe = next(iter(l2_norms.keys()))
         num_blocks = len([k for k in l2_norms[sample_pe] if "block" in k])
@@ -483,19 +467,15 @@ def plot_l2_norms_comparison(
                     num_tokens = len(norms)
                 ax.plot(norms, label=layer_name, marker="o", alpha=0.7, linewidth=2)
 
-        # X-axis: CLS, 1..N
         if num_tokens is not None:
             positions = np.arange(num_tokens)
             ax.set_xticks(positions)
             ax.set_xticklabels(["CLS"] + [str(i) for i in range(1, num_tokens)])
 
-        ax.set_xlabel("Token Position", fontsize=14)
-        ax.set_ylabel("L2 Norm", fontsize=14)
-        ax.set_title(f"{pe_type.capitalize()} - Token Representation Magnitude", fontsize=16, fontweight="bold")
-        ax.legend(loc="best", fontsize=10)
-        ax.grid(True, alpha=0.3)
+        ax.set_xlabel("Token Position")
+        ax.set_ylabel("L2 Norm")
+        ax.legend(loc="best")
 
-    # Hide unused subplots
     for idx in range(len(pe_types_available), len(axes)):
         axes[idx].axis("off")
 

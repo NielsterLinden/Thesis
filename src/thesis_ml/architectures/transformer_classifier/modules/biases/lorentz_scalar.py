@@ -74,25 +74,17 @@ class LorentzScalarBias(nn.Module):
                 self.mlp = None
                 self.mlp_branch1 = build_bias_mlp(F, hidden_dim, out_dim, mlp_type=mlp_type, kan_cfg=kan_cfg)
                 self.mlp_branch2 = build_bias_mlp(F, hidden_dim, out_dim, mlp_type=mlp_type, kan_cfg=kan_cfg)
-                if mlp_type == "standard":
-                    nn.init.zeros_(self.mlp_branch1[-1].weight)
-                    nn.init.zeros_(self.mlp_branch1[-1].bias)
-                    nn.init.zeros_(self.mlp_branch2[-1].weight)
-                    nn.init.zeros_(self.mlp_branch2[-1].bias)
             else:
                 self.mlp_branch1 = None
                 self.mlp_branch2 = None
                 self.mlp = build_bias_mlp(F, hidden_dim, out_dim, mlp_type=mlp_type, kan_cfg=kan_cfg)
-                if mlp_type == "standard":
-                    nn.init.zeros_(self.mlp[-1].weight)
-                    nn.init.zeros_(self.mlp[-1].bias)
 
             if sparse_gating:
                 self.feature_gates = nn.Parameter(torch.zeros(F))
             else:
                 self.feature_gates = None
 
-        self.gate = nn.Parameter(torch.zeros(1))
+        self.gate = nn.Parameter(torch.full((1,), 0.1))
 
     def forward(
         self,

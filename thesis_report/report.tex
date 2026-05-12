@@ -9,6 +9,13 @@
 \setlist{itemsep=-2pt} % Reducing white space in lists slightly
 \renewcommand{\deg}{\si{\degree}\xspace} % Use \deg easily, everywhere
 
+%% W&B axis link button — link target to be filled in later
+\newcommand{\wandbaxis}[1]{%
+  #1\,\href{WANDB_AXIS_LINK_PLACEHOLDER_#1}{%
+    \includegraphics[height=0.8em]{figures/wandb_logo.png}%
+  }%
+}
+
 %% ----------------------------------------------------------------------
 %%    Begin of document + Frontmatter (Roman page numbering)
 %% ----------------------------------------------------------------------

@@ -373,6 +373,27 @@ def extract_wandb_config(cfg: dict[str, Any] | Any, source_location: str = "live
     except Exception as e:
         logger.warning("[wandb] Could not build V2 axes metadata: %s", e)
 
+    # G3 (Classification Task) can't resolve at training time via raw/ keys (DictConfig has no raw/).
+    # Derive directly from the Hydra config and override if G3 is still empty.
+    _g3_key = "axes/G3_Classification Task"
+    if not wc.get(_g3_key):
+        try:
+            _data_clf = getattr(getattr(cfg, "data", None), "classifier", None)
+            _svb = getattr(_data_clf, "signal_vs_background", None) if _data_clf is not None else None
+            _sel = getattr(_data_clf, "selected_labels", None) if _data_clf is not None else None
+            _sig = getattr(_svb, "signal", None) if _svb is not None else None
+            _bg = list(getattr(_svb, "background", [])) if _svb is not None else []
+            if _sig == 1 and sorted(int(x) for x in _bg) == [2, 3, 4, 5]:
+                wc[_g3_key] = "binary_4t_vs_bg"
+            elif _sel is not None:
+                _sel_sorted = sorted(int(x) for x in _sel)
+                if _sel_sorted == [1, 2]:
+                    wc[_g3_key] = "binary_4t_vs_ttH"
+                elif _sel_sorted == [1, 2, 3, 4, 5]:
+                    wc[_g3_key] = "multiclass_5way"
+        except Exception:
+            pass
+
     # === raw/* auto-flatten: catch-all so new config keys are never lost ===
     data = cfg
     if isinstance(data, dict):
