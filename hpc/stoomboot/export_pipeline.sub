@@ -1,0 +1,22 @@
+universe       = vanilla
+executable     = hpc/stoomboot/export_pipeline.sh
+arguments      =
+
+initialdir     = /project/atlas/users/nterlind/Thesis-Code
+
+output         = /data/atlas/users/nterlind/logs/stdout/export_pipeline_$(ClusterId).$(ProcId).out
+error          = /data/atlas/users/nterlind/logs/stderr/export_pipeline_$(ClusterId).$(ProcId).err
+log            = /data/atlas/users/nterlind/logs/stdlog/export_pipeline_$(ClusterId).log
+
+request_cpus   = 2
+request_memory = 8GB
+request_disk   = 8GB
+
++UseOS = "el9"
++JobCategory = "short"
+should_transfer_files = NO
+getenv         = True
+stream_output  = True
+stream_error   = True
+
+queue 1

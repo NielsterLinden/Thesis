@@ -46,6 +46,9 @@ hpc/stoomboot/.wandb_env
 **/.wandb_env
 **/.nfs*
 
+# W&B patch traces: large CSVs (keep only unresolved/summary files if needed)
+scripts/wandb/patch_traces/*.csv
+
 # W&B: GPU eval shards + large one-off exports / pilot dumps (keep code + small schema only)
 scripts/wandb/eval_pipeline/snapshots/
 scripts/wandb/archive/
