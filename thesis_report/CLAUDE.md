@@ -34,5 +34,6 @@ This directory holds the LaTeX MSc thesis. Code, configs, and HPC scripts live e
 The full style guide lives in `.claude/agents/thesis-writer.md`. The boundary-relevant rules:
 
 - Every architecture claim references its axis ID (see `docs/AXES_REFERENCE_V2.md`) and Hydra config key.
+- Run-level metrics in prose still trace through evidence notes only; the canonical tabular source the coder uses is `thesis_results/04_cleaned_backfilled_analysis_ready.csv` (see root `CLAUDE.md`).
 - Result claims must come from an evidence note in `docs/thesis_evidence_notes/`. If the note's `Status` is not at least `run-complete`, do not draft results prose.
 - Never invent metric numbers. Use `\todo{...}` (or a clearly marked comment) when a value is pending.

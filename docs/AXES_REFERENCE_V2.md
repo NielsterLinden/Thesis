@@ -878,6 +878,20 @@ Complete mapping of all axes. `axes/*` keys are written to `facts/axes.json` and
 
 ## 8. W&B CSV Completeness Checklist
 
+The lists below use **W&B-style paths** (`axes/...`, `meta....`, `training/...`, `early_stop/...`) as they appear in the API and in large CSV exports.
+
+The canonical thesis table `thesis_results/04_cleaned_backfilled_analysis_ready.csv` is derived from W&B via `scripts/wandb/export/export_analysis_csv.py` (raw `03_analysis_ready.csv`) and cleanup in `scripts/thesis_results/build_04_cleaned_analysis_ready.py`. Column naming differs from this checklist as follows:
+
+| Checklist (W&B / summary path) | `04_cleaned_backfilled_analysis_ready.csv` |
+|-------------------------------|-------------------------|
+| `axes/<key>` | `config/axes/<AxisID>_<label>` — formal V2 IDs (e.g. `axes/tokenizer_name` → `config/axes/T1_Tokenizer Family`) |
+| `meta.process_groups_key`, `meta.class_def_str`, `meta.row_key` | `config/meta.process_groups_key`, `config/meta.class_def_str`, `config/meta.row_key` (Hydra config mirror; empty if the run never logged them) |
+| `training/epochs`, `training/warmup_steps`, … | `config/axes/R1_Epochs`, `config/axes/R6_Warmup Steps`, … (§R training protocol axes) |
+| `early_stop/enabled`, `early_stop/patience`, … | `config/axes/R10_Early Stop Enabled`, `config/axes/R11_Early Stop Patience`, … |
+| Post-hoc evaluation scalars / tables | `eval_v2/...` (unchanged prefix) |
+
+**Rule of thumb:** if a checklist item starts with `axes/`, look for the matching `config/axes/*` column; §R and §L items map to `config/axes/R*` and `config/axes/L*` where those axes exist in the export.
+
 ### Must-Have (thesis CSV)
 
 Every run that goes into thesis results should export these:

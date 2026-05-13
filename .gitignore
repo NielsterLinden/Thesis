@@ -55,3 +55,5 @@ phase2_upload_log.csv
 # Thesis results: only the frozen analysis CSV is tracked
 thesis_results/*
 !thesis_results/03_analysis_ready.csv
+!thesis_results/04_cleaned_backfilled_analysis_ready.csv
+!thesis_results/archive/*_04_cleaned_backfilled_analysis_ready.csv

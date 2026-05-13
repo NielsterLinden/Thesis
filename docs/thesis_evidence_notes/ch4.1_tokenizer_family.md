@@ -17,11 +17,11 @@
 | W&B group — Exp 4A-2 | `exp_20260410-162037_ch4_input_repr_exp4a_2` |
 | Run counts | 3 (raw) + 3 (binned) + 27 (identity) = 33 total |
 | model.pt present | Yes (confirmed via report manifest — 57 models loaded) |
-| 03_analysis_ready.csv rows | 33 rows across the three groups |
+| `04_cleaned_backfilled_analysis_ready.csv` rows | 33 rows across the three groups |
 | Report directory | `/data/atlas/users/nterlind/outputs/reports/report_20260420-104926_ch4_best_input_repr/` |
 | Plots present | Yes — see Section 6 |
 
-**Entry point chosen: D** (Uniform report bundle). The report directory at the path above contains all required plots and the `thesis_results/03_analysis_ready.csv` holds all metric values. No new inference or training is required to answer the thesis question for this note.
+**Entry point chosen: D** (Uniform report bundle). The report directory at the path above contains all required plots and the `thesis_results/04_cleaned_backfilled_analysis_ready.csv` holds all metric values. No new inference or training is required to answer the thesis question for this note.
 
 Higher-cost entry points rejected:
 - Entry point C not needed: existing report module already produced all summary bar charts and heatmaps.
@@ -61,7 +61,7 @@ All runs in this note used:
 
 ---
 
-## 4. Result Summary (from `thesis_results/03_analysis_ready.csv`)
+## 4. Result Summary (from `thesis_results/04_cleaned_backfilled_analysis_ready.csv`)
 
 ### 4.1 T1 — Tokenizer Family (primary comparison)
 

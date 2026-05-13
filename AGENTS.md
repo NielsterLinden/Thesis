@@ -46,7 +46,7 @@ Triage first, never assume new training is needed:
 | Code | When | Tool |
 |------|------|------|
 | D | Existing runs need a uniform report bundle | `report.sh` + `configs/report/...` |
-| C | Model + `03_analysis_ready.csv` already exist | `src/thesis_ml/reports/` modules, local |
+| C | Model + `04_cleaned_backfilled_analysis_ready.csv` already exist | `src/thesis_ml/reports/` modules, local |
 | E | Bespoke analysis on `model.pt` | new module under `src/thesis_ml/reports/analyses/` or `scripts/` |
 | B | Model exists, inference missing | inference job (rare) |
 | A | No checkpoints — new training | `train.sh` + Hydra sweep |

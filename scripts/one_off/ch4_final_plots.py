@@ -21,7 +21,7 @@ Additional figures regenerated with new style:
   - val-auroc-by-pid-mode (new style, no epoch crop needed)
   - val-auroc-by-met, val-auroc-by-shuffle (new style)
 
-Source of truth: thesis_results/03_analysis_ready.csv
+Source of truth: thesis_results/04_cleaned_backfilled_analysis_ready.csv
 Output: /data/atlas/users/nterlind/outputs/reports/report_ch4_final/figures/
 Format: PDF at 300 DPI via io_utils.save_figure()
 """
@@ -52,7 +52,7 @@ logger = logging.getLogger(__name__)
 # ─── Paths ────────────────────────────────────────────────────────────────────
 
 REPO_ROOT = Path("/project/atlas/users/nterlind/Thesis-Code")
-CSV_PATH = REPO_ROOT / "thesis_results" / "03_analysis_ready.csv"
+CSV_PATH = REPO_ROOT / "thesis_results" / "04_cleaned_backfilled_analysis_ready.csv"
 RUNS_ROOT = Path("/data/atlas/users/nterlind/outputs/runs")
 OLD_REPORT = Path(
     "/data/atlas/users/nterlind/outputs/reports"
@@ -61,7 +61,7 @@ OLD_REPORT = Path(
 OUT_DIR = Path("/data/atlas/users/nterlind/outputs/reports/report_ch4_final/figures")
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-# ─── Column names (confirmed from 03_analysis_ready.csv) ──────────────────────
+# ─── Column names (confirmed from 04_cleaned_backfilled_analysis_ready.csv) ──────────────────────
 
 T1_COL = "config/axes/T1_Tokenizer Family"
 T1A_COL = "config/axes/T1-a_PID Embedding Mode"

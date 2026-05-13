@@ -6,7 +6,7 @@ This repository is the MSc thesis codebase for transformer-based event classific
 
 - **Repository, code, and thesis text:** `/project/atlas/users/nterlind/Thesis-Code`
 - **Data, runs, outputs, checkpoints, plots, large experiment artifacts:** `/data/atlas/users/nterlind`
-- **Thesis frozen analysis table (trimmed runs × columns):** `/project/atlas/users/nterlind/Thesis-Code/thesis_results/03_analysis_ready.csv`
+- **Thesis analysis-ready table (cleaned runs × columns):** `/project/atlas/users/nterlind/Thesis-Code/thesis_results/04_cleaned_backfilled_analysis_ready.csv` — canonical for metrics and axes. Legacy W&B export snapshot: `thesis_results/03_analysis_ready.csv` (same schema; includes unevaluated / unfixed-cohort rows).
 - **Full combined export + eval (optional copy on data disk):** `/data/atlas/users/nterlind/thesis_artifacts/2026-04-29_phase2_02_eval_combined.csv`
 - **Home directory:** `/user/nterlind` — do **not** use for project code, experiment outputs, model checkpoints, or large files (home quota is tight on Stoomboot).
 
@@ -55,7 +55,7 @@ tmux attach -t claude-thesis
 - Reporting / inference utilities live under `src/thesis_ml/reports/`.
 - Report configs are under `configs/report/`.
 - HPC scripts live under `hpc/`.
-- Frozen thesis run table (analysis-ready CSV): `thesis_results/03_analysis_ready.csv`; W&B re-eval pipeline: `scripts/wandb/eval_pipeline/`.
+- Primary thesis run table: `thesis_results/04_cleaned_backfilled_analysis_ready.csv` (see `docs/thesis_evidence_notes/ch8_analysis_ready_cleanup.md`). Raw W&B export before cleanup: `thesis_results/03_analysis_ready.csv`. W&B re-eval pipeline: `scripts/wandb/eval_pipeline/`.
 - Prefer reproducible commands; record config keys and W&B run identifiers when relevant.
 
 ## Authentication (operator)

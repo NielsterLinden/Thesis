@@ -1,11 +1,11 @@
 #!/usr/bin/env python
-"""Export all W&B runs to analysis-ready CSV with the same 160-column schema.
+"""Export all W&B runs to analysis-ready CSV with the same ~163-column schema.
 
 Columns:
   - 7  meta_run/* fields
   - 95 config/axes/* (V2 formal axes from run.config)
   - 57 eval_v2/*  (40 scalar from summary + 17 artifact-backed tables)
-  - 1  config/meta.needs_review
+  - 4  config/meta.* (needs_review, row_key, process_groups_key, class_def_str)
 
 Artifact-backed eval_v2 columns (downloaded from eval_v2_<runid>:v0):
   roc_fpr, roc_tpr, pr_precision, pr_recall,
@@ -66,7 +66,12 @@ META_COLS = [
     "meta_run/project",
 ]
 
-EXTRA_META_COLS = ["config/meta.needs_review"]
+EXTRA_META_COLS = [
+    "config/meta.needs_review",
+    "config/meta.row_key",
+    "config/meta.process_groups_key",
+    "config/meta.class_def_str",
+]
 
 # Eval_v2 scalar keys (from run.summary) — listed explicitly so column order is stable.
 EVAL_SCALAR_COLS = [
@@ -454,8 +459,11 @@ def export(
                     n_art_ok += 1
                 row.update(art_data)
 
-            # Extra meta
+            # Extra meta (Hydra / W&B config mirror; may be empty on legacy runs)
             row["config/meta.needs_review"] = _cell(cfg_raw.get("meta.needs_review"))
+            row["config/meta.row_key"] = _cell(cfg_raw.get("meta.row_key"))
+            row["config/meta.process_groups_key"] = _cell(cfg_raw.get("meta.process_groups_key"))
+            row["config/meta.class_def_str"] = _cell(cfg_raw.get("meta.class_def_str"))
 
             rows.append(row)
 
@@ -478,7 +486,7 @@ def export(
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Export W&B runs to 160-column analysis CSV")
+    ap = argparse.ArgumentParser(description="Export W&B runs to ~163-column analysis CSV")
     ap.add_argument("--entity", default=ENTITY)
     ap.add_argument("--project", default=PROJECT)
     ap.add_argument(

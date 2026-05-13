@@ -15,7 +15,7 @@
 | W&B group — Exp 4B | `exp_20260410-163637_ch4_data_treatment_exp4b` |
 | Run count | 24 runs (8 conditions × 3 seeds) |
 | model.pt present | Yes (confirmed via report manifest — loaded in the same 57-model report) |
-| 03_analysis_ready.csv rows | 24 rows in group `exp_20260410-163637_ch4_data_treatment_exp4b` |
+| `04_cleaned_backfilled_analysis_ready.csv` rows | 24 rows in group `exp_20260410-163637_ch4_data_treatment_exp4b` |
 | Report directory | `/data/atlas/users/nterlind/outputs/reports/report_20260420-104926_ch4_best_input_repr/` |
 | Plots present | Yes — see Section 6 |
 
@@ -70,7 +70,7 @@ The 2 × 2 × 2 design sweeps D01 (`[0,1,2,3]` vs `[1,2,3]`) × D02 (`False` vs 
 
 ---
 
-## 5. Result Summary (from `thesis_results/03_analysis_ready.csv`)
+## 5. Result Summary (from `thesis_results/04_cleaned_backfilled_analysis_ready.csv`)
 
 ### 5.1 Full 2×2×2 factorial table
 

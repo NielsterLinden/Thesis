@@ -2,7 +2,7 @@
 Reduce the post-Phase-2 W&B export to an analysis-ready CSV.
 
 Input:  02_eval_combined.csv  (1002 rows x 579 cols)
-Output: 03_analysis_ready.csv (~931 rows x ~160 cols)
+Output: 03_analysis_ready.csv (~931 rows x ~163 cols)
 
 The output feeds:
   1. XGBoost surrogate + SHAP + fANOVA on axes -> eval_v2 metrics (Ch 7)
@@ -94,6 +94,9 @@ META_RUN_KEEP = [
 
 EXTRA_META_KEEP = [
     "config/meta.needs_review",
+    "config/meta.row_key",
+    "config/meta.process_groups_key",
+    "config/meta.class_def_str",
 ]
 
 

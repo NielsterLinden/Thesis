@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Phase 2 upload: push eval_v2/* metrics from 03_analysis_ready.csv back to W&B.
+Phase 2 upload: push eval_v2/* metrics from 04_cleaned_backfilled_analysis_ready.csv back to W&B.
 
 For every transformer run this script writes:
   1. ~48 scalar eval_v2/* keys to run.summary
@@ -15,22 +15,22 @@ run.log() is never called — no stray history steps are appended.
 Usage examples
 --------------
 # Dry-run: see what would be pushed
-python phase2_upload_to_wandb.py --input 03_analysis_ready.csv --dry-run --limit 3
+python phase2_upload_to_wandb.py --input thesis_results/04_cleaned_backfilled_analysis_ready.csv --dry-run --limit 3
 
 # Single-run smoke test
-python phase2_upload_to_wandb.py --input 03_analysis_ready.csv --only-run-id ei6r6mpn
+python phase2_upload_to_wandb.py --input thesis_results/04_cleaned_backfilled_analysis_ready.csv --only-run-id ei6r6mpn
 
 # Full batch (sequential, ~30 min)
-python phase2_upload_to_wandb.py --input 03_analysis_ready.csv
+python phase2_upload_to_wandb.py --input thesis_results/04_cleaned_backfilled_analysis_ready.csv
 
 # Full batch with project CSV artifact at the end (same as default)
-python phase2_upload_to_wandb.py --input 03_analysis_ready.csv --mode all
+python phase2_upload_to_wandb.py --input thesis_results/04_cleaned_backfilled_analysis_ready.csv --mode all
 
 # Scalars only (fast pass)
-python phase2_upload_to_wandb.py --input 03_analysis_ready.csv --scalars-only
+python phase2_upload_to_wandb.py --input thesis_results/04_cleaned_backfilled_analysis_ready.csv --scalars-only
 
 # Experimental parallel (uses multiprocessing, not threading)
-python phase2_upload_to_wandb.py --input 03_analysis_ready.csv --workers 4
+python phase2_upload_to_wandb.py --input thesis_results/04_cleaned_backfilled_analysis_ready.csv --workers 4
 """
 
 from __future__ import annotations
@@ -302,7 +302,7 @@ def push_csv_artifact(csv_path: Path, spec_version: str, n_rows: int) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--input", type=Path, default=Path("03_analysis_ready.csv"), help="Path to the analysis-ready CSV.")
+    ap.add_argument("--input", type=Path, default=Path("thesis_results/04_cleaned_backfilled_analysis_ready.csv"), help="Path to the analysis-ready CSV.")
     ap.add_argument("--log", type=Path, default=Path("phase2_upload_log.csv"), help="Path to the per-run log CSV.")
     ap.add_argument("--mode", choices=["all", "scalars_only", "artifacts_only", "csv_artifact_only"], default="all")
     ap.add_argument("--workers", type=int, default=1, help="Number of parallel workers (>1 uses multiprocessing; experimental).")

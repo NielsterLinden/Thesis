@@ -11,7 +11,7 @@ Addresses reviewer-flagged issues:
   fig:auroc-bar-met         Fix 7: use CSV values (existing inference summary was wrong)
   fig:auroc-bar-shuffle     Fix 7: use CSV values (existing inference summary was wrong)
 
-Source of truth: thesis_results/03_analysis_ready.csv
+Source of truth: thesis_results/04_cleaned_backfilled_analysis_ready.csv
 Run dir for per-epoch scalars: /data/atlas/users/nterlind/outputs/runs/
 
 Output: /data/atlas/users/nterlind/outputs/reports/report_ch4_fixed_plots/figures/
@@ -32,13 +32,13 @@ logger = logging.getLogger(__name__)
 # ─── Paths ────────────────────────────────────────────────────────────────────
 
 REPO_ROOT = Path("/project/atlas/Users/nterlind/Thesis-Code")
-CSV_PATH = REPO_ROOT / "thesis_results" / "03_analysis_ready.csv"
+CSV_PATH = REPO_ROOT / "thesis_results" / "04_cleaned_backfilled_analysis_ready.csv"
 RUNS_ROOT = Path("/data/atlas/users/nterlind/outputs/runs")
 OUT_DIR = Path("/data/atlas/users/nterlind/outputs/reports/report_ch4_fixed_plots/figures")
 
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-# ─── Column names (from 03_analysis_ready.csv) ────────────────────────────────
+# ─── Column names (from 04_cleaned_backfilled_analysis_ready.csv) ────────────────────────────────
 
 T1_COL = "config/axes/T1_Tokenizer Family"
 T1A_COL = "config/axes/T1-a_PID Embedding Mode"

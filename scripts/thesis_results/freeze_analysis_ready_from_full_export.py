@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a frozen ``03_analysis_ready.csv`` from the 160-col W&B full export.
+"""Build a frozen ``03_analysis_ready.csv`` from the ~163-col W&B full export.
 
 Row rules (aligned with ``scripts/wandb/eval_pipeline/reduce_to_analysis_csv.py``):
   1. Keep only ``config/axes/G2_Model Family == transformer`` (drops early MLP/BDT runs).
@@ -97,7 +97,7 @@ def main() -> int:
         "--input",
         type=Path,
         default=REPO_ROOT / "thesis_results/archive/02_analysis_reduces_columns_fullrows.csv",
-        help="Full 160-column export (default: archive snapshot)",
+        help="Full ~163-column export (default: archive snapshot)",
     )
     ap.add_argument(
         "--date",
