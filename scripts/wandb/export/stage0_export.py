@@ -193,7 +193,7 @@ def export_stage0(
 
     runs_sorted: list[Any] = []
     try:
-        it = api.runs(path, per_page=per_page)
+        it = api.runs(path, per_page=per_page, lazy=False)
         for i, run in enumerate(it, start=1):
             if limit is not None and i > limit:
                 break

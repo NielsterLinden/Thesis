@@ -27,7 +27,7 @@ preserving nested dicts. Fields per line:
       "state": "finished",
       "created_at": "2025-10-29T15:04:16Z",
       "config": {... full run.config ...},
-      "summary": {... run.summary._json_dict ...}
+      "summary": {... merged run summary (training + eval_v2 when present) ...}
     }
 
 Optional (when ``--csv`` is passed): a flat ``wandb_dump.csv`` with one row
@@ -114,14 +114,49 @@ def _coerce_config(cfg: Any) -> dict:
     return {k: _unwrap_wandb_value(v) for k, v in raw.items()}
 
 
-def _coerce_summary(run: Any) -> dict:
-    try:
-        return dict(run.summary._json_dict)
-    except Exception:
+def run_summary_as_dict(run: Any) -> dict:
+    """Best-effort run summary as a plain dict (includes post-hoc eval_v2/* when present).
+
+    Order: public ``run.summary`` keys, then GraphQL ``summaryMetrics`` on ``_attrs``,
+    then ``_json_dict`` only for keys not already set (training-era blob can omit eval).
+    """
+    out: dict[str, Any] = {}
+    summ = getattr(run, "summary", None)
+    if summ is not None and not isinstance(summ, (str, bytes)):
+        keys_fn = getattr(summ, "keys", None)
+        if callable(keys_fn):
+            try:
+                for k in keys_fn():
+                    if not isinstance(k, str):
+                        continue
+                    try:
+                        out[k] = summ[k]
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+    attrs = getattr(run, "_attrs", None) or {}
+    raw_sm = attrs.get("summaryMetrics") if isinstance(attrs, dict) else None
+    if raw_sm is not None:
         try:
-            return dict(run.summary)
+            parsed = json.loads(raw_sm) if isinstance(raw_sm, str) else dict(raw_sm)
+            if isinstance(parsed, dict):
+                out.update(parsed)
         except Exception:
-            return {}
+            pass
+    try:
+        raw = run.summary._json_dict
+        parsed = json.loads(raw) if isinstance(raw, str) else dict(raw)
+        if isinstance(parsed, dict):
+            for k, v in parsed.items():
+                out.setdefault(k, v)
+    except Exception:
+        pass
+    return out
+
+
+def _coerce_summary(run: Any) -> dict:
+    return run_summary_as_dict(run)
 
 
 def _strip_private(cfg: dict) -> dict:
@@ -149,13 +184,14 @@ def dump_project(
     logger.info("Pulling runs from %s (per_page=%d)", project_path, per_page)
 
     t0 = time.time()
-    runs_iter = api.runs(project_path, per_page=per_page)
+    runs_iter = api.runs(project_path, per_page=per_page, lazy=False)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     n_ok = 0
     n_coerced_str = 0
     n_empty_cfg = 0
     n_err = 0
+    n_empty_summary_finished = 0
     keys_seen: set[str] = set()
 
     with out_path.open("w", encoding="utf-8") as fout:
@@ -172,6 +208,10 @@ def dump_project(
                 if not include_private:
                     cfg = _strip_private(cfg)
 
+                summary = _coerce_summary(run)
+                if not summary and getattr(run, "state", None) == "finished":
+                    n_empty_summary_finished += 1
+
                 record = {
                     "id": run.id,
                     "name": getattr(run, "name", ""),
@@ -180,7 +220,7 @@ def dump_project(
                     "state": getattr(run, "state", ""),
                     "created_at": getattr(run, "created_at", ""),
                     "config": cfg,
-                    "summary": _coerce_summary(run),
+                    "summary": summary,
                 }
                 fout.write(json.dumps(record, default=str))
                 fout.write("\n")
@@ -208,6 +248,11 @@ def dump_project(
         elapsed,
         out_path,
     )
+    if n_empty_summary_finished:
+        logger.warning(
+            "%d finished run(s) had empty summary after coercion (check W&B API / lazy loading)",
+            n_empty_summary_finished,
+        )
     logger.info("Union of config keys across dump: %d", len(keys_seen))
 
     if csv_path is not None:
