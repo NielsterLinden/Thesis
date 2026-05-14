@@ -86,7 +86,7 @@ classifier:
     epochs: 200.0
     lr: 0.003
     weight_decay: 0.001
-    batch_size: 1024.0
+    batch_size: 1024
     warmup_steps: 10000.0
     lr_schedule: constant
     label_smoothing: 0.05

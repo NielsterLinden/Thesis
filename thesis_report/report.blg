@@ -1,15 +1,17 @@
 [0] Config.pm:328> INFO - This is Biber 2.21
 [0] Config.pm:331> INFO - Logfile is 'report.blg'
-[106] biber:342> INFO - === Sun May 10, 2026, 16:44:14
-[128] Biber.pm:421> INFO - Reading 'report.bcf'
-[242] Biber.pm:1002> INFO - Found 1 citekeys in bib section 0
-[262] Biber.pm:4487> INFO - Processing section 0
-[275] Biber.pm:4678> INFO - Looking for bibtex file 'report.bib' for section 0
-[281] bibtex.pm:1713> INFO - LaTeX decoding ...
-[360] bibtex.pm:1519> INFO - Found BibTeX data source 'report.bib'
-[417] UCollate.pm:68> INFO - Overriding locale 'en-US' defaults 'variable = shifted' with 'variable = non-ignorable'
-[417] UCollate.pm:68> INFO - Overriding locale 'en-US' defaults 'normalization = NFD' with 'normalization = prenormalized'
-[417] Biber.pm:4307> INFO - Sorting list 'nty/global//global/global/global' of type 'entry' with template 'nty' and locale 'en-US'
-[417] Biber.pm:4313> INFO - No sort tailoring available for locale 'en-US'
-[425] bbl.pm:676> INFO - Writing 'report.bbl' with encoding 'UTF-8'
-[426] bbl.pm:779> INFO - Output to report.bbl
+[89] biber:342> INFO - === Thu May 14, 2026, 16:40:41
+[110] Biber.pm:421> INFO - Reading 'report.bcf'
+[215] Biber.pm:1002> INFO - Found 2 citekeys in bib section 0
+[234] Biber.pm:4487> INFO - Processing section 0
+[246] Biber.pm:4678> INFO - Looking for bibtex file 'report.bib' for section 0
+[250] bibtex.pm:1713> INFO - LaTeX decoding ...
+[325] bibtex.pm:1519> INFO - Found BibTeX data source 'report.bib'
+[376] UCollate.pm:68> INFO - Overriding locale 'en-US' defaults 'normalization = NFD' with 'normalization = prenormalized'
+[376] UCollate.pm:68> INFO - Overriding locale 'en-US' defaults 'variable = shifted' with 'variable = non-ignorable'
+[376] Biber.pm:4307> INFO - Sorting list 'nty/global//global/global/global' of type 'entry' with template 'nty' and locale 'en-US'
+[376] Biber.pm:4313> INFO - No sort tailoring available for locale 'en-US'
+[384] bbl.pm:676> INFO - Writing 'report.bbl' with encoding 'UTF-8'
+[385] bbl.pm:779> INFO - Output to report.bbl
+[386] Biber.pm:132> WARN - I didn't find a database entry for 'vaswani2017attention' (section 0)
+[386] Biber.pm:134> INFO - WARNINGS: 1

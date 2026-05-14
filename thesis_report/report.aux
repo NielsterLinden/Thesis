@@ -7,7 +7,7 @@
 \HyPL@Entry{1<</S/r>>}
 \@writefile{toc}{\contentsline {chapter}{Preface}{i}{chapter*.1}\protected@file@percent }
 \@writefile{toc}{\contentsline {chapter}{Summary}{ii}{chapter*.2}\protected@file@percent }
-\HyPL@Entry{4<</S/D>>}
+\HyPL@Entry{6<</S/D>>}
 \@writefile{toc}{\contentsline {part}{I\hspace  {1em}Framing}{1}{part.1}\protected@file@percent }
 \@writefile{toc}{\contentsline {chapter}{\numberline {1}Introduction}{2}{chapter.1}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
@@ -234,53 +234,129 @@
 \@writefile{lot}{\contentsline {table}{\numberline {5.1}{\ignorespaces Exp.\ 5A design. All other axes at chapter baseline: T1\,\href  {WANDB_AXIS_LINK_PLACEHOLDER_T1}{\includegraphics [height=0.8em]{figures/wandb_logo.png}}~=~\texttt  {identity}, D02\,\href  {WANDB_AXIS_LINK_PLACEHOLDER_D02}{\includegraphics [height=0.8em]{figures/wandb_logo.png}}~=~\texttt  {true}, E1\,\href  {WANDB_AXIS_LINK_PLACEHOLDER_E1}{\includegraphics [height=0.8em]{figures/wandb_logo.png}}~=~\texttt  {sinusoidal}, dim 128, depth 3, 4 heads.}}{25}{table.caption.17}\protected@file@percent }
 \newlabel{tab:5a_design}{{5.1}{25}{Exp.\ 5A design. All other axes at chapter baseline: \wandbaxis {T1}~=~\texttt {identity}, \wandbaxis {D02}~=~\texttt {true}, \wandbaxis {E1}~=~\texttt {sinusoidal}, dim 128, depth 3, 4 heads}{table.caption.17}{}}
 \newlabel{tab:5a_design@cref}{{[table][1][5]5.1}{[1][24][]25}{}{}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {5.2}{\ignorespaces Exp.\ 5A seed-mean test AUROC ($n = 3$ seeds per cell). Per-cell seed standard deviation is indicative only; inter-cell range ($\approx 0.002$) is comparable to seed variance. \textcolor {red}{[TODO: import figure: figure-auroc\_bar\_by\_bias\_family.pdf]}}}{25}{table.caption.18}\protected@file@percent }
-\newlabel{tab:5a_auroc}{{5.2}{25}{Exp.\ 5A seed-mean test AUROC ($n = 3$ seeds per cell). Per-cell seed standard deviation is indicative only; inter-cell range ($\approx 0.002$) is comparable to seed variance. \todo {import figure: figure-auroc\_bar\_by\_bias\_family.pdf}}{table.caption.18}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {5.2}{\ignorespaces Exp.\ 5A seed-mean test AUROC ($n = 3$ seeds per cell). Per-cell seed standard deviation is indicative only; inter-cell range ($\approx 0.002$) is comparable to seed variance.}}{25}{table.caption.18}\protected@file@percent }
+\newlabel{tab:5a_auroc}{{5.2}{25}{Exp.\ 5A seed-mean test AUROC ($n = 3$ seeds per cell). Per-cell seed standard deviation is indicative only; inter-cell range ($\approx 0.002$) is comparable to seed variance}{table.caption.18}{}}
 \newlabel{tab:5a_auroc@cref}{{[table][2][5]5.2}{[1][24][]25}{}{}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.1.3}Attention structure: none versus full combination}{25}{subsection.5.1.3}\protected@file@percent }
 \newlabel{sec:5a_attention_maps}{{5.1.3}{25}{Attention structure: none versus full combination}{subsection.5.1.3}{}}
 \newlabel{sec:5a_attention_maps@cref}{{[subsection][3][5,1]5.1.3}{[1][25][]25}{}{}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {5.3}{\ignorespaces Selected type-pair mean attention weights under the full-combination model (Exp.\ 5A), averaged over all heads, layers, seeds, and 2000 validation events. Pairs with mean attention $\geq 0.13$ are elevated; pairs $\leq 0.05$ are depressed.}}{26}{table.caption.19}\protected@file@percent }
-\newlabel{tab:5a_attn}{{5.3}{26}{Selected type-pair mean attention weights under the full-combination model (Exp.\ 5A), averaged over all heads, layers, seeds, and 2000 validation events. Pairs with mean attention $\geq 0.13$ are elevated; pairs $\leq 0.05$ are depressed}{table.caption.19}{}}
-\newlabel{tab:5a_attn@cref}{{[table][3][5]5.3}{[1][26][]26}{}{}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.1}{\ignorespaces Exp.\ 5A seed-mean test AUROC for all six B1\,\href  {WANDB_AXIS_LINK_PLACEHOLDER_B1}{\includegraphics [height=0.8em]{figures/wandb_logo.png}} configurations, with per-seed spread. Dashed line marks the \texttt  {none} baseline mean.}}{26}{figure.caption.19}\protected@file@percent }
+\newlabel{fig:5a_auroc_bar}{{5.1}{26}{Exp.\ 5A seed-mean test AUROC for all six \wandbaxis {B1} configurations, with per-seed spread. Dashed line marks the \texttt {none} baseline mean}{figure.caption.19}{}}
+\newlabel{fig:5a_auroc_bar@cref}{{[figure][1][5]5.1}{[1][24][]26}{}{}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {5.2}Lorentz feature set and bias network (Exp.\ 5B)}{26}{section.5.2}\protected@file@percent }
 \newlabel{sec:5b}{{5.2}{26}{Lorentz feature set and bias network (Exp.\ 5B)}{section.5.2}{}}
 \newlabel{sec:5b@cref}{{[section][2][5]5.2}{[1][26][]26}{}{}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.2.1}Experimental design}{26}{subsection.5.2.1}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {5.4}{\ignorespaces Exp.\ 5B design. B1~=~\texttt  {lorentz\_scalar} throughout. B1-L3 (hidden dim) and B1-L4 (per-head mode) are held at defaults.}}{27}{table.caption.20}\protected@file@percent }
-\newlabel{tab:5b_design}{{5.4}{27}{Exp.\ 5B design. B1~=~\texttt {lorentz\_scalar} throughout. B1-L3 (hidden dim) and B1-L4 (per-head mode) are held at defaults}{table.caption.20}{}}
-\newlabel{tab:5b_design@cref}{{[table][4][5]5.4}{[1][26][]27}{}{}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.2}{\ignorespaces Type-pair mean attention weights for the \texttt  {none} baseline (left) and full-combination model (right), averaged over all heads, layers, seeds, and 2000 validation events. Particle types: 1~=~jet, 2~=~b-jet, 3~=~$e^+$, 4~=~$e^-$, 5~=~$\mu ^+$, 6~=~$\mu ^-$, 7~=~photon. Pad tokens excluded.}}{27}{figure.caption.20}\protected@file@percent }
+\newlabel{fig:5a_attn_mean}{{5.2}{27}{Type-pair mean attention weights for the \texttt {none} baseline (left) and full-combination model (right), averaged over all heads, layers, seeds, and 2000 validation events. Particle types: 1~=~jet, 2~=~b-jet, 3~=~$e^+$, 4~=~$e^-$, 5~=~$\mu ^+$, 6~=~$\mu ^-$, 7~=~photon. Pad tokens excluded}{figure.caption.20}{}}
+\newlabel{fig:5a_attn_mean@cref}{{[figure][2][5]5.2}{[1][25][]27}{}{}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {5.3}{\ignorespaces Selected type-pair mean attention weights under the full-combination model (Exp.\ 5A), averaged over all heads, layers, seeds, and 2000 validation events. Pairs with mean attention $\geq 0.13$ are elevated; pairs $\leq 0.05$ are depressed.}}{27}{table.caption.21}\protected@file@percent }
+\newlabel{tab:5a_attn}{{5.3}{27}{Selected type-pair mean attention weights under the full-combination model (Exp.\ 5A), averaged over all heads, layers, seeds, and 2000 validation events. Pairs with mean attention $\geq 0.13$ are elevated; pairs $\leq 0.05$ are depressed}{table.caption.21}{}}
+\newlabel{tab:5a_attn@cref}{{[table][3][5]5.3}{[1][25][]27}{}{}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.2.2}AUROC results}{27}{subsection.5.2.2}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {5.5}{\ignorespaces Exp.\ 5B seed-mean test AUROC ($n = 3$ per cell). The \texttt  {none} baseline from Exp.\ 5A is $0.84125 \pm 0.00068$. Best cell highlighted. Gating ``on'' = B1-L5\,\href  {WANDB_AXIS_LINK_PLACEHOLDER_B1-L5}{\includegraphics [height=0.8em]{figures/wandb_logo.png}}~=~\texttt  {true}.}}{27}{table.caption.21}\protected@file@percent }
-\newlabel{tab:5b_auroc}{{5.5}{27}{Exp.\ 5B seed-mean test AUROC ($n = 3$ per cell). The \texttt {none} baseline from Exp.\ 5A is $0.84125 \pm 0.00068$. Best cell highlighted. Gating ``on'' = \wandbaxis {B1-L5}~=~\texttt {true}}{table.caption.21}{}}
-\newlabel{tab:5b_auroc@cref}{{[table][5][5]5.5}{[1][27][]27}{}{}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.3}{\ignorespaces Type-pair attention weights for the full-combination model (seed 42), shown separately for each of the 4 heads $\times $ 3 encoder layers. Some heads specialise onto physically motivated pairs while others retain near-uniform attention.}}{28}{figure.caption.22}\protected@file@percent }
+\newlabel{fig:5a_attn_per_head_full}{{5.3}{28}{Type-pair attention weights for the full-combination model (seed 42), shown separately for each of the 4 heads $\times $ 3 encoder layers. Some heads specialise onto physically motivated pairs while others retain near-uniform attention}{figure.caption.22}{}}
+\newlabel{fig:5a_attn_per_head_full@cref}{{[figure][3][5]5.3}{[1][26][]28}{}{}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.2.3}KAN spline structure and gate values}{28}{subsection.5.2.3}\protected@file@percent }
 \newlabel{sec:5b_interp}{{5.2.3}{28}{KAN spline structure and gate values}{subsection.5.2.3}{}}
 \newlabel{sec:5b_interp@cref}{{[subsection][3][5,2]5.2.3}{[1][28][]28}{}{}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {5.3}Type-pair initialisation and freeze (Exp.\ 5C)}{28}{section.5.3}\protected@file@percent }
-\newlabel{sec:5c}{{5.3}{28}{Type-pair initialisation and freeze (Exp.\ 5C)}{section.5.3}{}}
-\newlabel{sec:5c@cref}{{[section][3][5]5.3}{[1][28][]28}{}{}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.3.1}Experimental design}{28}{subsection.5.3.1}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {5.6}{\ignorespaces Exp.\ 5C design. B1~=~\texttt  {typepair\_kinematic} throughout. B1-T3 (kinematic gate), B1-T4 (kinematic feature), and B1-T5 (mask value) are held at defaults.}}{28}{table.caption.22}\protected@file@percent }
-\newlabel{tab:5c_design}{{5.6}{28}{Exp.\ 5C design. B1~=~\texttt {typepair\_kinematic} throughout. B1-T3 (kinematic gate), B1-T4 (kinematic feature), and B1-T5 (mask value) are held at defaults}{table.caption.22}{}}
-\newlabel{tab:5c_design@cref}{{[table][6][5]5.6}{[1][28][]28}{}{}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.3.2}Performance results}{29}{subsection.5.3.2}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {5.7}{\ignorespaces Exp.\ 5C seed-mean test AUROC ($n = 3$ per cell). All four physics-initialised cells sit below the \texttt  {none} baseline within one to two seed standard deviations.}}{29}{table.caption.23}\protected@file@percent }
-\newlabel{tab:5c_auroc}{{5.7}{29}{Exp.\ 5C seed-mean test AUROC ($n = 3$ per cell). All four physics-initialised cells sit below the \texttt {none} baseline within one to two seed standard deviations}{table.caption.23}{}}
-\newlabel{tab:5c_auroc@cref}{{[table][7][5]5.7}{[1][29][]29}{}{}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.3.3}Learned table structure}{29}{subsection.5.3.3}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {5.8}{\ignorespaces Exp.\ 5C per-group learned-table statistics. Gate = $\tanh (g)$ averaged over 3 seeds. Frobenius norm computed on the $7\times 7$ active sub-matrix. Drift from init = Frobenius distance between the converged seed-mean table and the reference initialisation.}}{29}{table.caption.24}\protected@file@percent }
-\newlabel{tab:5c_table_stats}{{5.8}{29}{Exp.\ 5C per-group learned-table statistics. Gate = $\tanh (g)$ averaged over 3 seeds. Frobenius norm computed on the $7\times 7$ active sub-matrix. Drift from init = Frobenius distance between the converged seed-mean table and the reference initialisation}{table.caption.24}{}}
-\newlabel{tab:5c_table_stats@cref}{{[table][8][5]5.8}{[1][29][]29}{}{}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {5.4}SM interaction mode (Exp.\ 5D)}{30}{section.5.4}\protected@file@percent }
-\newlabel{sec:5d}{{5.4}{30}{SM interaction mode (Exp.\ 5D)}{section.5.4}{}}
-\newlabel{sec:5d@cref}{{[section][4][5]5.4}{[1][30][]30}{}{}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {5.9}{\ignorespaces Exp.\ 5D design. B1~=~\texttt  {sm\_interaction} throughout. B1-S2 (mask value) held at default.}}{30}{table.caption.25}\protected@file@percent }
-\newlabel{tab:5d_design}{{5.9}{30}{Exp.\ 5D design. B1~=~\texttt {sm\_interaction} throughout. B1-S2 (mask value) held at default}{table.caption.25}{}}
-\newlabel{tab:5d_design@cref}{{[table][9][5]5.9}{[1][30][]30}{}{}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {5.10}{\ignorespaces Exp.\ 5D seed-mean test AUROC ($n = 3$ per cell). All three modes are within $\pm 0.0002$ AUROC of the Exp.\ 5A \texttt  {none} baseline.}}{30}{table.caption.26}\protected@file@percent }
-\newlabel{tab:5d_auroc}{{5.10}{30}{Exp.\ 5D seed-mean test AUROC ($n = 3$ per cell). All three modes are within $\pm 0.0002$ AUROC of the Exp.\ 5A \texttt {none} baseline}{table.caption.26}{}}
-\newlabel{tab:5d_auroc@cref}{{[table][10][5]5.10}{[1][30][]30}{}{}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {5.5}Chapter synthesis}{30}{section.5.5}\protected@file@percent }
-\newlabel{sec:5_synthesis}{{5.5}{30}{Chapter synthesis}{section.5.5}{}}
-\newlabel{sec:5_synthesis@cref}{{[section][5][5]5.5}{[1][30][]30}{}{}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {5.4}{\ignorespaces Exp.\ 5B design. B1~=~\texttt  {lorentz\_scalar} throughout. B1-L3 (hidden dim) and B1-L4 (per-head mode) are held at defaults.}}{29}{table.caption.23}\protected@file@percent }
+\newlabel{tab:5b_design}{{5.4}{29}{Exp.\ 5B design. B1~=~\texttt {lorentz\_scalar} throughout. B1-L3 (hidden dim) and B1-L4 (per-head mode) are held at defaults}{table.caption.23}{}}
+\newlabel{tab:5b_design@cref}{{[table][4][5]5.4}{[1][26][]29}{}{}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {5.5}{\ignorespaces Exp.\ 5B seed-mean test AUROC ($n = 3$ per cell). The \texttt  {none} baseline from Exp.\ 5A is $0.84125 \pm 0.00068$. Best cell highlighted. Gating ``on'' = B1-L5\,\href  {WANDB_AXIS_LINK_PLACEHOLDER_B1-L5}{\includegraphics [height=0.8em]{figures/wandb_logo.png}}~=~\texttt  {true}.}}{29}{table.caption.25}\protected@file@percent }
+\newlabel{tab:5b_auroc}{{5.5}{29}{Exp.\ 5B seed-mean test AUROC ($n = 3$ per cell). The \texttt {none} baseline from Exp.\ 5A is $0.84125 \pm 0.00068$. Best cell highlighted. Gating ``on'' = \wandbaxis {B1-L5}~=~\texttt {true}}{table.caption.25}{}}
+\newlabel{tab:5b_auroc@cref}{{[table][5][5]5.5}{[1][27][]29}{}{}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.4}{\ignorespaces Exp.\ 5B seed-mean test AUROC for all 20 (feature set, MLP type, gating) cells, with per-seed spread. KAN consistently meets or exceeds the standard MLP; richer feature sets produce higher AUROC; sparse gating provides no benefit.}}{30}{figure.caption.24}\protected@file@percent }
+\newlabel{fig:5b_auroc_bar}{{5.4}{30}{Exp.\ 5B seed-mean test AUROC for all 20 (feature set, MLP type, gating) cells, with per-seed spread. KAN consistently meets or exceeds the standard MLP; richer feature sets produce higher AUROC; sparse gating provides no benefit}{figure.caption.24}{}}
+\newlabel{fig:5b_auroc_bar@cref}{{[figure][4][5]5.4}{[1][27][]30}{}{}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {5.3}Type-pair initialisation and freeze (Exp.\ 5C)}{30}{section.5.3}\protected@file@percent }
+\newlabel{sec:5c}{{5.3}{30}{Type-pair initialisation and freeze (Exp.\ 5C)}{section.5.3}{}}
+\newlabel{sec:5c@cref}{{[section][3][5]5.3}{[1][29][]30}{}{}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.3.1}Experimental design}{30}{subsection.5.3.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {5.6}{\ignorespaces Exp.\ 5C design. B1~=~\texttt  {typepair\_kinematic} throughout. B1-T3 (kinematic gate), B1-T4 (kinematic feature), and B1-T5 (mask value) are held at defaults.}}{30}{table.caption.28}\protected@file@percent }
+\newlabel{tab:5c_design}{{5.6}{30}{Exp.\ 5C design. B1~=~\texttt {typepair\_kinematic} throughout. B1-T3 (kinematic gate), B1-T4 (kinematic feature), and B1-T5 (mask value) are held at defaults}{table.caption.28}{}}
+\newlabel{tab:5c_design@cref}{{[table][6][5]5.6}{[1][30][]30}{}{}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.3.2}Performance results}{30}{subsection.5.3.2}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {5.5}{\ignorespaces Learned 1D bias function for the $\Delta R$-only feature set comparing KAN (blue) and standard MLP (orange), averaged over three seeds. The KAN spans a range of $\approx 0.99$ attention units versus $\approx 0.46$ for the standard MLP.}}{31}{figure.caption.26}\protected@file@percent }
+\newlabel{fig:5b_bias_1d}{{5.5}{31}{Learned 1D bias function for the $\Delta R$-only feature set comparing KAN (blue) and standard MLP (orange), averaged over three seeds. The KAN spans a range of $\approx 0.99$ attention units versus $\approx 0.46$ for the standard MLP}{figure.caption.26}{}}
+\newlabel{fig:5b_bias_1d@cref}{{[figure][5][5]5.5}{[1][28][]31}{}{}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {5.7}{\ignorespaces Exp.\ 5C seed-mean test AUROC ($n = 3$ per cell). All four physics-initialised cells sit below the \texttt  {none} baseline within one to two seed standard deviations.}}{31}{table.caption.29}\protected@file@percent }
+\newlabel{tab:5c_auroc}{{5.7}{31}{Exp.\ 5C seed-mean test AUROC ($n = 3$ per cell). All four physics-initialised cells sit below the \texttt {none} baseline within one to two seed standard deviations}{table.caption.29}{}}
+\newlabel{tab:5c_auroc@cref}{{[table][7][5]5.7}{[1][30][]31}{}{}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.3.3}Learned table structure}{31}{subsection.5.3.3}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {5.8}{\ignorespaces Exp.\ 5C per-group learned-table statistics. Gate = $\tanh (g)$ averaged over 3 seeds. Frobenius norm computed on the $7\times 7$ active sub-matrix. Drift from init = Frobenius distance between the converged seed-mean table and the reference initialisation.}}{31}{table.caption.30}\protected@file@percent }
+\newlabel{tab:5c_table_stats}{{5.8}{31}{Exp.\ 5C per-group learned-table statistics. Gate = $\tanh (g)$ averaged over 3 seeds. Frobenius norm computed on the $7\times 7$ active sub-matrix. Drift from init = Frobenius distance between the converged seed-mean table and the reference initialisation}{table.caption.30}{}}
+\newlabel{tab:5c_table_stats@cref}{{[table][8][5]5.8}{[1][31][]31}{}{}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.6}{\ignorespaces Left: per-feature sparse gate values $\sigma (\text  {gate})$ for all Exp.\ 5B sparse-on KAN runs; all gates remain within $0.49$--$0.62$, indicating no meaningful feature pruning. Right: module-level scalar gate $\tanh (g)$ for KAN (blue) and standard (orange) MLP runs across the full cohort.}}{32}{figure.caption.27}\protected@file@percent }
+\newlabel{fig:5b_gates}{{5.6}{32}{Left: per-feature sparse gate values $\sigma (\text {gate})$ for all Exp.\ 5B sparse-on KAN runs; all gates remain within $0.49$--$0.62$, indicating no meaningful feature pruning. Right: module-level scalar gate $\tanh (g)$ for KAN (blue) and standard (orange) MLP runs across the full cohort}{figure.caption.27}{}}
+\newlabel{fig:5b_gates@cref}{{[figure][6][5]5.6}{[1][29][]32}{}{}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.7}{\ignorespaces Converged type-pair tables ($7\times 7$ active sub-matrix) for all five Exp.\ 5C groups, averaged over three seeds. The \texttt  {fixed\_coupling}-free table preserves the SM coupling hierarchy; the \texttt  {none}-init table remains near-uniform.}}{32}{figure.caption.31}\protected@file@percent }
+\newlabel{fig:5c_tables}{{5.7}{32}{Converged type-pair tables ($7\times 7$ active sub-matrix) for all five Exp.\ 5C groups, averaged over three seeds. The \texttt {fixed\_coupling}-free table preserves the SM coupling hierarchy; the \texttt {none}-init table remains near-uniform}{figure.caption.31}{}}
+\newlabel{fig:5c_tables@cref}{{[figure][7][5]5.7}{[1][32][]32}{}{}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.8}{\ignorespaces Per-cell table drift from initialisation for the free-table groups. \texttt  {fixed\_coupling}-free (top) shows small, structured adjustments ($\pm 0.1$--$0.3$) with the SM topology intact; \texttt  {binary}-free (bottom) shows larger drift at active entries.}}{33}{figure.caption.32}\protected@file@percent }
+\newlabel{fig:5c_diff}{{5.8}{33}{Per-cell table drift from initialisation for the free-table groups. \texttt {fixed\_coupling}-free (top) shows small, structured adjustments ($\pm 0.1$--$0.3$) with the SM topology intact; \texttt {binary}-free (bottom) shows larger drift at active entries}{figure.caption.32}{}}
+\newlabel{fig:5c_diff@cref}{{[figure][8][5]5.8}{[1][32][]33}{}{}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {5.4}SM interaction mode (Exp.\ 5D)}{33}{section.5.4}\protected@file@percent }
+\newlabel{sec:5d}{{5.4}{33}{SM interaction mode (Exp.\ 5D)}{section.5.4}{}}
+\newlabel{sec:5d@cref}{{[section][4][5]5.4}{[1][32][]33}{}{}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {5.9}{\ignorespaces Exp.\ 5D design. B1~=~\texttt  {sm\_interaction} throughout. B1-S2 (mask value) held at default.}}{33}{table.caption.33}\protected@file@percent }
+\newlabel{tab:5d_design}{{5.9}{33}{Exp.\ 5D design. B1~=~\texttt {sm\_interaction} throughout. B1-S2 (mask value) held at default}{table.caption.33}{}}
+\newlabel{tab:5d_design@cref}{{[table][9][5]5.9}{[1][33][]33}{}{}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {5.10}{\ignorespaces Exp.\ 5D seed-mean test AUROC ($n = 3$ per cell). All three modes are within $\pm 0.0002$ AUROC of the Exp.\ 5A \texttt  {none} baseline.}}{33}{table.caption.34}\protected@file@percent }
+\newlabel{tab:5d_auroc}{{5.10}{33}{Exp.\ 5D seed-mean test AUROC ($n = 3$ per cell). All three modes are within $\pm 0.0002$ AUROC of the Exp.\ 5A \texttt {none} baseline}{table.caption.34}{}}
+\newlabel{tab:5d_auroc@cref}{{[table][10][5]5.10}{[1][33][]33}{}{}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.9}{\ignorespaces Exp.\ 5D seed-mean test AUROC for the three B1-S1\,\href  {WANDB_AXIS_LINK_PLACEHOLDER_B1-S1}{\includegraphics [height=0.8em]{figures/wandb_logo.png}} modes, with per-seed spread. Dashed line marks the Exp.\ 5A \texttt  {none} baseline. All three modes are within $\pm 0.0002$ AUROC of the baseline.}}{34}{figure.caption.35}\protected@file@percent }
+\newlabel{fig:5d_auroc_bar}{{5.9}{34}{Exp.\ 5D seed-mean test AUROC for the three \wandbaxis {B1-S1} modes, with per-seed spread. Dashed line marks the Exp.\ 5A \texttt {none} baseline. All three modes are within $\pm 0.0002$ AUROC of the baseline}{figure.caption.35}{}}
+\newlabel{fig:5d_auroc_bar@cref}{{[figure][9][5]5.9}{[1][33][]34}{}{}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {5.5}Chapter synthesis}{34}{section.5.5}\protected@file@percent }
+\newlabel{sec:5_synthesis}{{5.5}{34}{Chapter synthesis}{section.5.5}{}}
+\newlabel{sec:5_synthesis@cref}{{[section][5][5]5.5}{[1][33][]34}{}{}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {5.11}{\ignorespaces Chapter 5 run summary.}}{35}{table.caption.36}\protected@file@percent }
+\newlabel{tab:ch5_summary}{{5.11}{35}{Chapter 5 run summary}{table.caption.36}{}}
+\newlabel{tab:ch5_summary@cref}{{[table][11][5]5.11}{[1][34][]35}{}{}{}}
+\@writefile{toc}{\contentsline {chapter}{\numberline {6}Attention Mechanisms}{36}{chapter.6}\protected@file@percent }
+\@writefile{lof}{\addvspace {10\p@ }}
+\@writefile{lot}{\addvspace {10\p@ }}
+\@writefile{toc}{\contentsline {section}{\numberline {6.1}Attention type and internal normalisation (Exp.\ 6A)}{36}{section.6.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {6.1}{\ignorespaces Exp.\ 6A. All other axes at chapter baseline. \texttt  {lorentz\_scalar} uses the best feature set from Ch.\,5.}}{36}{table.caption.37}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {6.2}Differential bias mode (Exp.\ 6B)}{36}{section.6.2}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {6.2}{\ignorespaces Exp.\ 6B. A3=\texttt  {differential} and B1=\texttt  {lorentz\_scalar} fixed throughout.}}{37}{table.caption.38}\protected@file@percent }
+\@writefile{toc}{\contentsline {chapter}{\numberline {7}Model Scaling and Efficiency}{38}{chapter.7}\protected@file@percent }
+\@writefile{lof}{\addvspace {10\p@ }}
+\@writefile{lot}{\addvspace {10\p@ }}
+\@writefile{toc}{\contentsline {section}{\numberline {7.1}Scaling curves across tasks (Exp.\ 8A)}{38}{section.7.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {7.1}{\ignorespaces Exp.\ 8A. Common baseline configuration throughout.}}{38}{table.caption.40}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {7.2}Efficiency metrics (Exp.\ 8B)}{38}{section.7.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {7.3}Axis transfer across scales (Exp.\ 8C)}{39}{section.7.3}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {7.2}{\ignorespaces Exp.\ 8C. Primary task (4t vs.\ background) only. Top-2 axes determined after Ch.\,8 analysis is complete.}}{39}{table.caption.41}\protected@file@percent }
+\@writefile{toc}{\contentsline {part}{III\hspace  {1em}Synthesis}{40}{part.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {chapter}{\numberline {8}What Matters: A Global Analysis}{41}{chapter.8}\protected@file@percent }
+\@writefile{lof}{\addvspace {10\p@ }}
+\@writefile{lot}{\addvspace {10\p@ }}
+\@writefile{toc}{\contentsline {section}{\numberline {8.1}The run database}{41}{section.8.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {8.2}Marginal sensitivity analysis}{41}{section.8.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {8.3}Surrogate modelling and configuration prediction}{41}{section.8.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {8.4}Recommended configuration}{42}{section.8.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {chapter}{\numberline {9}The Best Model and Its Physics Reach}{43}{chapter.9}\protected@file@percent }
+\@writefile{lof}{\addvspace {10\p@ }}
+\@writefile{lot}{\addvspace {10\p@ }}
+\@writefile{toc}{\contentsline {section}{\numberline {9.1}The recommended model (Exp.\ 10A)}{43}{section.9.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {9.1}{\ignorespaces Exp.\ 10A. Both tasks (4t vs.\ background and 4t vs.\ ttH) are evaluated for all three models.}}{43}{table.caption.43}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {9.2}From AUROC to physics sensitivity (Exp.\ 10B)}{43}{section.9.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {chapter}{\numberline {10}Conclusion and Outlook}{45}{chapter.10}\protected@file@percent }
+\@writefile{lof}{\addvspace {10\p@ }}
+\@writefile{lot}{\addvspace {10\p@ }}
+\@writefile{toc}{\contentsline {chapter}{References}{47}{chapter*.44}\protected@file@percent }
+\@writefile{toc}{\contentsline {chapter}{\numberline {A}Axes reference table}{48}{chapter.A}\protected@file@percent }
+\@writefile{lof}{\addvspace {10\p@ }}
+\@writefile{lot}{\addvspace {10\p@ }}
+\@writefile{toc}{\contentsline {chapter}{\numberline {B}Codebase Struture and Reproducibility}{49}{chapter.B}\protected@file@percent }
+\@writefile{lof}{\addvspace {10\p@ }}
+\@writefile{lot}{\addvspace {10\p@ }}
+\@writefile{toc}{\contentsline {chapter}{\numberline {C}Dataset and Feature Definitons}{50}{chapter.C}\protected@file@percent }
+\@writefile{lof}{\addvspace {10\p@ }}
+\@writefile{lot}{\addvspace {10\p@ }}
+\ttl@finishall
+\abx@aux@read@bbl@mdfivesum{E16A153318DA60472C99721A4AC35AD3}
+\abx@aux@defaultrefcontext{0}{collaborationObservationFourtopquarkProduction2023}{nty/global//global/global/global}
+\gdef \@abspage@last{56}

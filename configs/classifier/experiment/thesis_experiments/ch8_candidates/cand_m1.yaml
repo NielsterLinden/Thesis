@@ -79,7 +79,7 @@ classifier:
     tokenizer:
       name: identity
       pid_mode: one_hot
-      id_embed_dim: num_types
+      id_embed_dim: 8  # overridden to num_types at runtime by one_hot mode
   globals:
     include_met: false
   trainer:

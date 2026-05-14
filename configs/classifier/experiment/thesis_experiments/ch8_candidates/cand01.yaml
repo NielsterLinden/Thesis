@@ -49,7 +49,7 @@ classifier:
     attention_biases: lorentz_scalar
     bias_config:
       lorentz_scalar:
-        per_head: false
+        per_head: true  # false produces 3D bias that broadcasts incorrectly against 4D attention
       sm_interaction:
         mode: binary
     head:
