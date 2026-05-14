@@ -9,6 +9,10 @@
 \setlist{itemsep=-2pt} % Reducing white space in lists slightly
 \renewcommand{\deg}{\si{\degree}\xspace} % Use \deg easily, everywhere
 
+%% Inline TODO marker (pending figures / values)
+\usepackage{xcolor}
+\newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
+
 %% W&B axis link button — link target to be filled in later
 \newcommand{\wandbaxis}[1]{%
   #1\,\href{WANDB_AXIS_LINK_PLACEHOLDER_#1}{%
@@ -58,7 +62,7 @@
 
 \part{Thesis Questions}
 \input{mainmatter/04_best_input_representation}
-\input{mainmatter/06_physics_informed_attention_biases}
+\input{mainmatter/05_physics_informed_attention_biases}
 \input{mainmatter/07_(differential)_attention}
 
 \input{mainmatter/08_model_scaling_and_efficiency}

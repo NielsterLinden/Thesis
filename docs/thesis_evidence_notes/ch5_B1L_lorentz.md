@@ -206,3 +206,11 @@ No figure imported to `thesis_report/figures/ch5/` yet — pending user review.
 > questions (which spline shapes the `kan` learns, what fraction of head/key
 > pairs gate selects) are deferred to the planned interpretability
 > follow-up.
+
+---
+
+## Imported figures
+
+| Destination (thesis_report/figures/ch5/) | Source (/data/atlas/users/nterlind/outputs/reports/) | LaTeX label |
+|---|---|---|
+| `figure-auroc_bar_by_lorentz.pdf` | `report_ch5_lorentz/figure-auroc_bar_by_lorentz.pdf` | `fig:5b_auroc_bar` |

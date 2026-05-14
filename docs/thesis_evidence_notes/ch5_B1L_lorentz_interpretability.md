@@ -186,3 +186,13 @@ amplitude without offering compensating signal).
   checkpoints exist, only an extension of the same scripts is needed.
 - Promote evidence-note status to `final` after the user reviews the
   three PDFs.
+
+---
+
+## Imported figures
+
+| Destination (thesis_report/figures/ch5/) | Source (/data/atlas/users/nterlind/outputs/reports/) | LaTeX label |
+|---|---|---|
+| `figure-1d_bias_kan_vs_standard.pdf` | `report_ch5_lorentz_interp/figure-1d_bias_kan_vs_standard.pdf` | `fig:5b_bias_1d` |
+| `figure-feature_gates_and_module_gate.pdf` | `report_ch5_lorentz_interp/figure-feature_gates_and_module_gate.pdf` | `fig:5b_gates` |
+| `figure-2d_bias_surface_deltaR_logkt.pdf` | `report_ch5_lorentz_interp/figure-2d_bias_surface_deltaR_logkt.pdf` | (not yet imported — available) |

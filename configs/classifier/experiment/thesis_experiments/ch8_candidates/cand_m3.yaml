@@ -1,0 +1,113 @@
+# @package _global_
+# Chapter 8 marginal-greedy candidate cand_m3 (marginal_auroc_estimate=0.8416, 4t-vs-background).
+# As m1 but second-best value for config/axes/R4_Batch Size (Δ=0.0971)
+# Sweep: 3 seeds.
+#
+# Local smoke:
+# thesis-train env=local data.limit_samples=500 classifier.trainer.epochs=1 logging.use_wandb=false classifier/experiment=thesis_experiments/ch8_candidates/cand_m3 --multirun
+#
+# Stoomboot full:
+# thesis-train env=stoomboot classifier/experiment=thesis_experiments/ch8_candidates/cand_m3 --multirun
+
+meta:
+  goal: classification
+experiment:
+  name: cand_m3
+hydra:
+  mode: MULTIRUN
+  job:
+    chdir: true
+    name: ${experiment.name}
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweeper:
+    params:
+      classifier.trainer.seed: 42,123,456
+classifier:
+  model:
+    norm:
+      policy: normformer
+      type: rmsnorm
+    attention:
+      type: differential
+      diff_bias_mode: shared
+      norm: layernorm
+    attention_biases: global_conditioned+lorentz_scalar
+    bias_config:
+      global_conditioned:
+        mode: global_scale
+      lorentz_scalar:
+        features: '[''deltaR_ptw'']'
+        mlp_type: kan
+        per_head: true
+        sparse_gating: true
+      sm_interaction:
+        mode: binary
+      typepair_kinematic:
+        freeze_table: false
+        kinematic_gate: false
+    head:
+      type: kan
+      pooling: cls
+    positional_space: token
+    ffn:
+      type: standard
+      kan:
+        variant: bottleneck
+    moe:
+      scope: middle_blocks
+      enabled: true
+      num_experts: 4.0
+      top_k: 2.0
+      routing_level: event
+    dim: 64.0
+    depth: 4.0
+    heads: 2.0
+    mlp_dim: 128.0
+    dropout: 0.15
+    kan:
+      grid_size: 3.0
+      spline_order: 3.0
+    nodewise_mass:
+      enabled: false
+    mia_blocks:
+      enabled: true
+      placement: interleave
+    tokenizer:
+      name: identity
+      pid_mode: one_hot
+      id_embed_dim: num_types
+  globals:
+    include_met: false
+  trainer:
+    epochs: 200.0
+    lr: 0.003
+    weight_decay: 0.001
+    batch_size: 1024.0
+    warmup_steps: 10000.0
+    lr_schedule: constant
+    label_smoothing: 0.05
+data:
+  cont_features:
+  - 1
+  - 2
+  - 3
+  sort_tokens_by: pt_sorted
+  _struct_: false
+  classifier:
+    signal_vs_background:
+      signal: 1
+      background:
+      - 2
+      - 3
+      - 4
+      - 5
+    selected_labels: null
+
+logging:
+  wandb:
+    tags:
+      - cohort=ch8_candidates

@@ -18,10 +18,10 @@ Inputs (read-only):
     thesis_results/04_cleaned_backfilled_analysis_ready.csv
 
 Outputs:
-    thesis_results/05_ch8_streamlined_primary.csv
-    thesis_results/05_ch8_streamlined_g3_4t_tth.csv
-    thesis_results/05_ch8_streamlined_g3_5class.csv
-    thesis_results/05_ch8_streamlined_build_summary.json
+    thesis_results/ch8_streamlined/05_ch8_streamlined_primary.csv
+    thesis_results/ch8_streamlined/05_ch8_streamlined_g3_4t_tth.csv
+    thesis_results/ch8_streamlined/05_ch8_streamlined_g3_5class.csv
+    thesis_results/ch8_streamlined/05_ch8_streamlined_build_summary.json
 """
 
 from __future__ import annotations
@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 
 REPO_ROOT = Path("/project/atlas/users/nterlind/Thesis-Code")
 INPUT_CSV = REPO_ROOT / "thesis_results" / "04_cleaned_backfilled_analysis_ready.csv"
-OUT_DIR = REPO_ROOT / "thesis_results"
+OUT_DIR = REPO_ROOT / "thesis_results" / "ch8_streamlined"
 
 PRIMARY_G3 = "ttH+ttW+ttWW+ttZ | 4t"
 APPENDIX_G3_4T_TTH = "4t | ttH"

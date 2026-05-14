@@ -259,17 +259,66 @@ Once approved, use the `figure-import` skill to copy into the LaTeX tree.
 
 ---
 
-## 9. Next Steps — Follow-up Evidence Notes (to be authored next)
+## 9. Next Steps / Follow-up Evidence Notes
 
-Sketches only; **not yet created.** Will live alongside this note under
-`docs/thesis_evidence_notes/ch5_*.md`.
+### 9.1 Exp 5A attention maps (entry point E — staged)
+
+**Script:** `scripts/one_off/ch5_attention_maps.py`
+**Run command:**
+```bash
+python scripts/one_off/ch5_attention_maps.py
+```
+(from repo root after `source ~/.bashrc && thesis`)
+
+**Output directory:** `/data/atlas/users/nterlind/outputs/reports/report_ch5_attention_maps/`
+
+**Figures produced:**
+
+| File | Description |
+|---|---|
+| `figure-attn_typepair_mean_none_vs_full.pdf` | Two 7×7 type-pair heatmaps side by side: `none` (left) and full-combo (right). Each cell = attention weight averaged over all layers, all 4 heads, all 3 seeds, and 2000 validation events. Types 1–7 shown (pad excluded). |
+| `figure-attn_typepair_per_head_none.pdf` | 3 layers × 4 heads grid of 7×7 heatmaps for the `none` model, seed 42 (job000). Per-layer / per-head structure. |
+| `figure-attn_typepair_per_head_full.pdf` | Same layout for the full-combo model, seed 42 (job015). |
+| `exp5a_typepair_mean_attn.csv` | Per-(family, type_i, type_j) mean attention weight table for `none` and `full`. |
+
+**Sequence layout (confirmed):**
+```
+[CLS(idx 0)] + [18 particle tokens (idx 1–18)] + [MET(idx 19)] + [MET-phi(idx 20)]
+Total = 21 tokens (D02=True, pooling=cls)
+```
+Type-pair aggregation uses only the physical particle sub-block:
+attention map rows/cols `[1:19, 1:19]` (0-indexed into the 21×21 map).
+Token type IDs: 0=pad, 1=jet, 2=b-jet, 3=e+, 4=e−, 5=mu+, 6=mu−, 7=photon.
+
+**How attention maps are extracted:**
+`model.prepare_encoder_inputs(tokens_cont, tokens_id, globals_, mask=mask)` →
+`model.encoder(..., capture_attention=True)` returns a list of `[N, H, 21, 21]`
+tensors (one per layer). Physical sub-block `[1:19, 1:19]` is sliced before
+aggregation. This path is built into `TransformerEncoder.forward` and
+`TransformerEncoderBlock.forward` via the `capture_attention` flag.
+
+**Representative seeds used:** seed 42 (job000 for `none`; job015 for `full`)
+for the per-head grids. Mean tables average all 3 seeds × 3 layers × 4 heads
+× 2000 events.
+
+**Entry point chosen: E.** No existing report module covers per-event attention
+extraction and type-pair aggregation. The script is self-contained under
+`scripts/one_off/`; no new `src/` module added.
+
+**Note on h5py:** h5py 3.9.0 in the thesis-ml env was binary-incompatible with
+numpy 2.4.4 (ABI mismatch in `numpy.dtype` struct size). Upgraded to h5py 3.16.0
+(`pip install --upgrade h5py`) on the interactive node. The script will work
+correctly after this upgrade.
+
+---
+
+### 9.2 Other planned follow-up notes
 
 | Planned file | Scope | Entry point | Primary outputs |
 |---|---|---|---|
 | `ch5_B1L_lorentz.md` | Exp 5B (60 runs). B1-L sub-axes: features, MLP type, hidden dim, per-head, sparse gating. AUROC bar(s) + KAN spline visualisations + gate-value histograms. | C (bars) + E (splines / gates) | per-B1-L bar charts, KAN spline panels, gate histograms |
 | `ch5_B1T_typepair.md` | Exp 5C (15 runs). B1-T sub-axes: init, freeze, gate, feature, mask. AUROC bar + 21×21 type-pair learned-bias heatmap. | C (bars) + E (heatmap) | per-B1-T bar, type-pair heatmap, init-vs-freeze comparison |
 | `ch5_B1S_sm_mode.md` | Exp 5D (9 runs). B1-S1 sub-axis sweep. AUROC bar. | C | per-B1-S1 bar |
-| `ch5_attention_maps.md` | Exp 5A interpretability. Per-bias attention-pattern visualisations from the 18 5A checkpoints; head-level inspection of where each bias family redistributes attention vs `none`. | E | per-bias attention heatmaps (test event subset), comparison panels |
 
 ---
 
@@ -294,3 +343,11 @@ Sketches only; **not yet created.** Will live alongside this note under
 > 5A interpretability follow-ups (attention maps) and by the sub-family
 > sub-axis sweeps in 5B/5C/5D, which probe the bias-family internals at
 > finer granularity.
+
+---
+
+## Imported figures
+
+| Destination (thesis_report/figures/ch5/) | Source (/data/atlas/users/nterlind/outputs/reports/) | LaTeX label |
+|---|---|---|
+| `figure-auroc_bar_by_bias_family.pdf` | `report_ch5_bias_families/figure-auroc_bar_by_bias_family.pdf` | `fig:5a_auroc_bar` |

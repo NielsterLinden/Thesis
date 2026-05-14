@@ -1,0 +1,99 @@
+# @package _global_
+# Chapter 8 surrogate candidate rank 3 (predicted AUROC 0.8672, 4t-vs-background).
+# identity tokenizer, lorentz_scalar bias, post-LN, dim=64 depth=9 heads=8 mlp_dim=144.
+# MoE enabled (top_k=1); cont_features omits index 1 (pt).
+# Sweep: 3 seeds.
+#
+# Local smoke:
+# thesis-train env=local data.limit_samples=500 classifier.trainer.epochs=1 logging.use_wandb=false classifier/experiment=thesis_experiments/ch8_candidates/cand03 --multirun
+#
+# Stoomboot full:
+# thesis-train env=stoomboot classifier/experiment=thesis_experiments/ch8_candidates/cand03 --multirun
+
+meta:
+  goal: "classification"
+
+experiment:
+  name: "ch8_cand03"
+
+hydra:
+  mode: MULTIRUN
+  job:
+    chdir: true
+    name: ${experiment.name}
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweeper:
+    params:
+      classifier.trainer.seed: 42,123,456
+
+classifier:
+  globals:
+    include_met: false
+  model:
+    norm:
+      policy: post
+      type: layernorm
+    dim: 64
+    depth: 9
+    heads: 8
+    mlp_dim: 144
+    dropout: 0.1
+    tokenizer:
+      name: identity
+      pid_mode: learned
+      id_embed_dim: 8
+    positional_space: model
+    attention:
+      type: standard
+      diff_bias_mode: shared
+    attention_biases: lorentz_scalar
+    bias_config:
+      global_conditioned:
+        mode: global_scale
+      lorentz_scalar:
+        features: ["m2", "deltaR"]
+        mlp_type: standard
+        sparse_gating: false
+      sm_interaction:
+        mode: binary
+    head:
+      type: linear
+    ffn:
+      type: standard
+    moe:
+      enabled: true
+      top_k: 1
+    nodewise_mass:
+      enabled: false
+    mia_blocks:
+      enabled: false
+      placement: prepend
+    kan:
+      grid_size: 3
+      spline_order: 3
+  trainer:
+    epochs: 50
+    lr: 0.0001
+    weight_decay: 0.01
+    batch_size: 1024
+    warmup_steps: 0
+    label_smoothing: 0.0
+
+data:
+  _struct_: false
+  cont_features: [0, 2, 3]
+  sort_tokens_by: input_order
+  classifier:
+    signal_vs_background:
+      signal: 1
+      background: [2, 3, 4, 5]
+    selected_labels: null
+
+logging:
+  wandb:
+    tags:
+      - cohort=ch8_candidates

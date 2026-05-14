@@ -150,3 +150,11 @@ No figure imported to `thesis_report/figures/ch5/` yet.
 > alone is insufficient to discriminate among SM-interaction modes at this
 > budget; whether the bias is being used at all by attention is best
 > answered by the planned attention-map follow-up (entry point E).
+
+---
+
+## Imported figures
+
+| Destination (thesis_report/figures/ch5/) | Source (/data/atlas/users/nterlind/outputs/reports/) | LaTeX label |
+|---|---|---|
+| `figure-auroc_bar_by_sm_mode.pdf` | `report_ch5_sm_mode/figure-auroc_bar_by_sm_mode.pdf` | `fig:5d_auroc_bar` |

@@ -1,0 +1,93 @@
+# @package _global_
+# Chapter 8 surrogate candidate rank 1 (predicted AUROC 0.8700, 4t-vs-background).
+# identity tokenizer, lorentz_scalar bias, post-LN, dim=64 depth=6 heads=4, MIA enabled.
+# Sweep: 3 seeds.
+#
+# Local smoke:
+# thesis-train env=local data.limit_samples=500 classifier.trainer.epochs=1 logging.use_wandb=false classifier/experiment=thesis_experiments/ch8_candidates/cand01 --multirun
+#
+# Stoomboot full:
+# thesis-train env=stoomboot classifier/experiment=thesis_experiments/ch8_candidates/cand01 --multirun
+
+meta:
+  goal: "classification"
+
+experiment:
+  name: "ch8_cand01"
+
+hydra:
+  mode: MULTIRUN
+  job:
+    chdir: true
+    name: ${experiment.name}
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweeper:
+    params:
+      classifier.trainer.seed: 42,123,456
+
+classifier:
+  globals:
+    include_met: false
+  model:
+    norm:
+      policy: post
+      type: layernorm
+    dim: 64
+    depth: 6
+    heads: 4
+    dropout: 0.1
+    tokenizer:
+      name: identity
+      pid_mode: learned
+      id_embed_dim: 8
+    attention:
+      type: standard
+    attention_biases: lorentz_scalar
+    bias_config:
+      lorentz_scalar:
+        per_head: false
+      sm_interaction:
+        mode: binary
+    head:
+      type: linear
+    ffn:
+      type: standard
+    moe:
+      enabled: false
+      scope: all_blocks
+      routing_level: token
+    nodewise_mass:
+      enabled: false
+    mia_blocks:
+      enabled: true
+      reduction_dim: 4  # must match heads
+    kan:
+      grid_size: 5
+      spline_order: 3
+  trainer:
+    epochs: 50
+    lr: 0.0001
+    weight_decay: 0.01
+    batch_size: 1024
+    warmup_steps: 1000
+    lr_schedule: cosine
+    label_smoothing: 0.0
+
+data:
+  _struct_: false
+  cont_features: [0, 1, 2, 3]
+  sort_tokens_by: input_order
+  classifier:
+    signal_vs_background:
+      signal: 1
+      background: [2, 3, 4, 5]
+    selected_labels: null
+
+logging:
+  wandb:
+    tags:
+      - cohort=ch8_candidates
