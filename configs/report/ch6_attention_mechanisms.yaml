@@ -1,0 +1,98 @@
+# Hydra config for report: ch6_attention_mechanisms
+#
+# Chapter 6 — Attention Mechanisms
+#
+# Two experiments are covered by this single report:
+#
+#   Exp 6A — Attention type, internal normalization, and physics biases:
+#     - A3:   classifier.model.attention.type  = standard | differential
+#     - A4:   classifier.model.attention.norm  = none | layernorm | rmsnorm
+#     - B1:   classifier.model.attention_biases = none | lorentz_scalar
+#
+#   Exp 6B — Differential attention bias mode (prerequisite: A3 = differential):
+#     - A3-a: classifier.model.attention.diff_bias_mode = none | shared | split
+#
+# All axes defined in docs/AXES_REFERENCE_V2.md.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# Usage — HPC (explicit run dirs covering both exp6a and exp6b):
+#
+#   thesis-report --config-name thesis_experiments_reports/ch6_attention_mechanisms \
+#     'inputs.sweep_dirs=[
+#       /data/atlas/users/nterlind/outputs/runs/run_20260417-162636_ch6_attention_type_exp6a_job000,
+#       ...,
+#       /data/atlas/users/nterlind/outputs/runs/run_20260417-162638_ch6_diff_bias_mode_exp6b_job000,
+#       ...]' \
+#     env.output_root=/data/atlas/users/nterlind/outputs
+#
+# Usage — wildcard sweep dirs (both exp6a and exp6b at once):
+#
+#   thesis-report --config-name thesis_experiments_reports/ch6_attention_mechanisms \
+#     'inputs.sweep_dirs=[
+#       /data/atlas/users/nterlind/outputs/runs/run_20260417-162636_ch6_attention_type_exp6a_job0,
+#       /data/atlas/users/nterlind/outputs/runs/run_20260417-162638_ch6_diff_bias_mode_exp6b_job0]' \
+#     env.output_root=/data/atlas/users/nterlind/outputs
+#
+# Usage — training-phase only (no GPU/inference needed):
+#
+#   thesis-report --config-name thesis_experiments_reports/ch6_attention_mechanisms \
+#     'inputs.run_dirs=[...]' inference.enabled=false
+#
+# ─────────────────────────────────────────────────────────────────────────────
+
+inputs:
+  sweep_dir: null           # Single sweep dir (one multirun)
+  sweep_dirs: []            # Multiple sweep dirs — use when runs span several dirs
+  run_dirs: []              # Alternative: explicit list of individual run dirs
+  select: null              # Optional per-axis filter (e.g. select.seed=[42])
+
+report_name: ch6_attention_mechanisms
+
+outputs:
+  report_subdir: report
+  fig_format: pdf
+  dpi: 300
+  which_figures:
+    # ── Training phase: val AUROC curves grouped by each axis ──────────────
+    - val_auroc_by_attn_type      # A3: standard vs differential
+    - val_auroc_by_attn_norm      # A4: none / layernorm / rmsnorm
+    - val_auroc_by_bias           # B1: none vs lorentz_scalar
+
+    # ── AUROC seed-spread bar charts (main thesis figures) ─────────────────
+    - auroc_seedspread_by_attn_type        # A3
+    - auroc_seedspread_by_attn_norm        # A4
+    - auroc_seedspread_by_bias             # B1
+    - auroc_seedspread_by_diff_bias_mode   # A3-a (differential only)
+
+    # ── 2D AUROC interaction heatmaps ──────────────────────────────────────
+    - auroc_heatmap_attn_type_x_norm       # A3 × A4
+    - auroc_heatmap_attn_type_x_bias       # A3 × B1
+    - auroc_heatmap_norm_x_bias            # A4 × B1
+
+    # ── Per-class AUROC breakdown ──────────────────────────────────────────
+    - per_class_auroc_by_attn_type         # class-by-class OvR AUROC: standard vs differential
+
+    # ── Interpretability ───────────────────────────────────────────────────
+    - lambda_evolution                     # diff-attn λ per layer across training
+    - attention_entropy_by_layer           # mean attention entropy: standard vs differential
+
+thresholds:
+  val_acc: 0.8
+  comparison: ge
+  split: val
+
+summary_schema_version: 1
+
+inference:
+  enabled: false            # All metrics sourced from pre-scored test_scores.pt
+  persist_raw_scores: false
+  return_scores: false
+  dataset_split: test
+  autocast: true
+  batch_size: 512
+  seed: 42
+  n_points_roc: 250
+  max_samples: null
+
+env:
+  output_root: null         # Set to /data/atlas/users/nterlind/outputs on HPC

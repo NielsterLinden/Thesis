@@ -175,17 +175,29 @@ def _load_test_auroc(runs_df: pd.DataFrame) -> pd.DataFrame:
             continue
         try:
             scores = torch.load(scores_path, map_location="cpu", weights_only=False)
-            # test_scores.pt stores a dict with 'auroc' and optionally 'per_class_auroc'
             auroc_val = None
             pc = None
             if isinstance(scores, dict):
-                auroc_val = float(scores.get("auroc", scores.get("test_auroc", np.nan)))
-                pc_raw = scores.get("per_class_auroc", scores.get("per_class_auroc_json"))
-                if pc_raw is not None:
-                    if isinstance(pc_raw, str):
-                        pc = json.loads(pc_raw)
-                    elif isinstance(pc_raw, dict):
-                        pc = {str(k): float(v) for k, v in pc_raw.items()}
+                # Try pre-computed keys first
+                if "auroc" in scores or "test_auroc" in scores:
+                    auroc_val = float(scores.get("auroc", scores.get("test_auroc", np.nan)))
+                    pc_raw = scores.get("per_class_auroc", scores.get("per_class_auroc_json"))
+                    if pc_raw is not None:
+                        if isinstance(pc_raw, str):
+                            pc = json.loads(pc_raw)
+                        elif isinstance(pc_raw, dict):
+                            pc = {str(k): float(v) for k, v in pc_raw.items()}
+                elif "probs" in scores and "labels" in scores:
+                    # Compute AUROC from raw probs + labels
+                    from sklearn.metrics import roc_auc_score
+                    probs = scores["probs"].numpy()
+                    labels = scores["labels"].numpy()
+                    n_classes = probs.shape[1]
+                    auroc_val = float(roc_auc_score(labels, probs, multi_class="ovr", average="macro"))
+                    pc = {
+                        str(c): float(roc_auc_score((labels == c).astype(int), probs[:, c]))
+                        for c in range(n_classes)
+                    }
             aurocs.append(auroc_val)
             per_class.append(pc)
         except Exception as e:

@@ -40,7 +40,7 @@ classifier:
       global_conditioned:
         mode: global_scale
       lorentz_scalar:
-        features: '[''deltaR_ptw'']'
+        features: [deltaR_ptw]
         mlp_type: kan
         per_head: true
         sparse_gating: true
@@ -60,22 +60,23 @@ classifier:
     moe:
       scope: middle_blocks
       enabled: true
-      num_experts: 4.0
-      top_k: 2.0
+      num_experts: 4
+      top_k: 2
       routing_level: event
-    dim: 64.0
-    depth: 4.0
-    heads: 2.0
-    mlp_dim: 128.0
+    dim: 64
+    depth: 4
+    heads: 2
+    mlp_dim: 128
     dropout: 0.15
     kan:
-      grid_size: 3.0
-      spline_order: 3.0
+      grid_size: 3
+      spline_order: 3
     nodewise_mass:
       enabled: false
     mia_blocks:
       enabled: true
       placement: interleave
+      reduction_dim: 2  # must match heads
     tokenizer:
       name: identity
       pid_mode: one_hot
@@ -83,11 +84,11 @@ classifier:
   globals:
     include_met: false
   trainer:
-    epochs: 200.0
+    epochs: 200
     lr: 3.0e-05
     weight_decay: 0.001
     batch_size: 1024  # marginal winner was 16; overridden to 1024 to avoid GPU OOM (see ch8_global_surrogate.md)
-    warmup_steps: 10000.0
+    warmup_steps: 10000
     lr_schedule: constant
     label_smoothing: 0.05
 data:

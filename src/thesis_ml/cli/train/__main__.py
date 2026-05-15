@@ -47,7 +47,8 @@ def main(cfg: DictConfig):
     fn = DISPATCH.get(loop)
     if fn is None:
         raise ValueError(f"Unknown loop='{loop}'. Options: {list(DISPATCH)}")
-    return fn(cfg)
+    result = fn(cfg)
+    return float(result["test_auroc"]) if isinstance(result, dict) else result
 
 
 if __name__ == "__main__":

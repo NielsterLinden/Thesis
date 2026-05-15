@@ -1190,4 +1190,5 @@ def train(cfg: DictConfig) -> dict:
         "best_epoch": best_epoch,
         "test_loss": test_metrics["loss"],
         "test_acc": test_metrics["acc"],
+        "test_auroc": float(test_metrics["auroc"]) if test_metrics["auroc"] is not None else 0.0,
     }

@@ -1,0 +1,117 @@
+# @package _global_
+# Chapter 8 Optuna/TPE hyperparameter search — 4t-vs-all-background.
+# 150 trials, ~25 min/trial, ~62h total (fits 72h budget).
+# Objective: maximise test_auroc (returned as float by main()).
+#
+# NOTE: hydra/sweeper=optuna must be passed on the CLI (cannot override from sub-config).
+#
+# Smoke test (no W&B, 1 epoch, 500 samples):
+#   thesis-train hydra/sweeper=optuna env=local data.limit_samples=500 \
+#     classifier.trainer.epochs=1 logging.use_wandb=false \
+#     classifier/experiment=thesis_experiments/ch8_candidates/cand_optuna --multirun
+#
+# Full run (Condor — see hpc/ch8_optuna.sub):
+#   thesis-train hydra/sweeper=optuna env=stoomboot \
+#     classifier/experiment=thesis_experiments/ch8_candidates/cand_optuna --multirun
+
+meta:
+  goal: classification
+experiment:
+  name: cand_optuna
+
+hydra:
+  mode: MULTIRUN
+  job:
+    chdir: true
+    name: ${experiment.name}
+  run:
+    dir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweep:
+    dir: ${env.output_root}/multiruns/exp_${now:%Y%m%d-%H%M%S}_${experiment.name}
+    subdir: ${env.output_root}/runs/run_${now:%Y%m%d-%H%M%S}_${experiment.name}_job${zpad:${hydra.job.num}}
+  sweeper:
+    sampler:
+      _target_: optuna.samplers.TPESampler
+      seed: 42
+    direction: maximize
+    n_trials: 150
+    n_jobs: 1
+    params:
+      # A1 — normalisation policy
+      classifier.model.norm.policy: choice(pre, post, normformer)
+      # E1 — positional encoding
+      classifier.model.positional: choice(sinusoidal, none, learned, rotary)
+      # F1 — FFN type
+      classifier.model.ffn.type: choice(standard, kan)
+      # T1 — tokenizer
+      classifier.model.tokenizer.name: choice(identity, raw)
+      # C1 — classification head type
+      classifier.model.head.type: choice(linear, kan)
+      # B1 — attention bias set (single bias, no stacking, avoids T1 dependency issues)
+      classifier.model.attention_biases: choice(none, lorentz_scalar, typepair_kinematic, sm_interaction, global_conditioned)
+      # D1 — continuous feature set
+      data.cont_features: choice([0,1,2,3], [1,2,3])
+      # D2 — include MET
+      classifier.globals.include_met: choice(false, true)
+      # H1 — model dimension
+      classifier.model.dim: choice(64, 128, 256)
+      # H2 — depth
+      classifier.model.depth: choice(3, 6, 8)
+
+# Fixed architecture (matches cand_m3 where not swept)
+classifier:
+  model:
+    norm:
+      type: rmsnorm
+    attention:
+      type: differential
+      diff_bias_mode: shared
+      norm: layernorm
+    head:
+      pooling: cls
+    positional_space: token
+    ffn:
+      kan:
+        variant: bottleneck
+    moe:
+      scope: middle_blocks
+      enabled: false
+    heads: 8
+    mlp_dim: 256
+    dropout: 0.15
+    kan:
+      grid_size: 3
+      spline_order: 3
+    nodewise_mass:
+      enabled: false
+    mia_blocks:
+      enabled: false
+    tokenizer:
+      pid_mode: one_hot
+      id_embed_dim: 8
+  trainer:
+    seed: 42
+    epochs: 200
+    lr: 0.003
+    weight_decay: 0.001
+    batch_size: 1024
+    warmup_steps: 10000
+    lr_schedule: constant
+    label_smoothing: 0.05
+data:
+  sort_tokens_by: pt_sorted
+  _struct_: false
+  classifier:
+    signal_vs_background:
+      signal: 1
+      background:
+        - 2
+        - 3
+        - 4
+        - 5
+    selected_labels: null
+
+logging:
+  wandb:
+    tags:
+      - cohort=ch8_optuna
