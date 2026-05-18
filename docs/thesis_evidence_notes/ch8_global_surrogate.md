@@ -1,6 +1,6 @@
 # Ch8 Global Surrogate Analysis — Evidence Note
 
-**Status:** Phase B complete (2026-05-14)
+**Status:** interpreted (2026-05-17) — Chapter 8 drafted as `thesis_report/mainmatter/08_global_surrogate.tex`; figures copied to `thesis_report/figures/ch8/`
 
 ---
 
@@ -408,6 +408,257 @@ mode with no sweeper params block, so job number is always 000).
 - `cohort=ch8_candidates_2026_05`
 - Set A: `sweep=ch8_surrogate_candidates`, `rank=cand{NN}`
 - Set B: `sweep=ch8_top5_best`, `top5_idx={NN}`
+
+---
+
+## Phase G — Training-protocol normalisation and Optuna search (2026-05-15)
+
+### Status: jobs submitted (running)
+
+### Decision log
+
+#### G1 — All ch8 candidates capped at 50 epochs
+
+All marginal-greedy candidates (`cand_m1`, `cand_m2`, `cand_m3`) and the Optuna search
+(`cand_optuna`) are trained for **50 epochs** (`classifier.trainer.epochs: 50`).
+
+**Why:** The initial submission used 200 epochs.  The first Optuna trial clocked ~40 min,
+putting the full 150-trial search at ~100h — over the 72h Condor budget.  More importantly,
+50 epochs is the standard used throughout the rest of the thesis database
+(`thesis_results/04_cleaned_backfilled_analysis_ready.csv`), so fixing all ch8 candidate
+runs to 50 epochs makes the comparison fair across search strategies and consistent with the
+existing evidence base.  The 200-epoch partial runs were aborted and removed from W&B by hand.
+
+**Config files changed:** `cand_m1.yaml`, `cand_m2.yaml`, `cand_m3.yaml`, `cand_optuna.yaml`
+(each: `epochs: 200` → `epochs: 50`).
+
+**Note on warmup:** `warmup_steps: 10000` is unchanged.  At 50 epochs with batch_size=1024
+this is fine provided the training set has ≥~200 k events (giving ≥10 k gradient steps).
+If warmup exceeds total steps the LR would ramp throughout training without reaching its
+target value — suboptimal but not fatal, and consistent with how shorter runs behave elsewhere
+in the thesis.
+
+#### G2 — Batch size kept at 1024 for all candidates
+
+`batch_size: 1024` is fixed for all three search strategies (surrogate, marginal-greedy,
+Optuna).  This was already documented for the marginal candidates in the Phase D update
+(batch-size override from the marginal winner of 16).  Reconfirmed here for completeness:
+all ch8 candidate runs use the same batch size, so AUROC differences are attributable to
+architecture and hyperparameter choices, not training dynamics driven by batch size.
+
+#### G3 — Optuna/TPE as a third global search method
+
+A 150-trial Bayesian (TPE) search over 10 axes is added as a third search strategy alongside
+the surrogate-candidate (Phase D) and marginal-greedy (Phase D update) approaches.
+
+| Axis | Choices |
+|------|---------|
+| `A1` normalisation policy | pre, post, normformer |
+| `E1` positional encoding | sinusoidal, none, learned, rotary |
+| `F1` FFN type | standard, kan |
+| `T1` tokenizer | identity, raw |
+| `C1` head type | linear, kan |
+| `B1` attention bias | none, lorentz_scalar, typepair_kinematic, sm_interaction, global_conditioned |
+| `D1` continuous features | [0,1,2,3], [1,2,3] |
+| `D2` include MET | false, true |
+| `H1` model dimension | 64, 128, 256 |
+| `H2` depth | 3, 6, 8 |
+
+Fixed (not swept): `attention.type=differential`, `diff_bias_mode=shared`, `norm=layernorm`,
+`heads=8` (valid divisor for all dim choices), `moe.enabled=false`, `mia_blocks.enabled=false`,
+`dropout=0.15`, `lr=0.003`, `batch_size=1024`, `epochs=50`.
+
+**Why 10 axes, not all axes:** The 10-axis set covers the axes with the highest SHAP importance
+from Phase C (T, H, E, B, F families) plus the data-selection axes D1/D2.  Axes with very low
+SHAP (M, S, K, L, P families) are fixed to their best-known values or disabled, which concentrates
+the search budget on axes that actually move AUROC.
+
+**Why `heads=8` fixed:** Heads must divide dim.  64/8=8, 128/8=16, 256/8=32 — all valid.
+Sweeping heads would require conditional logic in the search space; fixing it avoids illegal
+combinations without Optuna custom samplers.
+
+**Timing at 50 epochs:** ~10 min/trial × 150 trials ≈ **25 h** — well within the 72 h Condor budget.
+
+**W&B cohort:** `cohort=ch8_optuna` (distinct from `cohort=ch8_candidates`).  The static
+thesis table (`04_cleaned_backfilled_analysis_ready.csv`) is unaffected.  If the table is
+ever re-pulled from W&B, filter by cohort to keep the analysis clean.
+
+**Config:** `configs/classifier/experiment/thesis_experiments/ch8_candidates/cand_optuna.yaml`
+**Submit script:** `hpc/submit_ch8_optuna.sh`
+
+#### G4 — Submit scripts updated
+
+`hpc/submit_ch8_candidates.sh` now submits only the M-set (cand_m1/m2/m3).  The cand01/02/03
+surrogate candidates are removed from the loop — those already completed and their results
+are in W&B under `cohort=ch8_candidates`.  The greedy candidates are resubmitted as short
+jobs (3 seeds × 3 configs = 9 runs).
+
+### Expected W&B cohorts after this phase
+
+| Cohort tag | Contents | Runs |
+|------------|----------|------|
+| `cohort=ch8_candidates` | cand01–03 (surrogate) + cand_m1–m3 (greedy, 50 ep) | 9 surrogate + 9 greedy = 18 |
+| `cohort=ch8_optuna` | Optuna TPE trials, 50 ep, 1 seed each | up to 150 |
+
+---
+
+## Phase H — Validation training results (2026-05-17)
+
+### Status: complete
+
+### Entry point
+
+Entry point C: W&B exports read directly; `test_scores.pt` used for cand_m AUROCs
+(those runs were not in the W&B export). No model.pt access for inference; no Condor.
+
+### Inventory snapshot
+
+| Item | Present |
+|------|---------|
+| W&B export 1 (cand01–03): `agent_reference/wandb_export_2026-05-17T21_13_44.630+02_00.csv` | yes (9 rows) |
+| W&B export 2 (Optuna 150 trials): `agent_reference/wandb_export_2026-05-17T22_02_28.058+02_00.csv` | yes (150 rows) |
+| cand_m1/m2/m3 run dirs (test_scores.pt): `run_20260515-112452_cand_m{1,2,3}_job{0,1,2}` | yes (9 runs) |
+
+Note: cand_m1/m2/m3 were not included in W&B export 1. Their AUROCs were computed from
+`test_scores.pt` using sklearn `roc_auc_score(labels, probs[:, 1])` on the latest
+completed batch (`run_20260515-112452_*`).
+
+### Predicted vs actual AUROC: surrogate candidates (cand01–cand03)
+
+These three are the top-3 surrogate-predicted configs from Phase D, trained 3 seeds each
+(seeds 42, 123, 456), 50 epochs, batch 1024, G3 = `ttH+ttW+ttWW+ttZ | 4t`.
+
+| Candidate | Predicted AUROC (surrogate) | Actual AUROC mean | Actual AUROC std | N seeds |
+|-----------|-----------------------------|--------------------|------------------|---------|
+| cand01 (rank 1) | 0.8700 | 0.8495 | 0.0007 | 3 |
+| cand02 (rank 2) | 0.8681 | 0.8450 | 0.0008 | 3 |
+| cand03 (rank 3) | 0.8672 | 0.8357 | 0.0014 | 3 |
+
+The surrogate over-estimates by 0.018–0.032 AUROC points. Relative rank ordering is
+preserved (cand01 > cand02 > cand03), confirming the surrogate is useful for ranking.
+The absolute over-estimation is consistent with regression toward the mean near the edge
+of the observed training space.
+
+Key config for cand01: identity tokenizer, learned PID embedding (dim 8), lorentz_scalar
+bias (per-head), standard FFN, no MoE, post-LN layernorm, dim=64, depth=6, heads=4,
+MIA enabled, cosine LR 1e-4, 50 epochs.
+
+### Predicted vs actual AUROC: marginal-greedy candidates (cand_m1–cand_m3)
+
+These three are the top-3 marginal-greedy configs from the Phase D marginal analysis,
+trained 3 seeds each, 50 epochs, batch 1024 (batch-size override from marginal winner of 16;
+see Phase D update below).
+
+| Candidate | Marginal AUROC estimate | Actual AUROC mean | Actual AUROC std | N seeds |
+|-----------|-------------------------|--------------------|------------------|---------|
+| cand_m1 (greedy rank 1) | 0.8416 | 0.8372 | 0.0034 | 3 |
+| cand_m2 (greedy rank 2) | 0.8416 | 0.8247 | 0.0005 | 3 |
+| cand_m3 (greedy rank 3) | 0.8416 | 0.8359 | 0.0039 | 3 |
+
+The marginal AUROC estimate (0.8416 for all three, since this is the observed mean at the
+best marginal level) over-estimates actual AUROC by 0.004–0.017 points. The over-estimation
+is smaller than for the surrogate candidates, but the marginal candidates achieve lower
+absolute AUROC. The surrogate-selected configs outperform the greedy-marginal configs by
+~0.012–0.015 AUROC points (cand01 vs cand_m1 mean).
+
+Note: cand_m1 and cand_m3 happen to achieve nearly identical actual AUROC (0.8372 vs 0.8359)
+despite different secondary axis choices (R2 and R4 perturbations). This is consistent with
+the seed noise floor (within-fingerprint std ~0.001–0.004) and confirms that marginal
+differences near the optimum are small.
+
+### Summary comparison: all three search strategies
+
+| Strategy | Best candidate | Actual AUROC (mean ± std) |
+|----------|---------------|--------------------------|
+| Surrogate top-1 (cand01) | identity, learned PID, lorentz bias, d64, depth 6 | **0.8495 ± 0.0007** |
+| Marginal greedy top-1 (cand_m1) | identity, one_hot PID, global+lorentz biases, d64, depth 4 | 0.8372 ± 0.0034 |
+| Optuna TPE best (single trial) | see §8.7 below | 0.8485 (1 seed) |
+
+The surrogate-selected candidate (cand01) achieves the highest mean AUROC across all
+three search strategies.
+
+**Candidate promoted to Chapter 9: cand01.**
+Config: `configs/classifier/experiment/thesis_experiments/ch8_candidates/cand01.yaml`.
+Best observed single-seed AUROC: 0.8503 (seed 123).
+
+### Run directories (cand_m, latest batch)
+
+```
+/data/atlas/users/nterlind/outputs/runs/run_20260515-112452_cand_m1_job{000,001,002}
+/data/atlas/users/nterlind/outputs/runs/run_20260515-112452_cand_m2_job{000,001,002}
+/data/atlas/users/nterlind/outputs/runs/run_20260515-112452_cand_m3_job{000,001,002}
+```
+
+Older cand_m batches under the same base path exist; the `run_20260515-112452` batch is the
+canonical one (50-epoch cap, batch 1024, correct cohort tag).
+
+---
+
+## Phase I — Optuna summary (2026-05-17)
+
+### Status: complete (brief; no formal axis analysis)
+
+### Entry point
+
+Entry point C: W&B export 2 (`agent_reference/wandb_export_2026-05-17T22_02_28.058+02_00.csv`),
+150 rows. All `config/axes/*` columns are null — the Optuna runs do not log formal axes because
+the Optuna search space is not routed through the thesis axis-logging system. No surrogate or
+SHAP analysis is possible on this export.
+
+### Run group
+
+- W&B cohort: `cohort=ch8_optuna`
+- Config: `configs/classifier/experiment/thesis_experiments/ch8_candidates/cand_optuna.yaml`
+- Submit script: `hpc/submit_ch8_optuna.sh`
+- Completed runs: 150 / 150 (all `eval_v2/test_auroc` non-null)
+- Run dir batch: `run_20260515-183905_cand_optuna_job{000..149}` under `/data/atlas/users/nterlind/outputs/runs/`
+
+### AUROC distribution (150 trials, 1 seed each, 50 epochs)
+
+| Statistic | Value |
+|-----------|-------|
+| Mean | 0.8376 |
+| Std | 0.0217 |
+| Min | 0.6966 |
+| p10 | 0.8158 |
+| p25 | 0.8404 |
+| Median (p50) | 0.8452 |
+| p75 | 0.8470 |
+| p90 | 0.8470 |
+| p95 | 0.8470 |
+| Max (best single trial) | 0.8485 |
+
+The distribution has a long lower tail (3 runs below 0.75) and a tight plateau at the
+top (5 runs within 0.0001 of the best). The flat top (p75=p90=0.8470) suggests the search
+converged to a local plateau around AUROC ~0.847 after roughly 30–40 trials.
+
+### Comparison to other strategies
+
+- Best Optuna trial (0.8485, single seed) is **below** cand01 mean (0.8495 ± 0.0007).
+- Best Optuna trial is comparable to cand_m3 mean (0.8359) but from a single seed — with
+  additional seeds, Optuna's best config might close the gap.
+- The Optuna search was restricted to 10 axes with fixed attention type (differential, shared
+  bias mode). This restriction may limit its ceiling compared to the surrogate-guided search
+  which optimised over a broader space.
+
+### Axes swept by Optuna (10 axes, no formal axis logging)
+
+A1 (norm policy), E1 (PE type), F1 (FFN type), T1 (tokenizer), C1 (head type), B1 (bias set),
+D1 (feature set), D2 (MET), H1 (model dim: 64/128/256), H2 (depth: 3/6/8).
+Fixed: attention=differential, diff_bias=shared, norm_type=layernorm, heads=8, MoE=false,
+MIA=false, dropout=0.15, lr=0.003, batch_size=1024, epochs=50.
+
+### Confounders and limitations
+
+- These runs have no formal axis logging; they cannot be added to the surrogate DB or used
+  for axis-level marginal analysis. The thesis should present Optuna purely as a black-box
+  search comparison, not as axis-level evidence.
+- Single-seed results — inter-seed variance (median within-fingerprint std ~0.001) means the
+  best single-trial result (0.8485) may not be reproducible at the same level. The surrogate
+  cand01 (mean 0.8495 over 3 seeds) is a more reliable estimate.
+- The restriction to 10 axes with many fixed settings makes Optuna's ceiling lower than a
+  fully unrestricted search. This is a design choice for comparability (same epoch/batch
+  budget), not a limitation of the Optuna algorithm itself.
 
 ---
 

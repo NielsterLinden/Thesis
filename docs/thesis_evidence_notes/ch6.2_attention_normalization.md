@@ -1,6 +1,6 @@
 # Evidence Note: ch6.2 — Attention Internal Normalization (A4)
 
-**Status:** run-complete
+**Status:** interpreted
 **Date created:** 2026-05-14
 **Last updated:** 2026-05-14
 
@@ -117,6 +117,19 @@ Expected output path:
 
 ---
 
-## 8. Thesis-Safe Interpretation
+## 8. Figure Provenance
+
+Report run: `report_20260515-101822_ch6_attention_mechanisms`
+
+| Destination (`thesis_report/figures/ch6/`) | Source |
+|---|---|
+| `ch6_A4_auroc_seedspread_attn_norm.pdf` | `training/figures/figure-auroc_seedspread_by_attn_norm.pdf` |
+| `ch6_A4_val_auroc_curves.pdf` | `training/figures/figure-val_auroc_by_attn_norm.pdf` |
+| `ch6_A3xA4_auroc_heatmap.pdf` | `training/figures/figure-auroc_heatmap_attn_type_x_norm.pdf` |
+| `ch6_A4xB1_auroc_heatmap.pdf` | `training/figures/figure-auroc_heatmap_norm_x_bias.pdf` |
+
+---
+
+## 9. Thesis-Safe Interpretation
 
 Applying LayerNorm or RMSNorm inside the attention module (A4) consistently reduces AUROC compared to using no normalisation (A4=none), across both attention types and both bias conditions. The mean AUROC for A4=none is 0.832, versus 0.827 for LayerNorm and 0.826 for RMSNorm — a ~0.005 absolute gap (~0.5 pp). The effect is small relative to the spread across seeds but is consistent in direction across all four (A3 × B1) sub-groups. A plausible explanation is that attention-internal normalisation disrupts the raw dot-product scale that the Lorentz-scalar bias is calibrated against, or that it introduces unnecessary smoothing in a regime where the model is not particularly deep (6 layers). The recommended setting is A4=none going forward; LayerNorm and RMSNorm appear to offer no benefit and a small cost in this architecture.

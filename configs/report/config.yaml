@@ -4,6 +4,8 @@ inputs:
   sweep_dir: null           # Path to multirun dir (exp_...)
   run_dirs: []              # Alternatively, explicit list of run dirs
   select: null              # Optional filtering (report-specific)
+  csv_path: null            # Path to pre-built analysis CSV (Entry Point C reports)
+  group_prefix: null        # W&B group prefix filter (used with csv_path)
 
 # Default report (override with +report_name=compare_globals_heads, etc.)
 report_name: compare_tokenizers

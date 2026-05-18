@@ -19,6 +19,98 @@
 
 \refsection{0}
   \datalist[entry]{nty/global//global/global/global}
+    \entry{Aarrestad:2021oeb}{article}{}{}
+      \true{moreauthor}
+      \true{morelabelname}
+      \name{author}{1}{}{%
+        {{hash=c3180cd19ef0a0b92f861ed64b5afada}{%
+           family={Aarrestad},
+           familyi={A\bibinitperiod},
+           given={Thea},
+           giveni={T\bibinitperiod}}}%
+      }
+      \strng{namehash}{370377f97b7bdba23f98a9c82d709990}
+      \strng{fullhash}{370377f97b7bdba23f98a9c82d709990}
+      \strng{fullhashraw}{370377f97b7bdba23f98a9c82d709990}
+      \strng{bibnamehash}{370377f97b7bdba23f98a9c82d709990}
+      \strng{authorbibnamehash}{370377f97b7bdba23f98a9c82d709990}
+      \strng{authornamehash}{370377f97b7bdba23f98a9c82d709990}
+      \strng{authorfullhash}{370377f97b7bdba23f98a9c82d709990}
+      \strng{authorfullhashraw}{370377f97b7bdba23f98a9c82d709990}
+      \field{sortinit}{A}
+      \field{sortinithash}{2f401846e2029bad6b3ecc16d50031e2}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{eprintclass}{hep-ph}
+      \field{eprinttype}{arXiv}
+      \field{journaltitle}{SciPost Phys.}
+      \field{number}{1}
+      \field{title}{"The {Dark Machines} Anomaly Score Challenge: Benchmark Data and Model Independent Event Classification for the {Large Hadron Collider"}}
+      \field{volume}{12}
+      \field{year}{2022}
+      \field{pages}{043}
+      \range{pages}{1}
+      \verb{doi}
+      \verb 10.21468/SciPostPhys.12.1.043
+      \endverb
+      \verb{eprint}
+      \verb 2105.14027
+      \endverb
+    \endentry
+    \entry{builtjesAttentionStrengthsPhysical2025}{article}{}{}
+      \true{moreauthor}
+      \true{morelabelname}
+      \name{author}{3}{}{%
+        {{hash=52e473f111e44dbad9b9e912cc1217ae}{%
+           family={Builtjes},
+           familyi={B\bibinitperiod},
+           given={Luc},
+           giveni={L\bibinitperiod}}}%
+        {{hash=5efde508e2d1daa71c339befd7aa3435}{%
+           family={Caron},
+           familyi={C\bibinitperiod},
+           given={Sascha},
+           giveni={S\bibinitperiod}}}%
+        {{hash=858a2e623af90f01d2f14a4929ee4a05}{%
+           family={Moskvitina},
+           familyi={M\bibinitperiod},
+           given={Polina},
+           giveni={P\bibinitperiod}}}%
+      }
+      \strng{namehash}{d0917387a160326786b6bb4b641e7086}
+      \strng{fullhash}{d0917387a160326786b6bb4b641e7086}
+      \strng{fullhashraw}{d0917387a160326786b6bb4b641e7086}
+      \strng{bibnamehash}{d0917387a160326786b6bb4b641e7086}
+      \strng{authorbibnamehash}{d0917387a160326786b6bb4b641e7086}
+      \strng{authornamehash}{d0917387a160326786b6bb4b641e7086}
+      \strng{authorfullhash}{d0917387a160326786b6bb4b641e7086}
+      \strng{authorfullhashraw}{d0917387a160326786b6bb4b641e7086}
+      \field{sortinit}{B}
+      \field{sortinithash}{d7095fff47cda75ca2589920aae98399}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{shorttitle}
+      \field{abstract}{"A major task in particle physics is the measurement of rare signal processes. Even modest improvements in background rejection, at a fixed signal efficiency, can significantly enhance the measurement sensitivity. Building on prior research by others that incorporated physical symmetries into neural networks, this work extends those ideas to include additional physics-motivated features. Specifically, we introduce energy-dependent particle interaction strengths, derived from leading-order SM predictions, into modern deep learning architectures, including Transformer Architectures (Particle Transformer), and Graph Neural Networks (Particle Net). These interaction strengths, represented as the SM interaction matrix, are incorporated into the attention matrix (transformers) and edges (graphs). Our results in event classification show that the integration of all physics-motivated features improves background rejection by \$10{\textbackslash}\%-40{\textbackslash}\%\$ over baseline models, with an additional gain of up to \$9{\textbackslash}\%\$ due to the SM interaction matrix. This study also provides one of the broadest comparisons of event classifiers to date, demonstrating how various architectures perform across this task. A simplified statistical analysis demonstrates that these enhanced architectures yield significant improvements in signal significance compared to a graph network baseline."}
+      \field{issn}{2542-4653}
+      \field{journaltitle}{SciPost Physics}
+      \field{month}{7}
+      \field{note}{arXiv:2211.05143 [hep-ph]}
+      \field{number}{1}
+      \field{shorttitle}{Attention to the strengths of physical interactions}
+      \field{title}{Attention to the strengths of physical interactions: {Transformer} and graph-based event classification for particle physics experiments}
+      \field{volume}{19}
+      \field{year}{2025}
+      \field{pages}{028}
+      \range{pages}{1}
+      \verb{doi}
+      \verb 10.21468/SciPostPhys.19.1.028
+      \endverb
+      \verb{urlraw}
+      \verb http://arxiv.org/abs/2211.05143
+      \endverb
+      \verb{url}
+      \verb http://arxiv.org/abs/2211.05143
+      \endverb
+    \endentry
     \entry{collaborationObservationFourtopquarkProduction2023}{article}{}{}
       \name{author}{1}{}{%
         {{hash=a3364242a05dc5a80a93fa55804031af}{%
@@ -58,6 +150,109 @@
       \endverb
       \verb{url}
       \verb http://arxiv.org/abs/2303.15061
+      \endverb
+    \endentry
+    \entry{Visive:2026mjd}{article}{}{}
+      \name{author}{5}{}{%
+        {{hash=66d033c2b9929b0e6221d5a6b854c54b}{%
+           family={Visive},
+           familyi={V\bibinitperiod},
+           given={Ambre},
+           giveni={A\bibinitperiod}}}%
+        {{hash=1cce5825eeb902f82ec494a267f051c4}{%
+           family={Austri},
+           familyi={A\bibinitperiod},
+           given={Roberto\bibnamedelima Ruiz},
+           giveni={R\bibinitperiod\bibinitdelim R\bibinitperiod},
+           prefix={de},
+           prefixi={d\bibinitperiod}}}%
+        {{hash=858a2e623af90f01d2f14a4929ee4a05}{%
+           family={Moskvitina},
+           familyi={M\bibinitperiod},
+           given={Polina},
+           giveni={P\bibinitperiod}}}%
+        {{hash=654a8066dcdec0c4b86fc000a46c5e19}{%
+           family={Nellist},
+           familyi={N\bibinitperiod},
+           given={Clara},
+           giveni={C\bibinitperiod}}}%
+        {{hash=5efde508e2d1daa71c339befd7aa3435}{%
+           family={Caron},
+           familyi={C\bibinitperiod},
+           given={Sascha},
+           giveni={S\bibinitperiod}}}%
+      }
+      \strng{namehash}{e2b8eeb53a253d369bbadea657879ad2}
+      \strng{fullhash}{3606386fa6d52119843485fc8bf95779}
+      \strng{fullhashraw}{3606386fa6d52119843485fc8bf95779}
+      \strng{bibnamehash}{e2b8eeb53a253d369bbadea657879ad2}
+      \strng{authorbibnamehash}{e2b8eeb53a253d369bbadea657879ad2}
+      \strng{authornamehash}{e2b8eeb53a253d369bbadea657879ad2}
+      \strng{authorfullhash}{3606386fa6d52119843485fc8bf95779}
+      \strng{authorfullhashraw}{3606386fa6d52119843485fc8bf95779}
+      \field{sortinit}{V}
+      \field{sortinithash}{afb52128e5b4dc4b843768c0113d673b}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{abstract}{Advances in Machine Learning, particularly Large Language Models (LLMs), enable more efficient interaction with complex datasets through tokenization and next- or masked-token prediction, providing a novel framework for analysing high-energy physics datasets. We explore strategies for representing particle physics data as token sequences, enabling LLM-inspired models to learn event distributions and detect anomalies in proton-proton collisions at the LHC. By training solely on background events, the model reconstructs expected physics processes, learning properties of the given Standard Model (SM) processes. Deviations in reconstruction scores during inference flag anomalous events, providing a data-driven approach to identify rare signatures or physics beyond the Standard Model (BSM). The method is tested using simulated LHC Run 2 proton-proton collision data from the Dark Machines Collaboration, replicating ATLAS conditions, focusing on SM and BSM four-top-quark final states.}
+      \field{journaltitle}{PoS}
+      \field{title}{Tokenization Strategies for Masked-Token Prediction for Anomaly Detection at the Large Hadron Collider}
+      \field{volume}{EPS-HEP2025}
+      \field{year}{2026}
+      \field{pages}{657}
+      \range{pages}{1}
+      \verb{doi}
+      \verb 10.22323/1.485.0657
+      \endverb
+    \endentry
+    \entry{YE2025}{misc}{}{}
+      \true{moreauthor}
+      \true{morelabelname}
+      \name{author}{3}{}{%
+        {{hash=e582c73366e92daad62c2976cd47c276}{%
+           family={Ye},
+           familyi={Y\bibinitperiod},
+           given={Tianzhu},
+           giveni={T\bibinitperiod}}}%
+        {{hash=d3349e5c2b2661f3b497e9f014ffcf7d}{%
+           family={Dong},
+           familyi={D\bibinitperiod},
+           given={Li},
+           giveni={L\bibinitperiod}}}%
+        {{hash=aa79cf1ed7d958dec1156e0817dc79e0}{%
+           family={Xia},
+           familyi={X\bibinitperiod},
+           given={Yuqing},
+           giveni={Y\bibinitperiod}}}%
+      }
+      \list{publisher}{1}{%
+        {arXiv}%
+      }
+      \strng{namehash}{33c22a2c81c3361cef6cb9890666c252}
+      \strng{fullhash}{33c22a2c81c3361cef6cb9890666c252}
+      \strng{fullhashraw}{33c22a2c81c3361cef6cb9890666c252}
+      \strng{bibnamehash}{33c22a2c81c3361cef6cb9890666c252}
+      \strng{authorbibnamehash}{33c22a2c81c3361cef6cb9890666c252}
+      \strng{authornamehash}{33c22a2c81c3361cef6cb9890666c252}
+      \strng{authorfullhash}{33c22a2c81c3361cef6cb9890666c252}
+      \strng{authorfullhashraw}{33c22a2c81c3361cef6cb9890666c252}
+      \field{sortinit}{Y}
+      \field{sortinithash}{fd67ad5a9ef0f7456bdd9aab10fe1495}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{abstract}{Transformer tends to overallocate attention to irrelevant context. In this work, we introduce Diff Transformer, which amplifies attention to the relevant context while canceling noise. Specifically, the differential attention mechanism calculates attention scores as the difference between two separate softmax attention maps. The subtraction cancels noise, promoting the emergence of sparse attention patterns. Experimental results on language modeling show that Diff Transformer outperforms Transformer in various settings of scaling up model size and training tokens. More intriguingly, it offers notable advantages in practical applications, such as long-context modeling, key information retrieval, hallucination mitigation, in-context learning, and reduction of activation outliers. By being less distracted by irrelevant context, Diff Transformer can mitigate hallucination in question answering and text summarization. For in-context learning, Diff Transformer not only enhances accuracy but is also more robust to order permutation, which was considered as a chronic robustness issue. The results position Diff Transformer as a highly effective and promising architecture to advance large language models.}
+      \field{month}{4}
+      \field{note}{arXiv:2410.05258 [cs]}
+      \field{title}{Differential {Transformer}}
+      \field{year}{2025}
+      \verb{doi}
+      \verb 10.48550/arXiv.2410.05258
+      \endverb
+      \verb{urlraw}
+      \verb http://arxiv.org/abs/2410.05258
+      \endverb
+      \verb{url}
+      \verb http://arxiv.org/abs/2410.05258
       \endverb
     \endentry
   \enddatalist

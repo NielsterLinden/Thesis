@@ -1,67 +1,143 @@
 \chapter{Dataset and Task Definition}
 \label{chapter:dataset}
 
-\section{Physics Processes}
-\label{sec:dataset_processes}
+This chapter describes the dataset used throughout the thesis and defines the classification
+tasks evaluated in the experimental chapters. The dataset consists of simulated
+proton-proton collision events at $\sqrt{s} = 13\,\text{TeV}$, covering one signal process
+($t\bar{t}t\bar{t}$, hereafter four-tops) and four Standard Model (SM) background processes
+($t\bar{t}H$, $t\bar{t}W$, $t\bar{t}WW$, $t\bar{t}Z$). Events are encoded as fixed-length
+token sequences and stored in HDF5 format. The dataset was received pre-split and used
+without modification to the train/validation/test partition. All architectural experiments
+in later chapters operate on this single dataset and evaluate binary signal-versus-background
+discrimination.
 
-\subsection{Signal: four-top-quark production}
+% -------------------------------------------------------------------------
+\section{Dataset Provenance}
+\label{sec:dataset_provenance}
+% -------------------------------------------------------------------------
 
+The dataset originates from two upstream sources. The event generation and detector
+simulation pipeline is documented by Builtjes et al.\
+\cite{builtjesAttentionStrengthsPhysical2025}, who produced the dataset to study
+transformer and graph-based classifiers on multi-top final states. The data format follows
+the convention established by the Dark Machines collaboration \cite{Aarrestad:2021oeb}, a
+community effort that defined a standardised benchmark format for model-independent LHC
+event classification.
 
-\subsection{Background processes}
+Hard-scattering events were generated at leading order using \textsc{MadGraph5\_aMC@NLO}
+2.7 with the NNPDF3.1 parton distribution function set and the five-flavour scheme. Parton
+showering and hadronisation were performed with \textsc{Pythia}~8.239 using the MLM merging
+scheme. Fast detector simulation was carried out with \textsc{Delphes}~3.4.2 using the
+ATLAS detector card. An event-generation-level requirement of $H_T > 400\,\text{GeV}$,
+summed over parton-level jets, was imposed to increase simulation efficiency for processes
+whose reconstructed signal region demands $H_T > 500\,\text{GeV}$. Generated Monte Carlo
+samples were converted from ROOT to the Dark Machines CSV format, from which the dataset
+used in this thesis was constructed.
 
+The dataset was received in pre-split HDF5 format (\texttt{4tops\_splitted.h5}), with no
+train/validation/test partition performed in this work. The exact splitting procedure,
+including stratification criterion and random seed, is not documented in the source
+materials. \todo{ask supervisor: splitting methodology}
 
-\subsection{Cross-sections and sample sizes}
-
-
-\section{Event Generation and Simulation}
-\label{sec:dataset_generation}
-
-\subsection{Hard-scattering and parton shower}
-
-
-\subsection{Fast detector simulation}
-
-
-\subsection{Scope of this study}
-
-
-\section{Event and Object Selection}
-\label{sec:dataset_selection}
-
-\subsection{Object selection criteria}
-
-
-\subsection{Signal region definition}
-
-
-\section{Data Format and Event Representation}
+% -------------------------------------------------------------------------
+\section{Data Format and Representation}
 \label{sec:dataset_format}
+% -------------------------------------------------------------------------
 
-\subsection{Token representation of particles}
+Each event in the original CSV follows the Dark Machines line format
+\cite{Aarrestad:2021oeb,builtjesAttentionStrengthsPhysical2025}:
+\begin{center}
+event ID;\enspace process ID;\enspace weight;\enspace
+$\|\vec{E}_T^{\,\text{miss}}\|$;\enspace $\phi_{E_T^{\text{miss}}}$;\enspace
+$\mathrm{obj}_1,\,E_1,\,p_{T,1},\,\eta_1,\,\phi_1$;\enspace
+$\mathrm{obj}_2,\,E_2,\,p_{T,2},\,\eta_2,\,\phi_2$;\enspace$\ldots$
+\end{center}
+Each reconstructed particle object is characterised by an integer type tag and its
+four-momentum $(E,\,p_T,\,\eta,\,\phi)$. Seven object types are defined: jets (\texttt{j},
+tag~1), $b$-tagged jets (\texttt{b}, tag~2), positrons (\texttt{e+}, tag~3), electrons
+(\texttt{e-}, tag~4), muons (\texttt{mu-}, tag~5), anti-muons (\texttt{mu+}, tag~6), and
+photons (\texttt{g}, tag~7). The missing transverse energy magnitude
+$\|\vec{E}_T^{\,\text{miss}}\|$ and its azimuthal angle $\phi_{E_T^{\text{miss}}}$ are
+stored as two global features shared across all objects in the event.
 
+Because the number of reconstructed objects varies per event, all sequences are
+zero-padded to a fixed length of $T = 18$ token slots \cite{Visive:2026mjd}. The value
+$T = 18$ corresponds to the largest event in the dataset. A binary attention mask
+accompanies each event: padding tokens receive a mask value of zero and are excluded from
+attention computations, while real object tokens receive a mask value of one.
 
-\subsection{Global features and missing transverse energy}
+The HDF5 file stores each event as a flat row of 92 columns: 18 integer type IDs,
+2 global features ($\|\vec{E}_T^{\,\text{miss}}\|$ and $\phi_{E_T^{\text{miss}}}$), and
+$18 \times 4 = 72$ continuous kinematic features (one four-momentum per token slot).
+The integer type IDs and continuous features are separated at runtime by the data loader.
+Before training, the continuous features are normalised using global z-score statistics
+computed over the training split only, pooled across all $N_{\text{train}}$ events and all
+$T$ token positions simultaneously. This yields one scalar mean and one scalar standard
+deviation per feature type ($E$, $p_T$, $\eta$, $\phi$), applied uniformly to every token
+slot in every event. No per-position or per-particle-type rescaling is performed.
 
+Across 98.6\% of all thesis training runs, tokens are presented in the order they appear
+in the HDF5 file (\texttt{input\_order}). No reordering is applied by the data loader for
+these runs. The provenance of the within-event object ordering in the source file is
+unknown. \todo{ask supervisor: within-event object ordering in HDF5}
 
-\subsection{Padding and masking}
+A discrete tokenisation scheme, referred to as AmbreBinning and developed for a subset of
+experiments in Chapter~4, maps each continuous four-momentum to a single integer through
+independent uniform binning of $p_T$, $\eta$, and $\phi$ (five bins each) combined with
+the object-type dimension (125 categories). The combined token index is computed as
+$125\,(b_{\text{obj}}-1) + 25\,(b_{p_T}-1) + 5\,(b_\eta-1) + b_\phi$, yielding a
+vocabulary of 886 distinct integers. This scheme was inspired by binning strategies
+introduced by the thesis supervisor for a related dataset and is not the default
+representation; the majority of experiments use continuous four-momentum features directly.
 
-
-\section{Dataset Statistics and Splits}
-\label{sec:dataset_splits}
-
-\subsection{Class balance and sample counts}
-
-
-\subsection{Train, validation, and test splits}
-
-
+% -------------------------------------------------------------------------
 \section{Classification Tasks}
 \label{sec:dataset_tasks}
+% -------------------------------------------------------------------------
 
-\subsection{Primary task: $tttt$ versus combined background}
+The dataset contains 302,072 events distributed across five SM process classes, split
+80/10/10 into training, validation, and test subsets.
+Table~\ref{tab:sample_counts} gives the per-class event counts for each split.
 
+\begin{table}[h]
+\centering
+\caption{Event counts per process class and dataset split. Label codes follow the
+convention of Builtjes et al.\ \cite{builtjesAttentionStrengthsPhysical2025}:
+1\,=\,$t\bar{t}t\bar{t}$, 2\,=\,$t\bar{t}H$, 3\,=\,$t\bar{t}W$,
+4\,=\,$t\bar{t}WW$, 5\,=\,$t\bar{t}Z$.}
+\label{tab:sample_counts}
+\begin{tabular}{lccccc|c}
+\hline
+\textbf{Split} & $t\bar{t}t\bar{t}$ & $t\bar{t}H$ & $t\bar{t}W$ & $t\bar{t}WW$ &
+$t\bar{t}Z$ & \textbf{Total} \\
+\hline
+Train & 121{,}359 & 28{,}854 & 30{,}511 & 30{,}461 & 30{,}473 & 241{,}658 \\
+Val   & 15{,}266  & 3{,}666  & 3{,}779  & 3{,}760  & 3{,}736  & 30{,}207  \\
+Test  & 15{,}375  & 3{,}552  & 3{,}710  & 3{,}779  & 3{,}791  & 30{,}207  \\
+\hline
+\end{tabular}
+\end{table}
 
-\subsection{Secondary task: $tttt$ versus $ttH$}
+The signal process, $t\bar{t}t\bar{t}$, constitutes approximately 50\% of all events. The
+four background processes ($t\bar{t}H$, $t\bar{t}W$, $t\bar{t}WW$, $t\bar{t}Z$) each
+contribute roughly 10--12\% of the total. This deliberate 1:1 signal-to-background ratio,
+chosen by Builtjes et al.\ to balance training \cite{builtjesAttentionStrengthsPhysical2025},
+differs markedly from the physical production cross-sections, which strongly favour the
+backgrounds, and should be kept in mind when interpreting classifier outputs.
 
+The primary classification task evaluated throughout this thesis is binary discrimination
+of $t\bar{t}t\bar{t}$ (label 1) against the combined SM background (labels 2--5). This is
+the most physically relevant task: the four-tops process has an extremely small production
+cross-section ($\sigma \approx 10\,\text{fb}$ at $\sqrt{s} = 13\,\text{TeV}$), and its
+first observation by ATLAS required careful discrimination from a large and topologically
+similar SM background \cite{collaborationObservationFourtopquarkProduction2023}. The task
+is challenging because each top quark decays almost exclusively via $t \to Wb$, so four-top
+events produce high-multiplicity final states with 0--4 leptons and 4--12 jets, including
+four $b$-jets. Background processes such as $t\bar{t}WW$ and $t\bar{t}Z$ produce
+comparably complex topologies. The classifier must therefore exploit subtle differences in
+object multiplicity, kinematic correlations, and $b$-jet content to separate signal from
+background.
 
-\subsection{Exploratory task: all-versus-all binary pairs, 3t, ttHH}
+All architectural ablations in Chapters~4--8 evaluate this binary task, reporting area
+under the receiver operating characteristic curve (AUROC) and background rejection at fixed
+signal efficiency as primary metrics.

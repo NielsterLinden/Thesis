@@ -32,8 +32,12 @@ def main(cfg: DictConfig) -> None:
     sweep_dirs = list(inputs.get("sweep_dirs", []) or [])
     run_dirs = inputs.get("run_dirs", []) or []
 
-    if not sweep_dir and not sweep_dirs and not run_dirs:
-        raise ValueError("Provide either inputs.sweep_dir=<path>, inputs.sweep_dirs=[...], or inputs.run_dirs=[...]")
+    csv_path = inputs.get("csv_path")
+    if not sweep_dir and not sweep_dirs and not run_dirs and not csv_path:
+        raise ValueError(
+            "Provide either inputs.sweep_dir=<path>, inputs.sweep_dirs=[...], "
+            "inputs.run_dirs=[...], or inputs.csv_path=<path>"
+        )
 
     # Infer output_root
     output_root = cfg.get("env", {}).get("output_root")
@@ -116,6 +120,8 @@ def main(cfg: DictConfig) -> None:
                 "sweep_dirs": [str(sd) for sd in sweep_dirs] if sweep_dirs else [],
                 "run_dirs": [str(Path(d).resolve()) for d in run_dirs] if run_dirs else [],
                 "select": inputs.get("select") if inputs.get("select") else None,
+                "csv_path": str(csv_path) if csv_path else None,
+                "group_prefix": inputs.get("group_prefix"),
             },
             "outputs": OmegaConf.to_container(cfg.outputs, resolve=True) if cfg.get("outputs") else {},
             "thresholds": OmegaConf.to_container(cfg.thresholds, resolve=True) if cfg.get("thresholds") else {},

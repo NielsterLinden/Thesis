@@ -1,6 +1,6 @@
 # @package _global_
 # Chapter 8 Optuna/TPE hyperparameter search — 4t-vs-all-background.
-# 150 trials, ~25 min/trial, ~62h total (fits 72h budget).
+# 150 trials, 50 epochs/trial, ~10 min/trial, ~25h total (fits 72h budget).
 # Objective: maximise test_auroc (returned as float by main()).
 #
 # NOTE: hydra/sweeper=optuna must be passed on the CLI (cannot override from sub-config).
@@ -91,7 +91,7 @@ classifier:
       id_embed_dim: 8
   trainer:
     seed: 42
-    epochs: 200
+    epochs: 50
     lr: 0.003
     weight_decay: 0.001
     batch_size: 1024

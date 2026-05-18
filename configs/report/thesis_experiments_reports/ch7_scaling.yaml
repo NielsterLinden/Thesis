@@ -1,0 +1,66 @@
+# Hydra config for report: ch7_scaling
+#
+# Chapter 7 — Model Scaling and Efficiency
+#
+# Two experiments are covered:
+#
+#   Exp 8A — Scaling curves (AUROC, wall-clock, best epoch, FLOPs vs. model size):
+#     - H01: classifier.model.dim   = 32, 32, 64, 128, 192
+#     - H02: classifier.model.depth = 3, 5, 6, 8, 12
+#     - H10: model size label (derived) = d32_L3, d32_L5, d64_L6, d128_L8, d192_L12
+#
+#   Exp 8B — Efficiency / Pareto (AUROC vs. latency / throughput / memory / FLOPs):
+#     Same 45 runs as 8A — no additional data needed.
+#
+#   Exp 8C — Axis transfer: BLOCKED pending Ch8 best-model decision. Not staged here.
+#
+# Entry point: C — all metrics sourced from the canonical cleaned analysis CSV.
+# No new training or inference is required.
+#
+# Naming note: W&B groups and configs use "ch8_scaling" (chapter numbering shifted
+# during writing). This file and the analysis module use "ch7" to match the thesis text.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# Usage:
+#
+#   thesis-report --config-name thesis_experiments_reports/ch7_scaling \
+#     inputs.csv_path=thesis_results/04_cleaned_backfilled_analysis_ready.csv \
+#     env.output_root=/data/atlas/users/nterlind/outputs
+#
+# ─────────────────────────────────────────────────────────────────────────────
+
+inputs:
+  # Path to the canonical cleaned analysis CSV (Entry Point C — no run dirs needed).
+  # Override with an absolute path when running from a non-project-root working dir.
+  csv_path: thesis_results/04_cleaned_backfilled_analysis_ready.csv
+
+  # W&B group prefix used to filter ch8_scaling rows from the CSV.
+  # All three task groups share this prefix.
+  group_prefix: ch8_scaling
+
+report_name: ch7_scaling
+
+outputs:
+  report_subdir: report
+  fig_format: pdf
+  dpi: 300
+  which_figures:
+    # ── Exp 8A: Scaling curves ─────────────────────────────────────────────
+    - auroc_vs_model_size         # AUROC by size, per task + aggregated, seed spread
+    - flops_vs_model_size         # FLOPs/event (analytic) vs. model size, log-log
+    - wallclock_vs_model_size     # Training wall-clock (s) vs. model size, log scale
+    - best_epoch_vs_model_size    # Best checkpoint epoch vs. model size
+
+    # ── Exp 8B: Efficiency / Pareto ─────────────────────────────────────────
+    - pareto_auroc_vs_flops       # AUROC vs. FLOPs/event (analytic), labelled by size
+    - pareto_auroc_vs_latency     # AUROC vs. inference latency b=512 (ms)
+    - pareto_auroc_vs_throughput  # AUROC vs. throughput b=512 (samples/s)
+    - pareto_auroc_vs_memory      # AUROC vs. peak inference memory b=512 (MiB)
+
+summary_schema_version: 1
+
+inference:
+  enabled: false  # All metrics already in the CSV; no GPU inference needed.
+
+env:
+  output_root: null  # Set to /data/atlas/users/nterlind/outputs on HPC

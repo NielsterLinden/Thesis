@@ -311,12 +311,22 @@ def _build_classifier_from_checkpoint(
 
     elif "embedding.pos_enc.pe" in state_dict:
         pe_shape = state_dict["embedding.pos_enc.pe"].shape
-        checkpoint_n_tokens = pe_shape[0]
+        checkpoint_seq_len = int(pe_shape[0])
+        # pe_shape[0] is seq_len_tokens + num_met_tokens (token-space PE includes MET slots).
+        # Subtract MET slots so cfg.meta.n_tokens reflects particle tokens only; the model
+        # builder will add MET slots back, reproducing the correct total sequence length.
+        _include_met = bool(cfg.classifier.get("globals", {}).get("include_met", False))
+        _weights_binned = "embedding.tokenizer.token_embedding.weight" in state_dict
+        _use_binned = bool(getattr(cfg.data, "use_binned_tokens", False))
+        _num_met = 0 if (_weights_binned or _use_binned) else (2 if _include_met else 0)
+        checkpoint_n_tokens = checkpoint_seq_len - _num_met
         if checkpoint_n_tokens != data_n_tokens:
             logger.info(
-                "Adjusting n_tokens from %s (data) to %s (checkpoint embedding PE shape)",
+                "Adjusting n_tokens from %s (data) to %s (checkpoint embedding PE, seq=%s met=%s)",
                 data_n_tokens,
                 checkpoint_n_tokens,
+                checkpoint_seq_len,
+                _num_met,
             )
         cfg.meta.n_tokens = checkpoint_n_tokens
 

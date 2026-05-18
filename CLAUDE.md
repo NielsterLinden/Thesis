@@ -9,6 +9,7 @@ This repository is the MSc thesis codebase for transformer-based event classific
 - **Thesis analysis-ready table (cleaned runs × columns):** `/project/atlas/users/nterlind/Thesis-Code/thesis_results/04_cleaned_backfilled_analysis_ready.csv` — canonical for metrics and axes. Legacy W&B export snapshot: `thesis_results/03_analysis_ready.csv` (same schema; includes unevaluated / unfixed-cohort rows).
 - **Full combined export + eval (optional copy on data disk):** `/data/atlas/users/nterlind/thesis_artifacts/2026-04-29_phase2_02_eval_combined.csv`
 - **Home directory:** `/user/nterlind` — do **not** use for project code, experiment outputs, model checkpoints, or large files (home quota is tight on Stoomboot).
+- **Local papers / reference for agents (gitignored contents):** `agent_reference/` — drop PDFs and notes here; only `agent_reference/README.md` is tracked.
 
 Claude Code configuration lives outside the repo: `/project/atlas/users/nterlind/.claude-config` (`CLAUDE_CONFIG_DIR`). OAuth/token files stay there, not in git.
 

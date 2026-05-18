@@ -375,7 +375,7 @@ def build_from_config(cfg: DictConfig, meta: Mapping[str, Any]) -> nn.Module:
 
     num_met_tokens = 2 if include_met and not is_binned else 0
 
-    max_seq_length_tokens = seq_len_tokens
+    max_seq_length_tokens = seq_len_tokens + num_met_tokens
     extra_tokens = int(use_cls_token) + num_met_tokens
     max_seq_length_model = seq_len_tokens + extra_tokens if positional_space == "model" else seq_len_tokens
 

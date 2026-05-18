@@ -29,84 +29,100 @@
 \contentsline {subsection}{\numberline {1.6.1}Structure of the thesis}{7}{subsection.1.6.1}%
 \contentsline {subsection}{\numberline {1.6.2}How to read the results}{7}{subsection.1.6.2}%
 \contentsline {chapter}{\numberline {2}Dataset and Task Definition}{8}{chapter.2}%
-\contentsline {section}{\numberline {2.1}Physics Processes}{8}{section.2.1}%
-\contentsline {subsection}{\numberline {2.1.1}Signal: four-top-quark production}{8}{subsection.2.1.1}%
-\contentsline {subsection}{\numberline {2.1.2}Background processes}{8}{subsection.2.1.2}%
-\contentsline {subsection}{\numberline {2.1.3}Cross-sections and sample sizes}{8}{subsection.2.1.3}%
-\contentsline {section}{\numberline {2.2}Event Generation and Simulation}{8}{section.2.2}%
-\contentsline {subsection}{\numberline {2.2.1}Hard-scattering and parton shower}{8}{subsection.2.2.1}%
-\contentsline {subsection}{\numberline {2.2.2}Fast detector simulation}{8}{subsection.2.2.2}%
-\contentsline {subsection}{\numberline {2.2.3}Scope of this study}{8}{subsection.2.2.3}%
-\contentsline {section}{\numberline {2.3}Event and Object Selection}{8}{section.2.3}%
-\contentsline {subsection}{\numberline {2.3.1}Object selection criteria}{8}{subsection.2.3.1}%
-\contentsline {subsection}{\numberline {2.3.2}Signal region definition}{8}{subsection.2.3.2}%
-\contentsline {section}{\numberline {2.4}Data Format and Event Representation}{8}{section.2.4}%
-\contentsline {subsection}{\numberline {2.4.1}Token representation of particles}{8}{subsection.2.4.1}%
-\contentsline {subsection}{\numberline {2.4.2}Global features and missing transverse energy}{8}{subsection.2.4.2}%
-\contentsline {subsection}{\numberline {2.4.3}Padding and masking}{8}{subsection.2.4.3}%
-\contentsline {section}{\numberline {2.5}Dataset Statistics and Splits}{8}{section.2.5}%
-\contentsline {subsection}{\numberline {2.5.1}Class balance and sample counts}{8}{subsection.2.5.1}%
-\contentsline {subsection}{\numberline {2.5.2}Train, validation, and test splits}{8}{subsection.2.5.2}%
-\contentsline {section}{\numberline {2.6}Classification Tasks}{8}{section.2.6}%
-\contentsline {subsection}{\numberline {2.6.1}Primary task: $tttt$ versus combined background}{8}{subsection.2.6.1}%
-\contentsline {subsection}{\numberline {2.6.2}Secondary task: $tttt$ versus $ttH$}{8}{subsection.2.6.2}%
-\contentsline {subsection}{\numberline {2.6.3}Exploratory task: all-versus-all binary pairs, 3t, ttHH}{8}{subsection.2.6.3}%
-\contentsline {chapter}{\numberline {3}The Workbench: Architecture and Axes}{9}{chapter.3}%
-\contentsline {section}{\numberline {3.1}Design philosophy}{9}{section.3.1}%
-\contentsline {section}{\numberline {3.2}The base transformer}{9}{section.3.2}%
-\contentsline {section}{\numberline {3.3}Axis groups}{9}{section.3.3}%
-\contentsline {section}{\numberline {3.4}Experimental methodology}{12}{section.3.4}%
-\contentsline {part}{II\hspace {1em}Thesis Questions}{13}{part.2}%
-\contentsline {chapter}{\numberline {4}Best Input Representation}{14}{chapter.4}%
-\contentsline {section}{\numberline {4.1}Experimental Setup}{14}{section.4.1}%
-\contentsline {section}{\numberline {4.2}Tokenizer Family}{15}{section.4.2}%
-\contentsline {paragraph}{Interpretation.}{15}{figure.caption.8}%
-\contentsline {subsection}{\numberline {4.2.1}Failure Analysis: Where PID Changes the Outcome}{16}{subsection.4.2.1}%
-\contentsline {subsection}{\numberline {4.2.2}PID Embedding Mode and Dimension}{16}{subsection.4.2.2}%
-\contentsline {paragraph}{Interpretation.}{17}{figure.caption.11}%
-\contentsline {section}{\numberline {4.3}Data Treatment}{17}{section.4.3}%
-\contentsline {subsection}{\numberline {4.3.1}Energy Feature (D01)}{18}{subsection.4.3.1}%
-\contentsline {subsection}{\numberline {4.3.2}MET Treatment (D02)}{18}{subsection.4.3.2}%
-\contentsline {subsection}{\numberline {4.3.3}Token Ordering (D03)}{19}{subsection.4.3.3}%
-\contentsline {paragraph}{Attribution.}{19}{table.caption.15}%
-\contentsline {section}{\numberline {4.4}Discussion}{20}{section.4.4}%
-\contentsline {paragraph}{Ranking of effects.}{20}{section.4.4}%
-\contentsline {paragraph}{Limitations.}{21}{section.4.4}%
-\contentsline {paragraph}{Chapter baseline.}{21}{section.4.4}%
-\contentsline {chapter}{\numberline {5}Physics-Informed Attention Biases}{24}{chapter.5}%
-\contentsline {section}{\numberline {5.1}Bias family comparison (Exp.\ 5A)}{24}{section.5.1}%
-\contentsline {subsection}{\numberline {5.1.1}Experimental design}{24}{subsection.5.1.1}%
-\contentsline {subsection}{\numberline {5.1.2}Performance results}{24}{subsection.5.1.2}%
-\contentsline {subsection}{\numberline {5.1.3}Attention structure: none versus full combination}{25}{subsection.5.1.3}%
-\contentsline {section}{\numberline {5.2}Lorentz feature set and bias network (Exp.\ 5B)}{26}{section.5.2}%
-\contentsline {subsection}{\numberline {5.2.1}Experimental design}{26}{subsection.5.2.1}%
-\contentsline {subsection}{\numberline {5.2.2}AUROC results}{27}{subsection.5.2.2}%
-\contentsline {subsection}{\numberline {5.2.3}KAN spline structure and gate values}{28}{subsection.5.2.3}%
-\contentsline {section}{\numberline {5.3}Type-pair initialisation and freeze (Exp.\ 5C)}{30}{section.5.3}%
-\contentsline {subsection}{\numberline {5.3.1}Experimental design}{30}{subsection.5.3.1}%
-\contentsline {subsection}{\numberline {5.3.2}Performance results}{30}{subsection.5.3.2}%
-\contentsline {subsection}{\numberline {5.3.3}Learned table structure}{31}{subsection.5.3.3}%
-\contentsline {section}{\numberline {5.4}SM interaction mode (Exp.\ 5D)}{33}{section.5.4}%
-\contentsline {section}{\numberline {5.5}Chapter synthesis}{34}{section.5.5}%
-\contentsline {chapter}{\numberline {6}Attention Mechanisms}{36}{chapter.6}%
-\contentsline {section}{\numberline {6.1}Attention type and internal normalisation (Exp.\ 6A)}{36}{section.6.1}%
-\contentsline {section}{\numberline {6.2}Differential bias mode (Exp.\ 6B)}{36}{section.6.2}%
-\contentsline {chapter}{\numberline {7}Model Scaling and Efficiency}{38}{chapter.7}%
-\contentsline {section}{\numberline {7.1}Scaling curves across tasks (Exp.\ 8A)}{38}{section.7.1}%
-\contentsline {section}{\numberline {7.2}Efficiency metrics (Exp.\ 8B)}{38}{section.7.2}%
-\contentsline {section}{\numberline {7.3}Axis transfer across scales (Exp.\ 8C)}{39}{section.7.3}%
-\contentsline {part}{III\hspace {1em}Synthesis}{40}{part.3}%
-\contentsline {chapter}{\numberline {8}What Matters: A Global Analysis}{41}{chapter.8}%
-\contentsline {section}{\numberline {8.1}The run database}{41}{section.8.1}%
-\contentsline {section}{\numberline {8.2}Marginal sensitivity analysis}{41}{section.8.2}%
-\contentsline {section}{\numberline {8.3}Surrogate modelling and configuration prediction}{41}{section.8.3}%
-\contentsline {section}{\numberline {8.4}Recommended configuration}{42}{section.8.4}%
-\contentsline {chapter}{\numberline {9}The Best Model and Its Physics Reach}{43}{chapter.9}%
-\contentsline {section}{\numberline {9.1}The recommended model (Exp.\ 10A)}{43}{section.9.1}%
-\contentsline {section}{\numberline {9.2}From AUROC to physics sensitivity (Exp.\ 10B)}{43}{section.9.2}%
-\contentsline {chapter}{\numberline {10}Conclusion and Outlook}{45}{chapter.10}%
-\contentsline {chapter}{References}{47}{chapter*.44}%
-\contentsline {chapter}{\numberline {A}Axes reference table}{48}{chapter.A}%
-\contentsline {chapter}{\numberline {B}Codebase Struture and Reproducibility}{49}{chapter.B}%
-\contentsline {chapter}{\numberline {C}Dataset and Feature Definitons}{50}{chapter.C}%
+\contentsline {section}{\numberline {2.1}Dataset Provenance}{8}{section.2.1}%
+\contentsline {section}{\numberline {2.2}Data Format and Representation}{8}{section.2.2}%
+\contentsline {section}{\numberline {2.3}Classification Tasks}{9}{section.2.3}%
+\contentsline {chapter}{\numberline {3}The Workbench: Architecture and Axes}{10}{chapter.3}%
+\contentsline {section}{\numberline {3.1}Design philosophy}{10}{section.3.1}%
+\contentsline {section}{\numberline {3.2}The base transformer}{10}{section.3.2}%
+\contentsline {section}{\numberline {3.3}Axis groups}{10}{section.3.3}%
+\contentsline {section}{\numberline {3.4}Experimental methodology}{13}{section.3.4}%
+\contentsline {part}{II\hspace {1em}Thesis Questions}{14}{part.2}%
+\contentsline {chapter}{\numberline {4}Best Input Representation}{15}{chapter.4}%
+\contentsline {section}{\numberline {4.1}Experimental Setup}{15}{section.4.1}%
+\contentsline {section}{\numberline {4.2}Tokenizer Family}{16}{section.4.2}%
+\contentsline {paragraph}{Interpretation.}{16}{figure.caption.9}%
+\contentsline {subsection}{\numberline {4.2.1}Failure Analysis: Where PID Changes the Outcome}{17}{subsection.4.2.1}%
+\contentsline {subsection}{\numberline {4.2.2}PID Embedding Mode and Dimension}{17}{subsection.4.2.2}%
+\contentsline {paragraph}{Interpretation.}{18}{figure.caption.12}%
+\contentsline {section}{\numberline {4.3}Data Treatment}{18}{section.4.3}%
+\contentsline {subsection}{\numberline {4.3.1}Energy Feature (D01)}{19}{subsection.4.3.1}%
+\contentsline {subsection}{\numberline {4.3.2}MET Treatment (D02)}{19}{subsection.4.3.2}%
+\contentsline {subsection}{\numberline {4.3.3}Token Ordering (D03)}{20}{subsection.4.3.3}%
+\contentsline {paragraph}{Attribution.}{20}{table.caption.16}%
+\contentsline {section}{\numberline {4.4}Discussion}{21}{section.4.4}%
+\contentsline {paragraph}{Ranking of effects.}{21}{section.4.4}%
+\contentsline {paragraph}{Limitations.}{22}{section.4.4}%
+\contentsline {paragraph}{Chapter baseline.}{22}{section.4.4}%
+\contentsline {chapter}{\numberline {5}Physics-Informed Attention Biases}{25}{chapter.5}%
+\contentsline {section}{\numberline {5.1}Bias family comparison (Exp.\ 5A)}{25}{section.5.1}%
+\contentsline {subsection}{\numberline {5.1.1}Experimental design}{25}{subsection.5.1.1}%
+\contentsline {subsection}{\numberline {5.1.2}Performance results}{25}{subsection.5.1.2}%
+\contentsline {subsection}{\numberline {5.1.3}Attention structure: none versus full combination}{26}{subsection.5.1.3}%
+\contentsline {section}{\numberline {5.2}Lorentz feature set and bias network (Exp.\ 5B)}{27}{section.5.2}%
+\contentsline {subsection}{\numberline {5.2.1}Experimental design}{27}{subsection.5.2.1}%
+\contentsline {subsection}{\numberline {5.2.2}AUROC results}{28}{subsection.5.2.2}%
+\contentsline {subsection}{\numberline {5.2.3}KAN spline structure and gate values}{29}{subsection.5.2.3}%
+\contentsline {section}{\numberline {5.3}Type-pair initialisation and freeze (Exp.\ 5C)}{31}{section.5.3}%
+\contentsline {subsection}{\numberline {5.3.1}Experimental design}{31}{subsection.5.3.1}%
+\contentsline {subsection}{\numberline {5.3.2}Performance results}{31}{subsection.5.3.2}%
+\contentsline {subsection}{\numberline {5.3.3}Learned table structure}{32}{subsection.5.3.3}%
+\contentsline {section}{\numberline {5.4}SM interaction mode (Exp.\ 5D)}{34}{section.5.4}%
+\contentsline {section}{\numberline {5.5}Chapter synthesis}{35}{section.5.5}%
+\contentsline {chapter}{\numberline {6}Attention Mechanisms}{37}{chapter.6}%
+\contentsline {section}{\numberline {6.1}Differential Attention}{37}{section.6.1}%
+\contentsline {section}{\numberline {6.2}Attention Type and Internal Normalisation}{38}{section.6.2}%
+\contentsline {subsection}{\numberline {6.2.1}Experimental Design}{38}{subsection.6.2.1}%
+\contentsline {subsection}{\numberline {6.2.2}Results: Attention Type}{38}{subsection.6.2.2}%
+\contentsline {subsection}{\numberline {6.2.3}Results: Attention-Internal Normalisation}{39}{subsection.6.2.3}%
+\contentsline {section}{\numberline {6.3}Physics Bias and Differential Attention}{40}{section.6.3}%
+\contentsline {subsection}{\numberline {6.3.1}Experimental Design}{40}{subsection.6.3.1}%
+\contentsline {subsection}{\numberline {6.3.2}Results: B1 by Attention Type}{40}{subsection.6.3.2}%
+\contentsline {section}{\numberline {6.4}Differential Bias Mode}{41}{section.6.4}%
+\contentsline {subsection}{\numberline {6.4.1}Experimental Design}{41}{subsection.6.4.1}%
+\contentsline {subsection}{\numberline {6.4.2}Results}{41}{subsection.6.4.2}%
+\contentsline {section}{\numberline {6.5}Chapter Summary}{43}{section.6.5}%
+\contentsline {chapter}{\numberline {7}Model Scaling and Efficiency}{47}{chapter.7}%
+\contentsline {section}{\numberline {7.1}Experimental Design}{47}{section.7.1}%
+\contentsline {section}{\numberline {7.2}Scaling Curves (Exp.\ 7A)}{48}{section.7.2}%
+\contentsline {subsection}{\numberline {7.2.1}AUROC versus Model Size}{48}{subsection.7.2.1}%
+\contentsline {paragraph}{Signal efficiency at fixed background rejection.}{48}{table.caption.59}%
+\contentsline {subsection}{\numberline {7.2.2}Training Cost}{49}{subsection.7.2.2}%
+\contentsline {section}{\numberline {7.3}Efficiency and Pareto Analysis (Exp.\ 7B)}{49}{section.7.3}%
+\contentsline {paragraph}{AUROC versus FLOPs per event.}{50}{section.7.3}%
+\contentsline {paragraph}{AUROC versus inference latency.}{50}{figure.caption.65}%
+\contentsline {paragraph}{AUROC versus throughput.}{50}{figure.caption.66}%
+\contentsline {paragraph}{AUROC versus peak memory.}{51}{figure.caption.67}%
+\contentsline {part}{III\hspace {1em}Synthesis}{55}{part.3}%
+\contentsline {chapter}{\numberline {8}Global Surrogate-Driven Analysis}{56}{chapter.8}%
+\contentsline {section}{\numberline {8.1}Database Audit and Inclusion Rules}{56}{section.8.1}%
+\contentsline {subsection}{\numberline {8.1.1}Run counts and cohort definition}{56}{subsection.8.1.1}%
+\contentsline {subsection}{\numberline {8.1.2}Axis coverage and co-occurrence structure}{56}{subsection.8.1.2}%
+\contentsline {section}{\numberline {8.2}Marginal Sensitivity Analysis}{57}{section.8.2}%
+\contentsline {subsection}{\numberline {8.2.1}Seed noise floor}{57}{subsection.8.2.1}%
+\contentsline {subsection}{\numberline {8.2.2}Per-axis AUROC range}{57}{subsection.8.2.2}%
+\contentsline {section}{\numberline {8.3}Global Surrogate and SHAP Attribution}{58}{section.8.3}%
+\contentsline {subsection}{\numberline {8.3.1}Surrogate design}{58}{subsection.8.3.1}%
+\contentsline {subsection}{\numberline {8.3.2}Cross-validation performance}{58}{subsection.8.3.2}%
+\contentsline {subsection}{\numberline {8.3.3}SHAP attribution by axis family}{58}{subsection.8.3.3}%
+\contentsline {section}{\numberline {8.4}Candidate Proposals and Validation}{59}{section.8.4}%
+\contentsline {subsection}{\numberline {8.4.1}Sampling strategy and constraint predicate}{59}{subsection.8.4.1}%
+\contentsline {subsection}{\numberline {8.4.2}Top-10 surrogate-predicted configurations}{60}{subsection.8.4.2}%
+\contentsline {subsection}{\numberline {8.4.3}Cross-cohort consistency check}{60}{subsection.8.4.3}%
+\contentsline {subsection}{\numberline {8.4.4}Validation training results}{60}{subsection.8.4.4}%
+\contentsline {section}{\numberline {8.5}Optuna TPE Comparison}{61}{section.8.5}%
+\contentsline {section}{\numberline {8.6}Summary and Bridge to Chapter~\ref {ch:best_model}}{62}{section.8.6}%
+\contentsline {chapter}{\numberline {9}The Best Model and Its Physics Reach}{71}{chapter.9}%
+\contentsline {section}{\numberline {9.1}Model Selection}{71}{section.9.1}%
+\contentsline {section}{\numberline {9.2}Discriminant Performance at Physics Working Points}{72}{section.9.2}%
+\contentsline {section}{\numberline {9.3}Illustrative Physics Reach}{73}{section.9.3}%
+\contentsline {subsection}{\numberline {9.3.1}Significance Estimator}{73}{subsection.9.3.1}%
+\contentsline {subsection}{\numberline {9.3.2}Assumptions}{74}{subsection.9.3.2}%
+\contentsline {subsection}{\numberline {9.3.3}Results}{74}{subsection.9.3.3}%
+\contentsline {section}{\numberline {9.4}Chapter Summary}{75}{section.9.4}%
+\contentsline {chapter}{\numberline {10}Conclusion and Outlook}{76}{chapter.10}%
+\contentsline {chapter}{References}{78}{chapter*.95}%
+\contentsline {chapter}{\numberline {A}Axes reference table}{79}{chapter.A}%
+\contentsline {chapter}{\numberline {B}Codebase Struture and Reproducibility}{80}{chapter.B}%
+\contentsline {chapter}{\numberline {C}Dataset and Feature Definitons}{81}{chapter.C}%
 \contentsfinish 

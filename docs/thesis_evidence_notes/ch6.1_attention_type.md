@@ -1,6 +1,6 @@
 # Evidence Note: ch6.1 — Attention Type (A3) and Differential Bias Mode (A3-a)
 
-**Status:** run-complete
+**Status:** interpreted
 **Date created:** 2026-05-14
 **Last updated:** 2026-05-14
 
@@ -182,6 +182,23 @@ Figures relevant to this note: `auroc_seedspread_by_attn_type`, `auroc_seedsprea
 
 ---
 
-## 8. Thesis-Safe Interpretation
+## 8. Figure Provenance
+
+Report run: `report_20260515-101822_ch6_attention_mechanisms`
+
+| Destination (`thesis_report/figures/ch6/`) | Source |
+|---|---|
+| `ch6_A3_auroc_seedspread_attn_type.pdf` | `training/figures/figure-auroc_seedspread_by_attn_type.pdf` |
+| `ch6_A3a_auroc_seedspread_diff_bias_mode.pdf` | `training/figures/figure-auroc_seedspread_by_diff_bias_mode.pdf` |
+| `ch6_A3_per_class_auroc.pdf` | `training/figures/figure-per_class_auroc_by_attn_type.pdf` |
+| `ch6_A3_lambda_evolution.pdf` | `training/figures/figure-lambda_evolution.pdf` |
+| `ch6_A3_attention_entropy_by_layer.pdf` | `training/figures/figure-attention_entropy_by_layer.pdf` |
+| `ch6_A3_val_auroc_curves.pdf` | `training/figures/figure-val_auroc_by_attn_type.pdf` |
+| `ch6_A3xB1_auroc_heatmap.pdf` | `training/figures/figure-auroc_heatmap_attn_type_x_bias.pdf` |
+| `ch6_A3xA4_auroc_heatmap.pdf` | `training/figures/figure-auroc_heatmap_attn_type_x_norm.pdf` |
+
+---
+
+## 9. Thesis-Safe Interpretation
 
 Differential attention (Ye et al. 2025) consistently outperforms standard multi-head attention across all normalization and bias configurations in this sweep, yielding a mean AUROC of 0.831 versus 0.827 for the standard baseline (+0.36 pp). The gain is small but present across all five signal classes and appears robust to seed variation (std of ~0.003 for both groups). The differential bias mode (A3-a) has negligible impact on AUROC: `split` (0.833) and `none` (0.833) slightly outperform `shared` (0.830), but all differences are within one standard deviation of the seed spread. The cleanest reading is that the differential attention mechanism itself, rather than the specifics of how the physics bias is distributed across its two softmax branches, is responsible for the modest gain. The recommended configuration going into later chapters is differential attention with A3-a=split (or shared) plus Lorentz-scalar bias (best combination AUROC 0.833).

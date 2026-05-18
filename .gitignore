@@ -5,6 +5,10 @@ Thumbs.db
 .idea/
 .cursor/
 
+# Local papers / notes for agents (PDFs, exports, etc. — not tracked)
+/agent_reference/*
+!/agent_reference/README.md
+
 # Agent / AI tool caches and local state (do not commit — large binaries + noise)
 .agent-state/
 .claude/

@@ -1,6 +1,6 @@
 # Evidence Note: ch6.3 — Attention Biases and Interaction with Attention Type (B1 × A3)
 
-**Status:** run-complete
+**Status:** interpreted
 **Date created:** 2026-05-14
 **Last updated:** 2026-05-14
 
@@ -122,6 +122,19 @@ Expected output path:
 
 ---
 
-## 8. Thesis-Safe Interpretation
+## 8. Figure Provenance
+
+Report run: `report_20260515-101822_ch6_attention_mechanisms`
+
+| Destination (`thesis_report/figures/ch6/`) | Source |
+|---|---|
+| `ch6_B1_auroc_seedspread_bias.pdf` | `training/figures/figure-auroc_seedspread_by_bias.pdf` |
+| `ch6_B1_val_auroc_curves.pdf` | `training/figures/figure-val_auroc_by_bias.pdf` |
+| `ch6_A3xB1_auroc_heatmap.pdf` | `training/figures/figure-auroc_heatmap_attn_type_x_bias.pdf` |
+| `ch6_A4xB1_auroc_heatmap.pdf` | `training/figures/figure-auroc_heatmap_norm_x_bias.pdf` |
+
+---
+
+## 9. Thesis-Safe Interpretation
 
 The Lorentz-scalar physics bias provides a small but consistent AUROC improvement when combined with differential attention (+0.25 pp marginalised over all conditions; +0.33 pp in the best-vs-baseline comparison). Crucially, the gain is concentrated in the differential-attention group: standard attention sees essentially no benefit from the Lorentz-scalar bias (mean AUROC 0.827 with and without it). This interaction suggests that the differential attention mechanism is better at exploiting the structure of the physics-informed additive bias — possibly because its learnable λ parameter can modulate how strongly the bias contributes relative to the content-based attention score. The recommended final configuration for chapter 6 and subsequent chapters is: A3=differential, A4=none, B1=lorentz_scalar, A3-a=split (or shared), with overall AUROC 0.833.

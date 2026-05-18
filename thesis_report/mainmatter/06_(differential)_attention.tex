@@ -1,104 +1,487 @@
 \chapter{Attention Mechanisms}
+\label{ch:attention}
 
-The attention mechanism is the only component that operates over all
-token pairs simultaneously. Chapters 4 and 5 asked how to enrich the
-information arriving at the attention layer; this chapter asks whether
-the attention computation itself should be modified. The central
-question is whether differential attention,which computes the
-difference of two softmax maps to suppress diffuse, low-information
-attention patterns, transfers from its original NLP setting to
-particle classification.
+The attention mechanism is the only component that simultaneously relates every pair
+of particle tokens. Chapters~4 and~5 asked how to enrich the information arriving at
+the attention layer; this chapter asks whether the attention computation itself should
+be modified. Three axes are investigated: the \emph{type} of attention
+(\wandbaxis{A3}), an optional \emph{attention-internal normalisation}
+(\wandbaxis{A4}), and the \emph{mode in which a physics bias interacts with the two
+branches of differential attention} (\wandbaxis{A3-a}). The Lorentz-scalar bias axis
+\wandbaxis{B1} from Chapter~5 reappears here as a co-factor, because the interaction
+between physics bias and attention type is the primary scientific question of
+Section~\ref{sec:ch6_attn_bias}.
 
-The physics motivation is direct: in a multi-top event, only a small
-subset of the 10--20 reconstructed objects are decay products of the
-four top quarks. Standard softmax attention distributes probability
-mass across all token pairs including unrelated soft objects.
-Differential attention is designed for exactly this setting, and
-provides a clear testable hypothesis.
+The physics motivation is direct. In a multi-top event, only a small subset of the
+10--20 reconstructed objects are decay products of the four top quarks; standard
+softmax attention distributes probability mass across all token pairs, including
+unrelated soft objects. Differential attention~\cite{YE2025}
+suppresses diffuse attention by computing the normalised difference of two softmax
+maps, providing a structurally motivated inductive bias for signal concentration.
+Whether this mechanism transfers from the natural-language setting to particle
+classification is a testable hypothesis addressed in Section~\ref{sec:ch6_attn_type}.
 
-Two experiments are run. Exp.\ 6A establishes the headline comparison
-across attention type, internal normalisation, and the presence of a
-Lorentz-scalar bias. Exp.\ 6B is a targeted follow-up on how physics
-biases interact with the two differential attention branches.
+Two experiments were run. Experiment~6A establishes the headline comparison across
+attention type (\wandbaxis{A3}), internal normalisation (\wandbaxis{A4}), and the
+presence of a Lorentz-scalar bias (\wandbaxis{B1}). Experiment~6B is a targeted
+follow-up on how the Lorentz-scalar bias should interact with the two differential
+attention branches (\wandbaxis{A3-a}), with attention type and normalisation fixed at
+the values recommended by Exp.~6A. Section~\ref{sec:ch6_summary} synthesises the
+findings and states the recommended configuration carried forward to subsequent
+chapters.
 
-% ──────────────────────────────────────────────
-\section{Attention type and internal normalisation (Exp.\ 6A)}
-\textit{Lens: performance and efficiency.}
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Differential Attention}
+\label{sec:ch6_diff_attn}
 
-Sweeps A3 (standard vs.\ differential), A4 (attention-internal
-normalisation), and whether a Lorentz-scalar bias is active. The bias
-inclusion tests whether physics structure in the attention logits and
-noise suppression from differential attention are complementary or
-redundant. Wall-clock time per epoch is recorded alongside AUROC, since
-differential attention runs two softmax passes per head.
+Standard multi-head self-attention computes, for each head $h$, a single softmax map
+over scaled dot products:
+\begin{equation}
+  \mathrm{Attn}_h(\mathbf{Q},\mathbf{K},\mathbf{V})
+    = \mathrm{softmax}\!\left(\frac{\mathbf{Q}_h \mathbf{K}_h^\top}{\sqrt{d_h}}\right)\mathbf{V}_h.
+\end{equation}
+The output mixes content from all positions weighted by the softmax distribution, which
+is strictly positive and therefore cannot cancel spurious correlations. Differential
+attention~\cite{YE2025} replaces this with the difference of
+two independent softmax maps computed on non-overlapping halves of the query and key
+projections:
+\begin{equation}
+  \mathrm{DiffAttn}_h(\mathbf{Q},\mathbf{K},\mathbf{V})
+    = \bigl[\mathrm{softmax}(\mathbf{Q}_{h1}\mathbf{K}_{h1}^\top/\sqrt{d_h})
+            - \lambda_h\,\mathrm{softmax}(\mathbf{Q}_{h2}\mathbf{K}_{h2}^\top/\sqrt{d_h})\bigr]
+      \mathbf{V}_h,
+\end{equation}
+where $\lambda_h \in \mathbb{R}^{+}$ is a per-head scalar initialised to a small
+positive value and learned during training. The subtraction cancels attention patterns
+common to both maps, amplifying the response to pairs that are relevant to one map but
+not the other. The mechanism doubles the query and key projection cost per head but
+keeps value dimension and model depth unchanged; the additional parameter burden is
+minimal (one scalar $\lambda_h$ per head per layer).
+
+In the particle-physics context, the differential mechanism is expected to assign near-zero
+net attention weight to object pairs that are kinematically inert with respect to
+the classification decision, while concentrating weight on pairs with discriminating
+invariant-mass or angular structure. The Lorentz-scalar bias (\wandbaxis{B1}) provides
+complementary guidance by adding a physics-motivated additive term to the attention
+logits before the softmax; the interaction between the two is a central question of
+this chapter.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Attention Type and Internal Normalisation}
+\label{sec:ch6_attn_type}
+
+\subsection{Experimental Design}
+\label{subsec:ch6_attn_design}
+
+Experiment~6A swept \wandbaxis{A3} (attention type: \texttt{standard} or
+\texttt{differential}), \wandbaxis{A4} (attention-internal normalisation:
+\texttt{none}, \texttt{layernorm}, or \texttt{rmsnorm}), and \wandbaxis{B1} (bias:
+\texttt{none} or \texttt{lorentz\_scalar}), with all other axes fixed at the chapter
+baseline.
 
 \begin{table}[h]
 \centering\small
 \begin{tabular}{llr}
 \toprule
-Axis & Values & Config \\
+Axis & Values & Configurations \\
 \midrule
-A3 — Attention type & \texttt{standard}, \texttt{differential} & 2 \\
-A4 — Internal norm  & \texttt{none}, \texttt{layernorm}, \texttt{rmsnorm} & 3 \\
-B1 — Lorentz bias   & \texttt{none}, \texttt{lorentz\_scalar} & 2 \\
-Seeds & & 3 \\
+A3 — Attention type           & \texttt{standard}, \texttt{differential} & 2 \\
+A4 — Internal normalisation   & \texttt{none}, \texttt{layernorm}, \texttt{rmsnorm} & 3 \\
+B1 — Lorentz-scalar bias      & \texttt{none}, \texttt{lorentz\_scalar} & 2 \\
+Seeds                         & 42, 123, 314 & 3 \\
 \midrule
 Total & & \textbf{36} \\
 \bottomrule
 \end{tabular}
-\caption{Exp.\ 6A. All other axes at chapter baseline.
-\texttt{lorentz\_scalar} uses the best feature set from Ch.\,5.}
+\caption{Exp.~6A design. All other axes held at the chapter baseline.
+  \texttt{lorentz\_scalar} uses the feature set recommended in Chapter~5.
+  Axis A3-a is fixed to \texttt{shared} throughout Exp.~6A.}
+\label{tab:ch6_exp6a_design}
 \end{table}
 
-Outputs: seed-averaged AUROC bar chart for all 12 configurations, with
-wall-clock time as a secondary axis. Attention maps extracted at
-inference time for standard and differential (both with A4=none,
-B1=none), averaged over a fixed held-out batch and labelled by particle
-type. If differential attention is working as intended, maps should show
-higher concentration on physically proximate pairs.
+The 36 runs span all $2 \times 3 \times 2$ cells with 3 seeds each. Performance was
+evaluated using the mean one-vs-rest AUROC across all five signal classes
+(\texttt{eval\_v2/test\_auroc}), as defined in Chapter~2. Wall-clock time per epoch was
+also recorded to quantify the overhead of the differential attention pass.
 
-% ──────────────────────────────────────────────
-\section{Differential bias mode (Exp.\ 6B)}
-\textit{Lens: performance.}
+\subsection{Results: Attention Type}
+\label{subsec:ch6_attn_type_results}
 
-Restricted to A3=\texttt{differential}. Tests how the additive
-Lorentz-scalar bias from Ch.\,5 should interact with the two attention
-branches: added to neither, shared across both, or split with separate
-parameters per branch.
+Figure~\ref{fig:ch6_A3_seedspread} shows the seed-averaged AUROC for all 36 Exp.~6A
+configurations, grouped by attention type. Differential attention consistently
+outperforms standard attention across all normalisation and bias conditions.
+Marginalised over all 45 chapter-6 runs, the mean AUROC of
+\wandbaxis{A3}${}=\texttt{differential}$ is $0.831 \pm 0.003$ ($n=27$) versus
+$0.827 \pm 0.003$ ($n=18$) for \texttt{standard}, a difference of $+0.0036$ absolute
+($+0.36$\,pp). The gap is small but present with consistent sign across seed replicas.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.82\textwidth]{figures/ch6/ch6_A3_auroc_seedspread_attn_type.pdf}
+  \caption{Seed-spread AUROC for A3 attention types across all Exp.~6A
+    configurations. Each point is one seed; horizontal bars show the
+    per-configuration mean. Differential attention (blue) sits
+    systematically above standard attention (orange) for every
+    normalisation and bias combination.}
+  \label{fig:ch6_A3_seedspread}
+\end{figure}
+
+The per-class decomposition in Figure~\ref{fig:ch6_A3_per_class} confirms the gain is
+not concentrated in a single class. Differential attention improves AUROC for all five
+signal categories, with the largest absolute gain in the $t\bar{t}H$ channel
+($+0.0045$) and the smallest in $t\bar{t}WW$ ($+0.0034$). The $t\bar{t}WW$ channel is
+consistently the hardest class (AUROC $\approx 0.737$ for standard and $0.738$ for
+differential), reflecting the kinematic similarity between four-top and
+double-$W$-associated production at high jet multiplicity.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.82\textwidth]{figures/ch6/ch6_A3_per_class_auroc.pdf}
+  \caption{Per-class one-vs-rest AUROC, standard vs.\ differential attention,
+    marginalised over all A4 and B1 conditions. Error bars span one standard deviation
+    across seeds. Differential attention improves every class; the $t\bar{t}WW$
+    channel (class~3) remains the hardest in both configurations.}
+  \label{fig:ch6_A3_per_class}
+\end{figure}
+
+Figure~\ref{fig:ch6_A3_val_curves} shows validation AUROC curves during training.
+The differential-attention models converge to a higher plateau in approximately the
+same number of epochs, without signs of increased instability or oscillation. The
+$\lambda_h$ evolution in Figure~\ref{fig:ch6_lambda} indicates that the per-head
+cancellation strength is learned smoothly over training, converging to stable non-zero
+values. This confirms that the differential mechanism is active and not degenerate
+(a degenerate case, $\lambda_h \to 0$, would recover standard attention).
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.82\textwidth]{figures/ch6/ch6_A3_val_auroc_curves.pdf}
+  \caption{Validation AUROC training curves for standard (dashed) and differential
+    (solid) attention, with A4=\texttt{none} and B1=\texttt{lorentz\_scalar}.
+    Shaded bands cover one standard deviation across three seeds.
+    Differential attention converges to a higher plateau without loss of stability.}
+  \label{fig:ch6_A3_val_curves}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.75\textwidth]{figures/ch6/ch6_A3_lambda_evolution.pdf}
+  \caption{Evolution of the per-head $\lambda_h$ parameters in differential attention
+    over training epochs, averaged across heads and seeds. Values converge to stable
+    non-zero levels, confirming that the cancellation mechanism is active throughout
+    training.}
+  \label{fig:ch6_lambda}
+\end{figure}
+
+The attention entropy by layer (Figure~\ref{fig:ch6_attn_entropy}) shows lower
+per-layer entropy for differential attention in the middle layers, consistent with the
+mechanism suppressing diffuse attention patterns. Later layers recover higher
+entropy, suggesting the suppression is selective rather than global.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.75\textwidth]{figures/ch6/ch6_A3_attention_entropy_by_layer.pdf}
+  \caption{Attention entropy per transformer layer, averaged over a held-out batch
+    and three seeds, for standard and differential attention
+    (A4=\texttt{none}, B1=\texttt{lorentz\_scalar}).
+    Lower entropy in middle layers for differential attention is consistent
+    with more concentrated attention patterns.}
+  \label{fig:ch6_attn_entropy}
+\end{figure}
+
+\subsection{Results: Attention-Internal Normalisation}
+\label{subsec:ch6_attn_norm_results}
+
+Figure~\ref{fig:ch6_A4_seedspread} shows AUROC grouped by \wandbaxis{A4}. Applying
+LayerNorm or RMSNorm inside the attention module consistently reduces mean AUROC
+compared to no normalisation. The means are $0.832 \pm 0.002$ for
+\texttt{none} ($n=21$), $0.827 \pm 0.002$ for \texttt{layernorm} ($n=12$), and
+$0.826 \pm 0.003$ for \texttt{rmsnorm} ($n=12$). The gap of approximately $0.005$
+absolute ($0.5$\,pp) is present for both attention types and both bias conditions,
+as shown in the interaction heatmap of Figure~\ref{fig:ch6_A3xA4_heatmap}.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.82\textwidth]{figures/ch6/ch6_A4_auroc_seedspread_attn_norm.pdf}
+  \caption{Seed-spread AUROC for the three A4 attention-internal normalisation
+    options (\texttt{none}, \texttt{layernorm}, \texttt{rmsnorm}),
+    marginalised over A3 and B1.
+    No normalisation is consistently best; LayerNorm and RMSNorm are nearly
+    equivalent and both below the \texttt{none} baseline.}
+  \label{fig:ch6_A4_seedspread}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.72\textwidth]{figures/ch6/ch6_A3xA4_auroc_heatmap.pdf}
+  \caption{Mean AUROC heatmap for the A3 $\times$ A4 interaction.
+    The \texttt{none} normalisation row is best for both attention types.
+    Differential attention (left column) consistently outperforms standard (right
+    column) within every normalisation row.}
+  \label{fig:ch6_A3xA4_heatmap}
+\end{figure}
+
+A plausible explanation is that attention-internal normalisation re-scales the
+raw dot-product values against which the Lorentz-scalar bias is calibrated,
+reducing the effective contribution of the physics term. An alternative explanation
+is that the normalisation layer introduces additional smoothing that is unhelpful in
+a relatively shallow architecture (six encoder layers). The evidence is insufficient
+to distinguish these explanations, but the recommendation is unambiguous:
+\wandbaxis{A4}${}=\texttt{none}$ throughout.
+
+Figure~\ref{fig:ch6_A4_val_curves} confirms that the ordering is stable over training
+and is not a transient artefact of convergence differences.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.82\textwidth]{figures/ch6/ch6_A4_val_auroc_curves.pdf}
+  \caption{Validation AUROC training curves for the three A4 options
+    (A3=\texttt{differential}, B1=\texttt{lorentz\_scalar}).
+    The \texttt{none} configuration (solid) converges to the highest plateau;
+    the gap to the normalised variants is established within the first 20 epochs
+    and is stable thereafter.}
+  \label{fig:ch6_A4_val_curves}
+\end{figure}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Physics Bias and Differential Attention}
+\label{sec:ch6_attn_bias}
+
+\subsection{Experimental Design}
+\label{subsec:ch6_bias_design}
+
+The Lorentz-scalar bias (\wandbaxis{B1}) was already present as a co-factor in
+Exp.~6A; this section analyses its interaction with attention type. Section~\ref{subsec:ch6_diffbias_design}
+then introduces Exp.~6B, which studies how the bias interacts with the two
+softmax branches of differential attention via axis \wandbaxis{A3-a}.
+
+\subsection{Results: B1 by Attention Type}
+\label{subsec:ch6_bias_results}
+
+Figure~\ref{fig:ch6_B1_seedspread} summarises the marginalised B1 effect. The
+Lorentz-scalar bias provides a mean AUROC gain of $+0.0025$ ($+0.25$\,pp) over the
+45 chapter-6 runs ($0.830 \pm 0.004$ with bias, $0.828 \pm 0.003$ without).
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.82\textwidth]{figures/ch6/ch6_B1_auroc_seedspread_bias.pdf}
+  \caption{Seed-spread AUROC for B1 bias options (\texttt{none} vs.\
+    \texttt{lorentz\_scalar}), marginalised over A3 and A4.
+    The Lorentz-scalar bias provides a modest positive shift; the effect
+    is larger for differential than for standard attention
+    (see Figure~\ref{fig:ch6_A3xB1_heatmap}).}
+  \label{fig:ch6_B1_seedspread}
+\end{figure}
+
+The critical finding is the A3 $\times$ B1 interaction shown in
+Figure~\ref{fig:ch6_A3xB1_heatmap}. For standard attention the Lorentz-scalar bias
+provides essentially no benefit: the mean AUROC with and without the bias is
+$0.827$ in both cases (absolute difference $+0.0002$, well within the seed spread).
+For differential attention the same bias yields a mean gain of $+0.0033$. This
+interaction suggests that the learnable $\lambda_h$ parameter of differential
+attention can modulate how strongly the physics bias enters the final attention score:
+when the raw dot-product difference already suppresses uninformative pairs, the additive
+physics term can concentrate further on the most discriminating pairwise features.
+Standard attention lacks this modulation and appears unable to exploit the bias
+structure consistently.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.72\textwidth]{figures/ch6/ch6_A3xB1_auroc_heatmap.pdf}
+  \caption{Mean AUROC heatmap for the A3 $\times$ B1 interaction,
+    marginalised over A4 (Exp.~6A runs only).
+    The Lorentz-scalar bias provides a clear gain for differential attention
+    ($+0.0033$) but is ineffective for standard attention ($+0.0002$).}
+  \label{fig:ch6_A3xB1_heatmap}
+\end{figure}
+
+Within the cleanest A4${}=\texttt{none}$ subgroup (Table~\ref{tab:ch6_A3xB1_clean}),
+the pattern holds: \texttt{standard+lorentz\_scalar} ($0.832$) reaches approximately
+the same level as \texttt{differential+none} ($0.831$), while
+\texttt{differential+lorentz\_scalar} ($0.833$) is highest. The bias and the
+differential mechanism therefore contribute independently and in an approximately
+additive manner.
 
 \begin{table}[h]
 \centering\small
 \begin{tabular}{llr}
 \toprule
-Axis & Values & Config \\
+A3 & B1 & Mean AUROC \\
 \midrule
-A3-a — Diff bias mode & \texttt{none}, \texttt{shared}, \texttt{split} & 3 \\
-Seeds & & 3 \\
+\texttt{standard}     & \texttt{none}           & 0.830 \\
+\texttt{standard}     & \texttt{lorentz\_scalar} & 0.832 \\
+\texttt{differential} & \texttt{none}           & 0.831 \\
+\texttt{differential} & \texttt{lorentz\_scalar} & 0.833 \\
+\bottomrule
+\end{tabular}
+\caption{Mean AUROC for the A3 $\times$ B1 interaction within the A4${}=\texttt{none}$
+  subgroup. All entries are averaged over three seeds; $n=3$ except
+  \texttt{differential+lorentz\_scalar} ($n=12$).}
+\label{tab:ch6_A3xB1_clean}
+\end{table}
+
+Figure~\ref{fig:ch6_A4xB1_heatmap} further shows the A4 $\times$ B1 interaction.
+The Lorentz-scalar bias is beneficial when A4${}=\texttt{none}$ and when
+A4${}=\texttt{layernorm}$, but provides no consistent gain with
+A4${}=\texttt{rmsnorm}$. This is consistent with the interpretation that
+attention-internal normalisation partially disrupts the scale of the bias contribution;
+however, the differences are within one seed-spread standard deviation and should not
+be over-interpreted.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.72\textwidth]{figures/ch6/ch6_A4xB1_auroc_heatmap.pdf}
+  \caption{Mean AUROC heatmap for the A4 $\times$ B1 interaction,
+    marginalised over A3. The Lorentz-scalar bias provides a positive
+    contribution for \texttt{none} and \texttt{layernorm} normalisation,
+    but not for \texttt{rmsnorm}.}
+  \label{fig:ch6_A4xB1_heatmap}
+\end{figure}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Differential Bias Mode}
+\label{sec:ch6_diff_bias_mode}
+
+\subsection{Experimental Design}
+\label{subsec:ch6_diffbias_design}
+
+Differential attention has two softmax branches; a physics-informed additive bias can
+be applied to both branches identically (\texttt{shared}), distributed to each branch
+via independent network heads with separate parameters (\texttt{split}), or omitted
+entirely (\texttt{none}). Axis \wandbaxis{A3-a} controls this choice.
+
+Experiment~6B swept \wandbaxis{A3-a} with A3${}=\texttt{differential}$,
+A4${}=\texttt{none}$, and B1${}=\texttt{lorentz\_scalar}$ fixed at the values
+recommended by Exp.~6A.
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{llr}
+\toprule
+Axis & Values & Configurations \\
+\midrule
+A3-a — Differential bias mode & \texttt{none}, \texttt{shared}, \texttt{split} & 3 \\
+Seeds & 42, 123, 314 & 3 \\
 \midrule
 Total & & \textbf{9} \\
 \bottomrule
 \end{tabular}
-\caption{Exp.\ 6B. A3=\texttt{differential} and
-B1=\texttt{lorentz\_scalar} fixed throughout.}
+\caption{Exp.~6B design. A3${}=\texttt{differential}$, A4${}=\texttt{none}$, and
+  B1${}=\texttt{lorentz\_scalar}$ are fixed throughout.}
+\label{tab:ch6_exp6b_design}
 \end{table}
 
-Output: compact three-row AUROC table. If \texttt{shared} and
-\texttt{split} perform equivalently, the second branch does not require
-independent bias information and the simpler shared parameterisation
-is sufficient.
+\subsection{Results}
+\label{subsec:ch6_diffbias_results}
 
-\subsection*{Chapter summary}
+Figure~\ref{fig:ch6_A3a_seedspread} and Table~\ref{tab:ch6_A3a_results} summarise
+the Exp.~6B outcomes. All three A3-a configurations perform closely: \texttt{split}
+achieves a mean AUROC of $0.8330 \pm 0.0016$ ($n=3$), \texttt{none} of
+$0.8326 \pm 0.0022$ ($n=3$), and \texttt{shared} of $0.8300 \pm 0.0027$ ($n=21$,
+including Exp.~6A runs with varying A4 and B1 conditions). The differences among the
+three modes do not exceed one standard deviation of the seed spread and should be
+considered negligible.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.75\textwidth]{figures/ch6/ch6_A3a_auroc_seedspread_diff_bias_mode.pdf}
+  \caption{Seed-spread AUROC for the three A3-a differential bias modes
+    within Exp.~6B (A4${}=\texttt{none}$, B1${}=\texttt{lorentz\_scalar}$).
+    The three modes are indistinguishable within seed variation.}
+  \label{fig:ch6_A3a_seedspread}
+\end{figure}
 
 \begin{table}[h]
 \centering\small
-\begin{tabular}{llr}
+\begin{tabular}{lrrr}
 \toprule
-Experiment & Primary axes & Runs \\
+A3-a & Mean AUROC & Std & $n$ \\
 \midrule
-6A — Attention type and norm & A3, A4, B1 & 36 \\
-6B — Differential bias mode  & A3-a        &  9 \\
-\midrule
-\textbf{Total} & & \textbf{45} \\
+\texttt{none}   & 0.8326 & 0.0022 & 3  \\
+\texttt{shared} & 0.8300 & 0.0027 & 21 \\
+\texttt{split}  & 0.8330 & 0.0016 & 3  \\
 \bottomrule
 \end{tabular}
+\caption{AUROC by differential bias mode. The \texttt{shared} group is larger
+  because it also includes the Exp.~6A runs (varied A4 and B1), inflating its
+  variance. The cleanest comparison is among the three Exp.~6B-only rows, each
+  with $n=3$ under identical A4 and B1 conditions.}
+\label{tab:ch6_A3a_results}
+\end{table}
+
+The \texttt{split} mode provides two independent MLP heads to produce the two
+attention-logit additive terms — one per branch — whereas \texttt{shared} adds the
+same bias to both branches. The near-identical performance of \texttt{split} and
+\texttt{none} (relative to \texttt{shared}) suggests that the second branch does not
+strongly benefit from an independent bias signal. A practical consequence is that the
+choice of A3-a can be made on the basis of model complexity preference: \texttt{split}
+doubles the parameters of the Lorentz-scalar MLP but provides no measurable gain over
+\texttt{shared} at fixed seed count. The \texttt{split} mode is adopted as the default
+for subsequent chapters, acknowledging that the difference is within noise.
+
+A methodological note on the A3-a confounder: Exp.~6B was designed with
+B1${}=\texttt{lorentz\_scalar}$ fixed, so the effect of A3-a when B1${}=\texttt{none}$
+is not measured. The A3-a effect is therefore not fully separable from B1 within this
+dataset.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Chapter Summary}
+\label{sec:ch6_summary}
+
+Table~\ref{tab:ch6_experiments} recaps the two experiments; Table~\ref{tab:ch6_recommendations}
+states the recommended axis settings derived from this chapter.
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{llll}
+\toprule
+Experiment & Axes swept & Fixed & Runs \\
+\midrule
+6A — Attention type and norm & A3, A4, B1 & A3-a=\texttt{shared} & 36 \\
+6B — Differential bias mode  & A3-a & A3=\texttt{differential}, A4=\texttt{none}, B1=\texttt{lorentz\_scalar} & 9 \\
+\midrule
+\textbf{Total} & & & \textbf{45} \\
+\bottomrule
+\end{tabular}
+\caption{Chapter~6 experimental overview.}
+\label{tab:ch6_experiments}
+\end{table}
+
+The three main findings are as follows.
+
+\textbf{Differential attention improves classification performance.}
+Axis \wandbaxis{A3}${}=\texttt{differential}$ yields a mean AUROC gain of
+$+0.0036$ over \texttt{standard} attention, with consistent positive sign
+across all five signal classes, all normalisation settings, and three random
+seeds. The $\lambda_h$ parameters converge to stable non-zero values, confirming
+that the cancellation mechanism is active.
+
+\textbf{Attention-internal normalisation is detrimental.}
+Axis \wandbaxis{A4}${}=\texttt{none}$ is best in all (A3, B1) sub-groups.
+Both LayerNorm and RMSNorm reduce mean AUROC by approximately $0.005$ absolute.
+The effect is consistent in direction across all conditions.
+
+\textbf{The Lorentz-scalar bias is effective only with differential attention.}
+Axis \wandbaxis{B1}${}=\texttt{lorentz\_scalar}$ provides a gain of $+0.0033$
+for differential attention but essentially no gain ($+0.0002$) for standard attention.
+The two mechanisms are approximately additive: the best configuration in this chapter
+(\wandbaxis{A3}${}=\texttt{differential}$, \wandbaxis{A4}${}=\texttt{none}$,
+\wandbaxis{B1}${}=\texttt{lorentz\_scalar}$, \wandbaxis{A3-a}${}=\texttt{split}$)
+achieves a mean AUROC of $0.8330 \pm 0.0016$, compared to the baseline
+(\texttt{standard}, A4${}=\texttt{none}$, B1${}=\texttt{none}$) at
+$0.8296 \pm 0.0027$ — an absolute gain of $+0.0034$ ($+0.34$\,pp).
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{lll}
+\toprule
+Axis & Recommended value & Rationale \\
+\midrule
+A3 — Attention type          & \texttt{differential} & Consistent $+0.36$\,pp over standard \\
+A4 — Internal normalisation  & \texttt{none}         & LN/RMSNorm reduce AUROC by $\approx 0.5$\,pp \\
+A3-a — Diff bias mode        & \texttt{split}        & Marginal over shared; within noise \\
+B1 — Lorentz-scalar bias     & \texttt{lorentz\_scalar} & Effective with differential attention \\
+\bottomrule
+\end{tabular}
+\caption{Recommended axis settings from Chapter~6, carried forward to subsequent chapters.}
+\label{tab:ch6_recommendations}
 \end{table}

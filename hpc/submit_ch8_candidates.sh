@@ -1,15 +1,16 @@
 #!/bin/bash
 # submit_ch8_candidates.sh — HTCondor submission for Ch8 candidate validation runs.
 #
-# Submits 6 experiments simultaneously (18 training runs total):
-#   Set S: cand01, cand02, cand03  — surrogate-strategy candidates
-#   Set M: cand_m1, cand_m2, cand_m3 — marginal-strategy candidates
+# Submits 3 experiments simultaneously (9 training runs total):
+#   Set M: cand_m1, cand_m2, cand_m3 — marginal-greedy candidates, 50 epochs, 3 seeds
+#
+# (cand01/02/03 surrogate-strategy candidates already completed in earlier run.)
 #
 # Each YAML sweeps classifier.trainer.seed: 42,123,456 via hydra.sweeper.params.
 # JobCategory: short  |  request_gpus: 1  (inherited from train.sub)
 #
 # Usage:
-#   bash hpc/submit_ch8_candidates.sh           # submit all 6
+#   bash hpc/submit_ch8_candidates.sh           # submit M-set
 #   bash hpc/submit_ch8_candidates.sh --dry-run # print without submitting
 
 set -euo pipefail
@@ -20,9 +21,6 @@ DRY_RUN=0
 for arg in "$@"; do [[ "$arg" == "--dry-run" ]] && DRY_RUN=1; done
 
 JOBS=(
-  thesis_experiments/ch8_candidates/cand01
-  thesis_experiments/ch8_candidates/cand02
-  thesis_experiments/ch8_candidates/cand03
   thesis_experiments/ch8_candidates/cand_m1
   thesis_experiments/ch8_candidates/cand_m2
   thesis_experiments/ch8_candidates/cand_m3
